@@ -1,1 +1,1 @@
-web: python manage.py collectstatic --noinput && gunicorn rpg_panel.wsgi
+web: python manage.py collectstatic --noinput && gunicorn rpg_panel.wsgi:application
