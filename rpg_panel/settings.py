@@ -28,10 +28,9 @@ SECRET_KEY = "django-insecure-vb^bj2+m8=8zgkaat_$cwk1i2!+&wcb&2uxj2q18zaqheseflb
 DEBUG = os.getenv("DEBUG", "False") == "True"
 
 ALLOWED_HOSTS = ["*"]
-CSRF_TRUSTED_ORIGINS = os.getenv(
-    "CSRF_TRUSTED_ORIGINS",
-    "https://*.railway.app,https://railway.app"
-).split(",")
+CSRF_TRUSTED_ORIGINS = [
+    "https://rpg-panel-production.up.railway.app",
+]
 
 
 # Application definition
@@ -83,7 +82,11 @@ WSGI_APPLICATION = "rpg_panel.wsgi.application"
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 DATABASES = {
-    "default": dj_database_url.config(default=os.getenv("DATABASE_URL"))
+    "default": dj_database_url.config(
+        default=os.getenv("DATABASE_URL"),
+        conn_max_age=600,
+        ssl_require=True,
+    )
 }
 
 
@@ -123,8 +126,7 @@ USE_TZ = True
 
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-STATICFILES_DIRS = [BASE_DIR / "hud" / "static"]
-# Temporary: disable manifest to detect missing asset references
+STATICFILES_DIRS = [BASE_DIR / "static"]
 STATICFILES_STORAGE = "whitenoise.storage.StaticFilesStorage"
 
 LOGIN_REDIRECT_URL = "home"
