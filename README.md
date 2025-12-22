@@ -585,4 +585,4 @@ Inspired by the needs of tabletop RPG communities for better campaign management
 
 **Happy Gaming! 🎲🎭**
 
-Last Updated: December 2024
+Last Updated: December 2025
