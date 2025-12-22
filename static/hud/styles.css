@@ -1,5 +1,12 @@
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600&family=Space+Grotesk:wght@400;500;600&display=swap');
 
+/* DEBUG: outline everything to confirm CSS is applied */
+* { outline: 2px solid red !important; box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: #0e1421 !important; }
+
+:root {
+
 :root {
     --bg: #0c0f1a;
     --panel: rgba(20, 26, 42, 0.78);
@@ -12,8 +19,6 @@
     --danger: #ff7b7b;
     --shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
 }
-
-* { box-sizing: border-box; }
 
 body.hud-body {
     margin: 0;
