@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="role-choice-container">
+    <div class="role-choice-header">
+        <h1 class="role-choice-title">Bem-vindo, {{ user.username }}!</h1>
+        <p class="role-choice-subtitle">Escolha seu papel:</p>
+    </div>
+
+    <div class="role-choice-grid">
+        <a href="{% url 'master_dashboard' %}" class="role-button role-button-master">
+            <div class="role-icon">👑</div>
+            <div class="role-label">Sou Mestre</div>
+        </a>
+        <a href="{% url 'player_dashboard' %}" class="role-button role-button-player">
+            <div class="role-icon">⚔️</div>
+            <div class="role-label">Sou Jogador</div>
+        </a>
+    </div>
+</div>
+{% endblock %}

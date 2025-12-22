@@ -1,0 +1,46 @@
+{% load static %}
+<!doctype html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Painel RPG HUD{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'hud/styles.css' %}">
+</head>
+<body class="hud-body">
+    <header class="topbar">
+        <div class="brand">Painel RPG HUD</div>
+        <nav class="topnav">
+            {% if user.is_authenticated %}
+                <a href="{% url 'home' %}">Início</a>
+                {% if is_master_user %}
+                    <a href="{% url 'character_list' %}">Personagens</a>
+                {% endif %}
+                <a href="{% url 'user_page' %}" class="user-link" style="display:flex;align-items:center;gap:8px;">
+                    <span class="mini-thumb" style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border); background:{% if user_profile and user_profile.avatar %}url('{{ user_profile.avatar.url }}'){% else %}#ffffff{% endif %}; background-size: cover; background-position: center;"></span>
+                    <span>{{ user.username }}</span>
+                </a>
+                <form method="post" action="{% url 'logout' %}" class="logout-form">
+                    {% csrf_token %}
+                    <button type="submit">Sair</button>
+                </form>
+            {% else %}
+                <a href="{% url 'login' %}">Entrar</a>
+            {% endif %}
+        </nav>
+    </header>
+
+    <main class="content">
+        {% if messages %}
+            <ul class="messages">
+                {% for message in messages %}
+                    <li class="message {{ message.tags }}">{{ message }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+        {% block content %}{% endblock %}
+    </main>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

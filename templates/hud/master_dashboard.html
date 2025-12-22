@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="content">
+    <div class="dashboard-header">
+        <h1 class="panel-title">Minhas Campanhas</h1>
+        <a href="{% url 'home' %}" class="hud-button ghost">Voltar</a>
+    </div>
+
+    {% if campaigns %}
+        <div class="campaigns-grid">
+            {% for campaign in campaigns %}
+                <div class="campaign-card">
+                    {% if campaign.banner %}
+                        <div class="campaign-banner" style="background-image: url('{{ campaign.banner.url }}')"></div>
+                    {% else %}
+                        <div class="campaign-banner empty"></div>
+                    {% endif %}
+                    <div class="campaign-info">
+                        <h2 class="campaign-name">{{ campaign.name }}</h2>
+                        <p class="campaign-desc">{{ campaign.description|truncatewords:15 }}</p>
+                        <a href="{% url 'campaign_detail' campaign.pk %}" class="hud-button">Gerenciar</a>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="campaign-create-section">
+        <h2 class="panel-subtitle">{% if campaigns %}+ Criar Nova Campanha{% else %}🚀 Crie Sua Primeira Campanha{% endif %}</h2>
+        <form method="post" enctype="multipart/form-data" class="panel-form campaign-form">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="{{ campaign_form.name.id_for_label }}">{{ campaign_form.name.label }}</label>
+                {{ campaign_form.name }}
+            </div>
+            <div class="form-group">
+                <label for="{{ campaign_form.description.id_for_label }}">{{ campaign_form.description.label }}</label>
+                {{ campaign_form.description }}
+            </div>
+            <div class="form-group">
+                <label for="{{ campaign_form.banner.id_for_label }}">{{ campaign_form.banner.label }}</label>
+                {{ campaign_form.banner }}
+            </div>
+            <button type="submit" class="hud-button">Criar Campanha</button>
+        </form>
+    </div>
+
+    {% if campaigns_as_player %}
+        <div class="player-campaigns-section">
+            <h2 class="panel-subtitle">Você também é jogador em:</h2>
+            <div class="campaigns-list">
+                {% for campaign in campaigns_as_player %}
+                    <div class="campaign-list-item">
+                        <span>{{ campaign.name }} (Mestre: {{ campaign.master.username }})</span>
+                        <a href="{% url 'campaign_detail' campaign.pk %}" class="hud-button ghost">Entrar</a>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

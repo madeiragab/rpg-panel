@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+{% if is_master and campaign and campaign_characters %}
+<nav class="character-navbar">
+    <div class="character-navbar-inner">
+        {% for char in campaign_characters %}
+        <a href="{% url 'character_detail' char.pk %}" class="character-nav-item {% if char.id == character.id %}active{% endif %}" title="{{ char.name }}">
+            <span class="character-nav-avatar" style="background:{% if char.image %}url('{{ char.image.url }}'){% else %}#ffffff{% endif %}; background-size: cover; background-position: center;"></span>
+            <span class="character-nav-name">{{ char.name }}</span>
+        </a>
+        {% endfor %}
+    </div>
+</nav>
+{% endif %}
+<div class="hud-layout" {% if campaign and campaign.banner %}style="background-image: linear-gradient(rgba(12, 15, 26, 0.85), rgba(12, 15, 26, 0.85)), url('{{ campaign.banner.url }}'); background-size: cover; background-attachment: fixed; background-position: center;"{% endif %}>
+    {% if not is_master %}
+        <div class="player-view-notice">
+            <p>📖 Você está visualizando este personagem em modo leitura</p>
+        </div>
+    {% endif %}
+    
+    <section class="panel-card column">
+        <h2 class="panel-title">Perícias / Proficiências</h2>
+        <div class="tags-wrap">
+            {% for skill in character.skills.all %}
+                <span class="skill-tag">
+                    {{ skill.name }}{% if skill.value %} <span class="skill-value">{{ skill.value }}</span>{% endif %}
+                </span>
+            {% empty %}
+                <span class="muted">Sem perícias cadastradas.</span>
+            {% endfor %}
+        </div>
+        {% if is_master %}
+            <form method="post" class="panel-form compact">
+                {% csrf_token %}
+                <input type="hidden" name="form_type" value="skill">
+                {{ skill_form.as_p }}
+                <button type="submit" class="hud-button ghost">Adicionar perícia</button>
+            </form>
+        {% endif %}
+    </section>
+
+    <section class="panel-card column">
+        <div class="character-header">
+            <h1 class="panel-title">{{ character.name }}</h1>
+            {% if character.assigned_to %}
+                <div class="list-inline" style="gap: 8px; align-items: center;">
+                    <span class="mini-thumb" style="width:36px;height:36px;border-radius:50%;border:1px solid var(--border); background:{% if character.assigned_to.profile.avatar %}url('{{ character.assigned_to.profile.avatar.url }}'){% else %}#ffffff{% endif %}; background-size: cover; background-position: center;"></span>
+                    <span class="muted">{{ character.assigned_to.username }}</span>
+                    {% if is_master and character.campaign %}
+                        <button id="toggle-player-select" type="button" class="hud-button ghost" style="padding:2px 6px; font-size:14px;">▼</button>
+                    {% endif %}
+                </div>
+                {% if is_master and character.campaign %}
+                <div id="player-select-panel" style="display:none; margin-top:8px; padding:8px; background:rgba(20,26,42,0.4); border-radius:8px;">
+                    <form method="post" class="panel-form compact">
+                        {% csrf_token %}
+                        <input type="hidden" name="form_type" value="change_player">
+                        <label for="new-player">Reatribuir para:</label>
+                        <select id="new-player" name="assigned_to" required>
+                            <option value="">Selecione um jogador</option>
+                            {% for p in character.campaign.players.all %}
+                                <option value="{{ p.id }}" {% if p.id == character.assigned_to.id %}selected{% endif %}>{{ p.username }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="hud-button" style="margin-top:8px;">Salvar</button>
+                    </form>
+                </div>
+                {% endif %}
+            {% endif %}
+        </div>
+        <div class="stat-grid">
+            <div class="stat-card">
+                <div class="stat-label">HP</div>
+                <div class="stat-value">{{ character.hp_current }} / {{ character.hp_max }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">SP</div>
+                <div class="stat-value">{{ character.sp_current }} / {{ character.sp_max }}</div>
+            </div>
+        </div>
+        <div class="portrait-wrap">
+            <div class="portrait-thumb{% if not character.image %} empty{% endif %}"
+                 {% if character.image %}style="background-image: url('{{ character.image.url }}')"{% endif %}></div>
+            <div class="portrait-hint muted">Retrato do personagem (opcional)</div>
+        </div>
+        {% if is_master %}
+            <form method="post" enctype="multipart/form-data" class="panel-form compact">
+                {% csrf_token %}
+                <input type="hidden" name="form_type" value="character">
+                {{ character_form.as_p }}
+                <button type="submit" class="hud-button">Atualizar atributos</button>
+            </form>
+        {% endif %}
+
+        <div class="abilities ability-box">
+            <h3 class="panel-subtitle">Habilidades</h3>
+            <div class="tags-wrap">
+                {% for ability in character.abilities.all %}
+                    <span class="ability-tag">{{ ability.name }}</span>
+                {% empty %}
+                    <span class="muted">Sem habilidades cadastradas.</span>
+                {% endfor %}
+            </div>
+            {% if is_master %}
+                <form method="post" class="panel-form compact">
+                    {% csrf_token %}
+                    <input type="hidden" name="form_type" value="ability">
+                    {{ ability_form.as_p }}
+                    <button type="submit" class="hud-button ghost">Adicionar habilidade</button>
+                </form>
+            {% endif %}
+        </div>
+    </section>
+
+    <section class="panel-card column">
+        <div class="panel-subtitle" style="display: flex; align-items: center; gap: 10px;">
+            <span>Inventário ({{ character.slots.count }}/{{ character.inventory_capacity }})</span>
+            {% if is_master %}
+                <button id="add-item-btn" class="hud-button ghost" title="Adicionar item" style="padding: 2px 8px; line-height: 1;">+</button>
+            {% endif %}
+        </div>
+        <div class="selected-item-display" id="selected-item-display">
+            <div class="selected-item-figure empty" id="selected-figure"></div>
+            <div class="selected-item-name" id="selected-name">Selecione um item</div>
+        </div>
+        {% if is_master %}
+        <div id="item-picker" class="panel-card" style="display: none; padding: 8px;">
+            <div class="item-pool" id="item-pool">
+                {% for item in items %}
+                    <div class="item-chip" data-item-id="{{ item.pk }}" data-item-image="{% if item.image %}{{ item.image.url }}{% endif %}">
+                        <span class="item-thumb{% if not item.image %} empty{% endif %}"
+                              {% if item.image %}style="background-image: url('{{ item.image.url }}')"{% endif %}></span>
+                        <span class="item-name">{{ item.name }}</span>
+                    </div>
+                {% empty %}
+                    <div class="muted">Nenhum item disponível.</div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        <div class="inventory-grid-wrap">
+            <div class="inventory-grid" id="inventory-grid" data-character-id="{{ character.pk }}">
+                {% for slot in slots %}
+                    <button
+                        type="button"
+                        class="inventory-slot"
+                        data-slot-id="{{ slot.pk }}"
+                        data-assign-url="{% url 'assign_slot' character.pk slot.pk %}"
+                        data-item-name="{{ slot.item.name|default:'Vazio' }}"
+                        data-item-image="{% if slot.item and slot.item.image %}{{ slot.item.image.url }}{% endif %}">
+                        <div class="slot-figure{% if not slot.item or not slot.item.image %} empty{% endif %}"
+                            {% if slot.item and slot.item.image %}style="background-image: url('{{ slot.item.image.url }}')"{% endif %}></div>
+                        <span class="slot-label">{{ slot.label }}</span>
+                    </button>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+    <script>window.hudConfig = { csrfToken: "{{ csrf_token }}" };</script>
+    {% if is_master %}
+        <script src="{% static 'hud/inventory.js' %}"></script>
+    {% endif %}
+    <script>
+    // Toggle player select panel
+    const toggleBtn = document.getElementById('toggle-player-select');
+    const panel = document.getElementById('player-select-panel');
+    if (toggleBtn && panel) {
+        toggleBtn.addEventListener('click', () => {
+            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        });
+    }
+    </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const figure = document.getElementById('selected-figure');
+            const name = document.getElementById('selected-name');
+            document.querySelectorAll('.inventory-slot').forEach((slot) => {
+                slot.addEventListener('click', () => {
+                    const itemName = slot.dataset.itemName || 'Vazio';
+                    const itemImage = slot.dataset.itemImage || '';
+                    name.textContent = itemName;
+                    if (itemImage) {
+                        figure.classList.remove('empty');
+                        figure.style.backgroundImage = `url('${itemImage}')`;
+                    } else {
+                        figure.classList.add('empty');
+                        figure.style.backgroundImage = '';
+                    }
+                });
+            });
+        });
+    </script>
+{% endblock %}

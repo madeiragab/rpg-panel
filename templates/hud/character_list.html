@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Personagens | Painel RPG HUD{% endblock %}
+
+{% block content %}
+<div class="grid two-column">
+    <section class="panel-card">
+        <div class="panel-header">
+            <h1 class="panel-title">Personagens</h1>
+            <a class="hud-button ghost" href="{% url 'character_list' %}">Atualizar</a>
+        </div>
+        <ul class="list-plain">
+            {% for character in characters %}
+                <li class="list-item">
+                    <div class="list-inline">
+                        <span class="mini-thumb{% if not character.image %} empty{% endif %}"
+                            {% if character.image %}style="background-image: url('{{ character.image.url }}')"{% endif %}></span>
+                        <a class="link-strong" href="{% url 'character_detail' character.pk %}">{{ character.name }}</a>
+                        {% if character.assigned_to %}
+                            <span class="muted">Jogador: {{ character.assigned_to.username }}</span>
+                        {% endif %}
+                    </div>
+                </li>
+            {% empty %}
+                <li class="muted">Nenhum personagem ainda.</li>
+            {% endfor %}
+        </ul>
+    </section>
+
+    <section class="panel-card">
+        <h2 class="panel-title">Criar personagem (mestres)</h2>
+        <form method="post" enctype="multipart/form-data" class="panel-form">
+            {% csrf_token %}
+            <input type="hidden" name="form_type" value="character">
+            {{ character_form.as_p }}
+            <button type="submit" class="hud-button">Criar</button>
+        </form>
+    </section>
+</div>
+
+<section class="panel-card">
+    <h2 class="panel-title">Itens disponíveis (pool)</h2>
+    <form method="post" enctype="multipart/form-data" class="panel-form compact">
+        {% csrf_token %}
+        <input type="hidden" name="form_type" value="item">
+        {{ item_form.as_p }}
+        <button type="submit" class="hud-button ghost">Criar item</button>
+    </form>
+    <div class="item-pool static">
+        {% for item in items %}
+            <div class="item-chip">{{ item.name }}</div>
+        {% empty %}
+            <div class="muted">Nenhum item ainda.</div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

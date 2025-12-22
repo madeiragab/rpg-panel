@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}Meu Perfil{% endblock %}
+
+{% block content %}
+<section class="panel-card auth-card">
+    <div class="panel-header">
+        <h1 class="panel-title">Meu Perfil</h1>
+        <a href="{% url 'home' %}" class="hud-button ghost">Voltar</a>
+    </div>
+
+    <div class="list-inline" style="align-items:center; gap:12px; margin-bottom:16px;">
+        <span class="mini-thumb" style="width:48px;height:48px;border-radius:50%;border:1px solid var(--border); background:{% if user_profile and user_profile.avatar %}url('{{ user_profile.avatar.url }}'){% else %}#ffffff{% endif %}; background-size: cover; background-position: center;"></span>
+        <div>
+            <div style="font-weight:600;">{{ user.username }}</div>
+            {% if user_profile and user_profile.nickname %}
+            <div class="muted">Apelido: {{ user_profile.nickname }}</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <form method="post" enctype="multipart/form-data" class="panel-form">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit" class="hud-button">Salvar</button>
+    </form>
+    <p class="muted" style="margin-top:10px;">Dica: escolha uma imagem quadrada para melhor visualização.</p>
+</section>
+{% endblock %}

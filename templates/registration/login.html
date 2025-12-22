@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}Entrar{% endblock %}
+
+{% block content %}
+<section class="panel-card auth-card">
+    <h1 class="panel-title">Entrar</h1>
+    <form method="post" class="panel-form">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit" class="hud-button">Entrar</button>
+    </form>
+    <p class="muted" style="margin-top:10px;">Criar sua conta? <a class="link-strong" href="{% url 'register' %}">Registrar</a></p>
+</section>
+{% endblock %}

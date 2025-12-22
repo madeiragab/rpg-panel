@@ -1,0 +1,377 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="content" {% if campaign and campaign.banner %}style="background-image: linear-gradient(rgba(12, 15, 26, 0.85), rgba(12, 15, 26, 0.85)), url('{{ campaign.banner.url }}'); background-size: cover; background-attachment: fixed; background-position: center;"{% endif %}>
+    <div class="campaign-detail-header">
+        <div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <h1 class="panel-title">{{ campaign.name }}</h1>
+                {% if is_master %}
+                    <button id="edit-campaign-btn" class="hud-button ghost" style="font-size: 18px;" title="Editar campanha">✏️</button>
+                {% endif %}
+            </div>
+            <p class="campaign-description">{{ campaign.description }}</p>
+        </div>
+        <a href="{% url 'master_dashboard' %}" class="hud-button ghost">Voltar</a>
+    </div>
+
+    {% if is_master %}
+        <div id="edit-campaign-form" style="display: none; margin-bottom: 20px;">
+            <div class="panel-card">
+                <h3 class="panel-subtitle">Editar Campanha</h3>
+                <form method="post" enctype="multipart/form-data" class="panel-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="form_type" value="campaign">
+                    {{ campaign_form.as_p }}
+                    <div style="display: flex; gap: 10px;">
+                        <button type="submit" class="hud-button">Salvar</button>
+                        <button type="button" id="cancel-edit-btn" class="hud-button ghost">Cancelar</button>
+                    </div>
+                </form>
+                <div class="panel-card" style="margin-top:12px; border-color: var(--danger);">
+                    <h3 class="panel-subtitle" style="color: var(--danger);">Excluir Campanha</h3>
+                    <form method="post" class="panel-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="form_type" value="delete_campaign">
+                        <p class="muted">Tem certeza? Digite exatamente o nome da campanha para confirmar.</p>
+                        <label for="confirm_name">Nome da campanha</label>
+                        <input type="text" name="confirm_name" id="confirm_name" placeholder="{{ campaign.name }}" />
+                        <button type="submit" class="hud-button danger">Excluir</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="campaign-tabs">
+            <button class="tab-button active" data-tab="characters">Personagens</button>
+            <button class="tab-button" data-tab="items">Itens</button>
+            <button class="tab-button" data-tab="players">Jogadores</button>
+        </div>
+
+        <div class="tab-content" id="characters-tab">
+            <div class="panel-header">
+                <h2 class="panel-title">Personagens</h2>
+                <button id="toggle-create-character" class="hud-button">+</button>
+            </div>
+            <div class="characters-grid">
+                {% for character in characters %}
+                    <div class="character-card">
+                        {% if character.image %}
+                            <div class="character-card-image" style="background-image: url('{{ character.image.url }}')"></div>
+                        {% else %}
+                            <div class="character-card-image empty"></div>
+                        {% endif %}
+                        <div class="character-card-info">
+                            <h3>{{ character.name }}</h3>
+                            {% if character.assigned_to %}
+                                <div class="list-inline" style="gap:6px; align-items:center; margin-bottom:8px;">
+                                    <span class="mini-thumb" style="width:28px;height:28px;border-radius:50%;border:1px solid var(--border); background:{% if character.assigned_to.profile.avatar %}url('{{ character.assigned_to.profile.avatar.url }}'){% else %}#ffffff{% endif %}; background-size: cover; background-position: center;"></span>
+                                    <span class="muted" style="font-size:0.85rem;">{{ character.assigned_to.username }}</span>
+                                </div>
+                            {% else %}
+                                <p class="muted">Atribuído a: Ninguém</p>
+                            {% endif %}
+                            <div class="list-inline">
+                                <a href="{% url 'character_detail' character.pk %}" class="hud-button">Ver</a>
+                                <form method="post" action="{% url 'delete_character' character.pk %}" onsubmit="return confirm('Tem certeza que deseja deletar este personagem?');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="hud-button danger">Deletar</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                {% empty %}
+                    <p class="muted">Nenhum personagem criado ainda.</p>
+                {% endfor %}
+            </div>
+            <div id="create-character" class="panel-card" style="display:none;">
+                <h3 class="panel-subtitle">Criar Personagem</h3>
+                <form method="post" enctype="multipart/form-data" class="panel-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="form_type" value="character">
+                    {{ character_form.as_p }}
+                    <button type="submit" class="hud-button">Criar</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="tab-content" id="items-tab" style="display: none;">
+            <div class="panel-header">
+                <h2 class="panel-title">Itens</h2>
+                <button id="toggle-create-item" class="hud-button">+</button>
+            </div>
+            <div class="items-grid">
+                {% for item in items %}
+                    <div class="item-card">
+                        {% if item.image %}
+                            <div class="item-card-image" style="background-image: url('{{ item.image.url }}')"></div>
+                        {% else %}
+                            <div class="item-card-image empty"></div>
+                        {% endif %}
+                        <p>{{ item.name }}</p>
+                        <form method="post" action="{% url 'delete_item' item.pk %}" onsubmit="return confirm('Tem certeza que deseja deletar este item?');" style="margin-top:8px;">
+                            {% csrf_token %}
+                            <button type="submit" class="hud-button danger">Deletar</button>
+                        </form>
+                    </div>
+                {% empty %}
+                    <p class="muted">Nenhum item criado ainda.</p>
+                {% endfor %}
+            </div>
+            <div id="create-item" class="panel-card" style="display:none;">
+                <h3 class="panel-subtitle">Criar Item</h3>
+                <form method="post" enctype="multipart/form-data" class="panel-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="form_type" value="item">
+                    {{ item_form.as_p }}
+                    <button type="submit" class="hud-button">Criar</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="tab-content" id="players-tab" style="display: none;">
+            <h2 class="panel-title">Jogadores</h2>
+            <div class="panel-card" style="margin-bottom:12px;">
+                <div class="panel-form compact" style="grid-template-columns: 1fr;">
+                    <div>
+                        <label for="player-search">Pesquisar por apelido</label>
+                        <input type="text" id="player-search" placeholder="Ex.: ArqueiroPro" />
+                    </div>
+                </div>
+                <ul id="player-search-results" class="list-plain" style="margin-top:10px;"></ul>
+            </div>
+
+            <!-- Removed bulk selected UI: clicking a result adds immediately -->
+
+            <div class="panel-card">
+                <h3 class="panel-subtitle">Jogadores na Campanha</h3>
+                {% if players %}
+                <ul id="players-list" class="list-plain">
+                    {% for p in players %}
+                    <li class="list-item">
+                        <div class="list-inline">
+                            <span class="mini-thumb" style="width:36px;height:36px;border-radius:50%;border:1px solid var(--border); background:{% if p.profile.avatar %}url('{{ p.profile.avatar.url }}'){% else %}#ffffff{% endif %}; background-size: cover; background-position: center;"></span>
+                            <span>{{ p.profile.display_name|default:p.get_full_name|default:p.username }}</span>
+                        </div>
+                        <form method="post" onsubmit="return confirm('Remover este jogador da campanha?');">
+                            {% csrf_token %}
+                            <input type="hidden" name="form_type" value="remove_player" />
+                            <input type="hidden" name="user_id" value="{{ p.id }}" />
+                            <button type="submit" class="hud-button danger">Remover</button>
+                        </form>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                    <p class="muted">Nenhum jogador adicionado ainda.</p>
+                {% endif %}
+            </div>
+        </div>
+    {% else %}
+        <!-- Vista de Player -->
+        <div class="player-view">
+            <div class="campaign-tabs">
+                <button class="tab-button active" data-tab="player-characters">Personagens</button>
+                <button class="tab-button" data-tab="player-players">Jogadores</button>
+            </div>
+
+            <div class="tab-content" id="player-characters-tab">
+                <h2 class="panel-title">Personagens</h2>
+                <div class="characters-grid">
+                    {% for character in characters %}
+                        <div class="character-card">
+                            {% if character.image %}
+                                <div class="character-card-image" style="background-image: url('{{ character.image.url }}')"></div>
+                            {% else %}
+                                <div class="character-card-image empty"></div>
+                            {% endif %}
+                            <div class="character-card-info">
+                                <h3>{{ character.name }}</h3>
+                                {% if character.assigned_to %}
+                                    <div class="list-inline" style="gap:6px; align-items:center; margin-bottom:8px;">
+                                        <span class="mini-thumb" style="width:28px;height:28px;border-radius:50%;border:1px solid var(--border); background:{% if character.assigned_to.profile.avatar %}url('{{ character.assigned_to.profile.avatar.url }}'){% else %}#ffffff{% endif %}; background-size: cover; background-position: center;"></span>
+                                        <span class="muted" style="font-size:0.85rem;">{{ character.assigned_to.username }}</span>
+                                    </div>
+                                {% endif %}
+                                {% if character.assigned_to == user %}
+                                    <a href="{% url 'character_detail' character.pk %}?mode=player" class="hud-button">Ver Meu</a>
+                                {% else %}
+                                    <span class="muted" style="font-size:0.85rem;">Personagem de outro jogador</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% empty %}
+                        <p class="muted">Nenhum personagem criado ainda.</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="tab-content" id="player-players-tab" style="display: none;">
+                <h2 class="panel-title">Jogadores</h2>
+                <ul class="list-plain">
+                    {% for p in players %}
+                    <li class="list-item">
+                        <div class="list-inline">
+                            <span class="mini-thumb" style="width:36px;height:36px;border-radius:50%;border:1px solid var(--border); background:{% if p.profile.avatar %}url('{{ p.profile.avatar.url }}'){% else %}#ffffff{% endif %}; background-size: cover; background-position: center;"></span>
+                            <span>{{ p.username }}</span>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+document.querySelectorAll('.tab-button').forEach(button => {
+    button.addEventListener('click', function() {
+        const tabName = this.dataset.tab;
+        document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+        this.classList.add('active');
+        document.getElementById(tabName + '-tab').style.display = 'block';
+    });
+});
+
+// Support both master and player tab names
+const allTabs = document.querySelectorAll('.tab-button');
+allTabs.forEach(button => {
+    button.addEventListener('click', function() {
+        const tabName = this.dataset.tab;
+        // Try both suffixes
+        let tabEl = document.getElementById(tabName + '-tab');
+        if (!tabEl && tabName.startsWith('player-')) {
+            // Already has suffix, use as-is
+            tabEl = document.getElementById(tabName);
+        }
+        if (tabEl) {
+            document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+            this.classList.add('active');
+            tabEl.style.display = 'block';
+        }
+    });
+});
+
+// Edição de campanha
+const editBtn = document.getElementById('edit-campaign-btn');
+const cancelBtn = document.getElementById('cancel-edit-btn');
+const editForm = document.getElementById('edit-campaign-form');
+
+if (editBtn) {
+    editBtn.addEventListener('click', () => {
+        editForm.style.display = editForm.style.display === 'none' ? 'block' : 'none';
+    });
+}
+
+if (cancelBtn) {
+    cancelBtn.addEventListener('click', () => {
+        editForm.style.display = 'none';
+    });
+}
+
+// Toggle create panels
+const toggleChar = document.getElementById('toggle-create-character');
+const createChar = document.getElementById('create-character');
+if (toggleChar) {
+    toggleChar.addEventListener('click', () => {
+        createChar.style.display = createChar.style.display === 'none' ? 'block' : 'none';
+    });
+}
+const toggleItem = document.getElementById('toggle-create-item');
+const createItem = document.getElementById('create-item');
+if (toggleItem) {
+    toggleItem.addEventListener('click', () => {
+        createItem.style.display = createItem.style.display === 'none' ? 'block' : 'none';
+    });
+}
+</script>
+<script>
+// Live search players by nickname
+const searchInput = document.getElementById('player-search');
+const resultsList = document.getElementById('player-search-results');
+const playersList = document.getElementById('players-list');
+
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+}
+
+async function postAddPlayer(userId, name, avatar) {
+    try {
+        const resp = await fetch(`{% url 'campaign_detail' campaign.pk %}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': getCookie('csrftoken') || ''
+            },
+            body: new URLSearchParams({
+                form_type: 'add_player',
+                user_id: String(userId),
+            }).toString()
+        });
+        if (resp.ok) {
+            // Reload page to reflect updated players list
+            window.location.reload();
+            return;
+        }
+    } catch (e) { /* ignore */ }
+}
+
+function renderResults(items) {
+    resultsList.innerHTML = '';
+    items.forEach(item => {
+        const li = document.createElement('li');
+        li.className = 'list-item';
+        const left = document.createElement('div');
+        left.className = 'list-inline';
+        const avatar = document.createElement('span');
+        avatar.className = 'square-thumb';
+        avatar.style.cssText = "width:36px;height:36px;border:1px solid var(--border); background:" + (item.avatar ? `url('${item.avatar}')` : '#ffffff') + "; background-size: cover; background-position: center;";
+        const name = document.createElement('span');
+        name.textContent = item.name;
+        left.appendChild(avatar);
+        left.appendChild(name);
+        const addBtn = document.createElement('button');
+        addBtn.className = 'hud-button';
+        addBtn.textContent = 'Selecionar';
+        addBtn.addEventListener('click', () => {
+            postAddPlayer(item.id, item.name, item.avatar);
+            // remove from results
+            li.remove();
+        });
+        li.appendChild(left);
+        li.appendChild(addBtn);
+        resultsList.appendChild(li);
+    });
+}
+
+
+let lastQuery = '';
+async function doSearch(q) {
+    if (!q) { resultsList.innerHTML = ''; return; }
+    try {
+        const resp = await fetch(`{% url 'search_players' campaign.pk %}?q=${encodeURIComponent(q)}`, { credentials: 'same-origin' });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (Array.isArray(data) && data.length) {
+            renderResults(data);
+        } else {
+            resultsList.innerHTML = '<li class="list-item"><span class="muted">Nenhum resultado</span></li>';
+        }
+    } catch (err) { /* ignore */ }
+}
+
+let debounceTimer;
+searchInput.addEventListener('input', (e) => {
+    const q = e.target.value.trim();
+    if (q === lastQuery) return;
+    lastQuery = q;
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => doSearch(q), 200);
+});
+</script>
+{% endblock %}
