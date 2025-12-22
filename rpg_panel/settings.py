@@ -12,8 +12,6 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 
 import os
 from pathlib import Path
-import os
-from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -29,12 +27,14 @@ SECRET_KEY = "django-insecure-vb^bj2+m8=8zgkaat_$cwk1i2!+&wcb&2uxj2q18zaqheseflb
 DEBUG = os.getenv("DEBUG", "False") == "True"
 
 ALLOWED_HOSTS = [
-    "rpg-panel-production.up.railway.app",
-    "localhost",
+    "galibinja.pythonanywhere.com",
+    "www.galibinja.pythonanywhere.com",
     "127.0.0.1",
+    "localhost",
 ]
+
 CSRF_TRUSTED_ORIGINS = [
-    "https://rpg-panel-production.up.railway.app",
+    "https://galibinja.pythonanywhere.com",
 ]
 
 
