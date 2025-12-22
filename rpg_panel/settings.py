@@ -28,6 +28,10 @@ SECRET_KEY = "django-insecure-vb^bj2+m8=8zgkaat_$cwk1i2!+&wcb&2uxj2q18zaqheseflb
 DEBUG = os.getenv("DEBUG", "False") == "True"
 
 ALLOWED_HOSTS = ["*"]
+CSRF_TRUSTED_ORIGINS = os.getenv(
+    "CSRF_TRUSTED_ORIGINS",
+    "https://*.railway.app,https://railway.app"
+).split(",")
 
 
 # Application definition
