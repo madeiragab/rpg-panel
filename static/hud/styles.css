@@ -1049,9 +1049,9 @@ a:hover { color: var(--accent-2); }
 .item-card-image {
     width: 100%;
     height: 100px;
-    background-size: contain;
+    background-size: cover;
     background-repeat: no-repeat;
-    background-position: center;
+    background-position: center center;
     background-color: var(--panel-strong);
     border-radius: 8px;
     margin-bottom: 8px;

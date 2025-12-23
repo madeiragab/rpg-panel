@@ -238,6 +238,15 @@ def campaign_detail(request: HttpRequest, pk: int) -> HttpResponse:
                 item.save()
                 messages.success(request, "Item adicionado à campanha.")
                 return redirect("campaign_detail", pk=campaign.pk)
+        elif form_type == "item_update":
+            item_id = request.POST.get("item_id")
+            description = request.POST.get("description", "")
+            if item_id:
+                item = get_object_or_404(Item, pk=item_id, campaign=campaign)
+                item.description = description
+                item.save(update_fields=["description"])
+                messages.success(request, "Descrição do item atualizada.")
+            return redirect("campaign_detail", pk=campaign.pk)
         elif form_type == "add_player":
             user_id = request.POST.get("user_id")
             if user_id:

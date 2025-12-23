@@ -118,7 +118,7 @@
             </div>
             <div class="items-grid">
                 {% for item in items %}
-                    <div class="item-card" data-name="{{ item.name|escape }}" data-description="{{ item.description|default_if_none:''|escape }}" data-image="{% if item.image %}{{ item.image.url }}{% endif %}">
+                    <div class="item-card" data-id="{{ item.id }}" data-name="{{ item.name|escape }}" data-description="{{ item.description|default_if_none:''|escape }}" data-image="{% if item.image %}{{ item.image.url }}{% endif %}">
                         {% if item.image %}
                             <div class="item-card-image" style="background-image: url('{{ item.image.url }}')"></div>
                         {% else %}
@@ -140,6 +140,14 @@
                 <div>
                     <div id="item-detail-name" class="selected-item-name"></div>
                     <p id="item-detail-description" class="muted" style="white-space: pre-wrap;"></p>
+                    <form id="item-detail-form" method="post" class="panel-form" style="display:none; margin-top:10px;">
+                        {% csrf_token %}
+                        <input type="hidden" name="form_type" value="item_update" />
+                        <input type="hidden" name="item_id" id="item-detail-id" />
+                        <label for="item-detail-description-input">Descrição</label>
+                        <textarea name="description" id="item-detail-description-input" rows="4" placeholder="Atualize a descrição"></textarea>
+                        <button type="submit" class="hud-button" style="justify-self:start;">Salvar descrição</button>
+                    </form>
                 </div>
             </div>
             <div id="create-item" class="panel-card" style="display:none;">
@@ -317,6 +325,9 @@ const detailPanel = document.getElementById('item-detail');
 const detailName = document.getElementById('item-detail-name');
 const detailDesc = document.getElementById('item-detail-description');
 const detailFigure = document.getElementById('item-detail-figure');
+const detailForm = document.getElementById('item-detail-form');
+const detailIdInput = document.getElementById('item-detail-id');
+const detailDescInput = document.getElementById('item-detail-description-input');
 
 itemCards.forEach(card => {
     card.addEventListener('click', () => {
@@ -326,6 +337,9 @@ itemCards.forEach(card => {
         const image = card.dataset.image || '';
         detailName.textContent = name;
         detailDesc.textContent = desc || 'Sem descrição para este item.';
+        if (detailIdInput) detailIdInput.value = card.dataset.id || card.getAttribute('data-id') || card.getAttribute('data-pk') || card.dataset.pk || '';
+        if (detailDescInput) detailDescInput.value = desc;
+        if (detailForm) detailForm.style.display = 'grid';
         if (image) {
             detailFigure.style.backgroundImage = `url('${image}')`;
             detailFigure.classList.remove('empty');
