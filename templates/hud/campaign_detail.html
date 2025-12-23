@@ -7,13 +7,17 @@
         <div>
             <div style="display: flex; align-items: center; gap: 10px;">
                 <h1 class="panel-title">{{ campaign.name }}</h1>
-                {% if is_master %}
+                {% if is_master and request.GET.mode != 'player' %}
                     <button id="edit-campaign-btn" class="hud-button ghost" style="font-size: 18px;" title="Editar campanha">✏️</button>
                 {% endif %}
             </div>
             <p class="campaign-description">{{ campaign.description }}</p>
         </div>
+        {% if is_master %}
         <a href="{% url 'master_dashboard' %}" class="hud-button ghost">Voltar</a>
+        {% else %}
+        <a href="{% url 'player_dashboard' %}?mode=player" class="hud-button ghost">Voltar</a>
+        {% endif %}
     </div>
 
     {% if is_master %}
@@ -45,7 +49,9 @@
 
         <div class="campaign-tabs">
             <button class="tab-button active" data-tab="characters">Personagens</button>
+            {% if request.GET.mode != 'player' %}
             <button class="tab-button" data-tab="items">Itens</button>
+            {% endif %}
             <button class="tab-button" data-tab="players">Jogadores</button>
         </div>
 
@@ -73,11 +79,13 @@
                                 <p class="muted">Atribuído a: Ninguém</p>
                             {% endif %}
                             <div class="list-inline">
-                                <a href="{% url 'character_detail' character.pk %}" class="hud-button">Ver</a>
+                                <a href="{% url 'character_detail' character.pk %}{% if not is_master %}?mode=player{% endif %}" class="hud-button">Ver</a>
+                                {% if is_master %}
                                 <form method="post" action="{% url 'delete_character' character.pk %}" onsubmit="return confirm('Tem certeza que deseja deletar este personagem?');">
                                     {% csrf_token %}
                                     <button type="submit" class="hud-button danger">Deletar</button>
                                 </form>
+                                {% endif %}
                             </div>
                         </div>
                     </div>

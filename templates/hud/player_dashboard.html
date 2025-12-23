@@ -11,7 +11,7 @@
     {% if campaigns %}
         <div class="campaigns-grid">
             {% for campaign in campaigns %}
-            <a href="{% url 'campaign_detail' campaign.pk %}" class="campaign-card">
+            <a href="{% url 'campaign_detail' campaign.pk %}{% if player_mode %}?mode=player{% endif %}" class="campaign-card">
                 {% if campaign.banner %}
                     <div class="campaign-banner" style="background-image: url('{{ campaign.banner.url }}')"></div>
                 {% else %}

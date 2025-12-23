@@ -15,6 +15,17 @@
 </nav>
 {% endif %}
 <div class="hud-layout" {% if campaign and campaign.banner %}style="background-image: linear-gradient(rgba(12, 15, 26, 0.85), rgba(12, 15, 26, 0.85)), url('{{ campaign.banner.url }}'); background-size: cover; background-attachment: fixed; background-position: center;"{% endif %}>
+    <div style="padding: 12px;">
+        {% if campaign %}
+            {% if is_master %}
+            <a href="{% url 'campaign_detail' campaign.pk %}" class="hud-button ghost">Voltar para Campanha</a>
+            {% else %}
+            <a href="{% url 'campaign_detail' campaign.pk %}?mode=player" class="hud-button ghost">Voltar para Campanha</a>
+            {% endif %}
+        {% else %}
+            <a href="{% url 'home' %}" class="hud-button ghost">Voltar</a>
+        {% endif %}
+    </div>
     {% if not is_master %}
         <div class="player-view-notice">
             <p>📖 Você está visualizando este personagem em modo leitura</p>
@@ -74,11 +85,19 @@
         <div class="stat-grid">
             <div class="stat-card">
                 <div class="stat-label">HP</div>
-                <div class="stat-value">{{ character.hp_current }} / {{ character.hp_max }}</div>
+                <div class="stat-value" style="display: flex; align-items: center; gap: 8px;">
+                    <button class="hud-button ghost" onclick="modifyStat({{ character.id }}, 'hp', 'decrease')" style="padding: 4px 8px;">−</button>
+                    <span id="hp-display">{{ character.hp_current }} / {{ character.hp_max }}</span>
+                    <button class="hud-button ghost" onclick="modifyStat({{ character.id }}, 'hp', 'increase')" style="padding: 4px 8px;">+</button>
+                </div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">SP</div>
-                <div class="stat-value">{{ character.sp_current }} / {{ character.sp_max }}</div>
+                <div class="stat-value" style="display: flex; align-items: center; gap: 8px;">
+                    <button class="hud-button ghost" onclick="modifyStat({{ character.id }}, 'sp', 'decrease')" style="padding: 4px 8px;">−</button>
+                    <span id="sp-display">{{ character.sp_current }} / {{ character.sp_max }}</span>
+                    <button class="hud-button ghost" onclick="modifyStat({{ character.id }}, 'sp', 'increase')" style="padding: 4px 8px;">+</button>
+                </div>
             </div>
         </div>
         <div class="portrait-wrap">
@@ -196,5 +215,33 @@
                 });
             });
         });
+    </script>
+    <script>
+    function modifyStat(characterId, statType, action) {
+        const url = statType === 'hp' 
+            ? `/characters/${characterId}/modify-hp/`
+            : `/characters/${characterId}/modify-sp/`;
+        
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: `action=${action}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const display = document.getElementById(`${statType}-display`);
+                const currentValue = statType === 'hp' ? data.hp_current : data.sp_current;
+                const maxValue = display.textContent.split(' / ')[1];
+                display.textContent = `${currentValue} / ${maxValue}`;
+            } else {
+                alert(data.error || 'Erro ao modificar');
+            }
+        })
+        .catch(error => console.error('Erro:', error));
+    }
     </script>
 {% endblock %}

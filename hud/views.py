@@ -163,10 +163,13 @@ def player_dashboard(request: HttpRequest) -> HttpResponse:
     # Show all campaigns the player is part of
     campaigns_as_player = request.user.campaigns_as_player.all()
     
+    # Player mode: força modo de visualização
+    player_mode = request.GET.get("mode") == "player"
+    
     return render(
         request,
         "hud/player_dashboard.html",
-        {"campaigns": campaigns_as_player},
+        {"campaigns": campaigns_as_player, "player_mode": player_mode},
     )
 
 
@@ -177,6 +180,10 @@ def campaign_detail(request: HttpRequest, pk: int) -> HttpResponse:
     # Verificar acesso: mestre ou player vinculado
     is_master = campaign.master == request.user
     is_player = request.user in campaign.players.all()
+
+    # Se mode=player, força modo player (sem edição)
+    if request.GET.get("mode") == "player":
+        is_master = False
 
     if not is_master and not is_player:
         return HttpResponseForbidden("Você não tem acesso a esta campanha.")
@@ -484,4 +491,62 @@ def character_list(request: HttpRequest) -> HttpResponse:
     if not _user_is_master(request.user):
         return HttpResponseForbidden("Apenas mestres podem acessar esta página.")
     return redirect("master_dashboard")
+
+
+@login_required
+@require_POST
+def modify_hp(request: HttpRequest, character_id: int) -> JsonResponse:
+    """Modifica HP atual do personagem (+1 ou -1)"""
+    character = get_object_or_404(Character, pk=character_id)
+    
+    # Verifica permissão: mestre da campanha OU dono do personagem
+    if character.campaign:
+        is_master = character.campaign.master == request.user
+        is_owner = character.assigned_to == request.user
+        if not (is_master or is_owner):
+            return JsonResponse({"error": "Sem permissão"}, status=403)
+    else:
+        if character.assigned_to != request.user and character.created_by != request.user:
+            return JsonResponse({"error": "Sem permissão"}, status=403)
+    
+    action = request.POST.get("action")  # "increase" ou "decrease"
+    
+    if action == "increase":
+        character.hp_current = min(character.hp_current + 1, character.hp_max)
+    elif action == "decrease":
+        character.hp_current = max(character.hp_current - 1, 0)
+    else:
+        return JsonResponse({"error": "Ação inválida"}, status=400)
+    
+    character.save()
+    return JsonResponse({"success": True, "hp_current": character.hp_current})
+
+
+@login_required
+@require_POST
+def modify_sp(request: HttpRequest, character_id: int) -> JsonResponse:
+    """Modifica SP atual do personagem (+1 ou -1)"""
+    character = get_object_or_404(Character, pk=character_id)
+    
+    # Verifica permissão: mestre da campanha OU dono do personagem
+    if character.campaign:
+        is_master = character.campaign.master == request.user
+        is_owner = character.assigned_to == request.user
+        if not (is_master or is_owner):
+            return JsonResponse({"error": "Sem permissão"}, status=403)
+    else:
+        if character.assigned_to != request.user and character.created_by != request.user:
+            return JsonResponse({"error": "Sem permissão"}, status=403)
+    
+    action = request.POST.get("action")  # "increase" ou "decrease"
+    
+    if action == "increase":
+        character.sp_current = min(character.sp_current + 1, character.sp_max)
+    elif action == "decrease":
+        character.sp_current = max(character.sp_current - 1, 0)
+    else:
+        return JsonResponse({"error": "Ação inválida"}, status=400)
+    
+    character.save()
+    return JsonResponse({"success": True, "sp_current": character.sp_current})
 

@@ -21,4 +21,6 @@ urlpatterns = [
     path("characters/<int:pk>/delete/", views.delete_character, name="delete_character"),
     path("forgot-password/", views.forgot_password, name="forgot_password"),
     path("reset-password/<str:token>/", views.reset_password, name="reset_password"),
+    path("characters/<int:character_id>/modify-hp/", views.modify_hp, name="modify_hp"),
+    path("characters/<int:character_id>/modify-sp/", views.modify_sp, name="modify_sp"),
 ]
