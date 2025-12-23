@@ -53,17 +53,13 @@ class CampaignForm(forms.ModelForm):
 class CharacterForm(forms.ModelForm):
     class Meta:
         model = Character
-        fields = ["name", "image", "hp_max", "hp_current", "sp_max", "sp_current", "inventory_capacity", "assigned_to"]
+        fields = ["name", "image", "inventory_capacity", "assigned_to"]
         widgets = {
             "assigned_to": forms.Select(attrs={"class": "hud-select"}),
         }
         labels = {
             "name": "Nome",
             "image": "Imagem (upload)",
-            "hp_max": "HP máximo",
-            "hp_current": "HP atual",
-            "sp_max": "SP máximo",
-            "sp_current": "SP atual",
             "inventory_capacity": "Capacidade de inventário",
             "assigned_to": "Atribuir ao jogador",
         }

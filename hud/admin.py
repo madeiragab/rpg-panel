@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Campaign, Character, CharacterAbility, CharacterSkill, InventorySlot, Item, UserProfile
+from .models import Campaign, Character, CharacterAbility, CharacterSkill, InventorySlot, Item, UserProfile, CharacterBar
 
 
 @admin.register(Campaign)
@@ -39,12 +39,19 @@ class CharacterAbilityInline(admin.TabularInline):
     ordering = ("order", "name")
 
 
+class CharacterBarInline(admin.TabularInline):
+    model = CharacterBar
+    extra = 1
+    fields = ("name", "current", "max_value", "color", "order")
+    ordering = ("order", "name")
+
+
 @admin.register(Character)
 class CharacterAdmin(admin.ModelAdmin):
-    list_display = ("name", "assigned_to", "created_by", "hp_current", "sp_current", "image")
-    list_filter = ("assigned_to",)
+    list_display = ("name", "assigned_to", "created_by", "campaign", "visible", "image")
+    list_filter = ("assigned_to", "campaign", "visible")
     search_fields = ("name", "assigned_to__username")
-    inlines = [InventorySlotInline, CharacterSkillInline, CharacterAbilityInline]
+    inlines = [CharacterBarInline, InventorySlotInline, CharacterSkillInline, CharacterAbilityInline]
 
 
 @admin.register(Item)
@@ -72,3 +79,11 @@ class CharacterAbilityAdmin(admin.ModelAdmin):
     list_display = ("character", "name", "order")
     list_filter = ("character",)
     ordering = ("order", "name")
+
+
+@admin.register(CharacterBar)
+class CharacterBarAdmin(admin.ModelAdmin):
+    list_display = ("character", "name", "current", "max_value", "color", "order")
+    list_filter = ("character",)
+    ordering = ("character", "order", "name")
+    search_fields = ("character__name", "name")
