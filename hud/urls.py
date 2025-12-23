@@ -19,4 +19,6 @@ urlpatterns = [
     path("me/", views.user_page, name="user_page"),
     path("items/<int:pk>/delete/", views.delete_item, name="delete_item"),
     path("characters/<int:pk>/delete/", views.delete_character, name="delete_character"),
+    path("forgot-password/", views.forgot_password, name="forgot_password"),
+    path("reset-password/<str:token>/", views.reset_password, name="reset_password"),
 ]

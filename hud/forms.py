@@ -4,6 +4,33 @@ from django.contrib.auth.models import User
 from .models import Campaign, Character, CharacterAbility, CharacterSkill, Item, UserProfile
 
 
+class ForgotPasswordForm(forms.Form):
+    username = forms.CharField(
+        max_length=150,
+        label="Nome de usuário",
+        widget=forms.TextInput(attrs={"class": "hud-input", "placeholder": "Digite seu nome de usuário"})
+    )
+
+
+class ResetPasswordForm(forms.Form):
+    password = forms.CharField(
+        label="Nova senha",
+        widget=forms.PasswordInput(attrs={"class": "hud-input", "placeholder": "Nova senha"})
+    )
+    password_confirm = forms.CharField(
+        label="Confirmar senha",
+        widget=forms.PasswordInput(attrs={"class": "hud-input", "placeholder": "Confirme a senha"})
+    )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        password = cleaned_data.get("password")
+        password_confirm = cleaned_data.get("password_confirm")
+
+        if password and password_confirm:
+            if password != password_confirm:
+                raise forms.ValidationError("As senhas não correspondem.")
+        return cleaned_data
 class UserSelectWithAvatarWidget(forms.Select):
     """Custom widget to display username in options."""
     def optgroups(self, name, value, attrs=None):

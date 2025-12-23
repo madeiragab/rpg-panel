@@ -1,15 +1,34 @@
 from __future__ import annotations
 
 from typing import Any
+import secrets
+from datetime import timedelta
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import User
+from django.core.mail import send_mail
 from django.http import HttpRequest, HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django.db.models import Q
-from .forms import RegistrationForm, ProfileEditForm
-from .models import UserProfile
+from .forms import RegistrationForm, ProfileEditForm, ForgotPasswordForm, ResetPasswordForm
+from .models import UserProfile, PasswordResetToken
+
+
+def _mask_email(email: str) -> str:
+    """Mascara parte local do email (ex.: anji****@gmail.com)."""
+    if "@" not in email:
+        return email
+    local, domain = email.split("@", 1)
+    if len(local) <= 2:
+        masked_local = local[0] + "*" * max(len(local) - 1, 1)
+    elif len(local) <= 4:
+        masked_local = local[:2] + "*" * (len(local) - 2)
+    else:
+        masked_local = local[:3] + "*" * (len(local) - 3)
+    return f"{masked_local}@{domain}"
 
 from .forms import (
     CampaignForm,
@@ -21,6 +40,86 @@ from .forms import (
 from .models import Campaign, Character, InventorySlot, Item, UserProfile
 
 
+def forgot_password(request: HttpRequest) -> HttpResponse:
+    """Solicita reset de senha por username"""
+    if request.method == "POST":
+        form = ForgotPasswordForm(request.POST)
+        if form.is_valid():
+            username = form.cleaned_data["username"]
+            try:
+                user = User.objects.get(username=username)
+                # Gera token único
+                token = secrets.token_urlsafe(32)
+                # Token expira em 24 horas
+                expires_at = timezone.now() + timedelta(hours=24)
+                
+                # Cria registro do token
+                PasswordResetToken.objects.create(
+                    user=user,
+                    token=token,
+                    expires_at=expires_at
+                )
+                
+                # Envia email
+                reset_url = request.build_absolute_uri(f"/reset-password/{token}/")
+                send_mail(
+                    subject="Recuperar sua senha - Painel RPG HUD",
+                    message=f"Olá {user.username},\n\nClique no link abaixo para resetar sua senha:\n\n{reset_url}\n\nEste link expira em 24 horas.",
+                    from_email="noreply@rpg-panel.com",
+                    recipient_list=[user.email],
+                )
+                
+                # Mostra email mascarado
+                masked_email = _mask_email(user.email)
+                return render(request, "registration/forgot_password_sent.html", {
+                    "email": masked_email
+                })
+            except User.DoesNotExist:
+                messages.error(request, "Usuário não encontrado.")
+    else:
+        form = ForgotPasswordForm()
+    
+    return render(request, "registration/forgot_password.html", {"form": form})
+
+
+def reset_password(request: HttpRequest, token: str) -> HttpResponse:
+    """Reseta a senha com token válido"""
+    try:
+        reset_token = PasswordResetToken.objects.get(token=token)
+    except PasswordResetToken.DoesNotExist:
+        messages.error(request, "Token inválido ou expirado.")
+        return redirect("login")
+    
+    # Verifica se token expirou
+    if reset_token.expires_at < timezone.now():
+        messages.error(request, "Token expirado. Solicite um novo reset de senha.")
+        return redirect("forgot_password")
+    
+    # Verifica se já foi usado
+    if reset_token.used:
+        messages.error(request, "Este token já foi utilizado.")
+        return redirect("login")
+    
+    if request.method == "POST":
+        form = ResetPasswordForm(request.POST)
+        if form.is_valid():
+            password = form.cleaned_data["password"]
+            reset_token.user.set_password(password)
+            reset_token.user.save()
+            
+            # Marca token como usado
+            reset_token.used = True
+            reset_token.save()
+            
+            messages.success(request, "Senha alterada com sucesso! Faça login com sua nova senha.")
+            return redirect("login")
+    else:
+        form = ResetPasswordForm()
+    
+    return render(request, "registration/reset_password.html", {
+        "form": form,
+        "token": token
+    })
 def _user_is_master(user) -> bool:  # noqa: ANN001
     """Legado: mantido por compatibilidade com templates antigas"""
     return True  # Removido: agora verificamos por campanha específica
@@ -385,3 +484,4 @@ def character_list(request: HttpRequest) -> HttpResponse:
     if not _user_is_master(request.user):
         return HttpResponseForbidden("Apenas mestres podem acessar esta página.")
     return redirect("master_dashboard")
+
