@@ -37,7 +37,7 @@ from .forms import (
     CharacterSkillForm,
     ItemForm,
 )
-from .models import Campaign, Character, InventorySlot, Item, UserProfile
+from .models import Campaign, Character, InventorySlot, Item, UserProfile, CharacterBar
 
 
 def forgot_password(request: HttpRequest) -> HttpResponse:
@@ -270,6 +270,11 @@ def campaign_detail(request: HttpRequest, pk: int) -> HttpResponse:
             return redirect("campaign_detail", pk=campaign.pk)
 
     characters = campaign.characters.all()
+    
+    # Se não for mestre, mostra apenas personagens visíveis
+    if not is_master:
+        characters = characters.filter(visible=True)
+    
     items = campaign.items.all()
 
     return render(
@@ -549,4 +554,106 @@ def modify_sp(request: HttpRequest, character_id: int) -> JsonResponse:
     
     character.save()
     return JsonResponse({"success": True, "sp_current": character.sp_current})
+
+
+@login_required
+@require_POST
+def toggle_character_visibility(request: HttpRequest, character_id: int) -> JsonResponse:
+    """Alterna visibilidade do personagem (apenas mestre)"""
+    character = get_object_or_404(Character, pk=character_id)
+    
+    # Apenas mestre da campanha pode alterar
+    if not character.campaign or character.campaign.master != request.user:
+        return JsonResponse({"error": "Sem permissão"}, status=403)
+    
+    character.visible = not character.visible
+    character.save()
+    
+    return JsonResponse({"success": True, "visible": character.visible})
+
+
+@login_required
+@require_POST
+def add_character_bar(request: HttpRequest, character_id: int) -> JsonResponse:
+    """Adiciona uma nova barra ao personagem"""
+    character = get_object_or_404(Character, pk=character_id)
+    
+    # Verifica permissão: apenas mestre
+    if character.campaign:
+        if character.campaign.master != request.user:
+            return JsonResponse({"error": "Sem permissão"}, status=403)
+    elif character.created_by != request.user:
+        return JsonResponse({"error": "Sem permissão"}, status=403)
+    
+    name = request.POST.get("name", "Nova Barra")
+    max_value = int(request.POST.get("max_value", 100))
+    color = request.POST.get("color", "#70e0ff")
+    
+    bar = CharacterBar.objects.create(
+        character=character,
+        name=name,
+        current=max_value,
+        max_value=max_value,
+        color=color,
+        order=character.bars.count()
+    )
+    
+    return JsonResponse({
+        "success": True,
+        "bar": {
+            "id": bar.id,
+            "name": bar.name,
+            "current": bar.current,
+            "max_value": bar.max_value,
+            "color": bar.color
+        }
+    })
+
+
+@login_required
+@require_POST
+def modify_bar(request: HttpRequest, bar_id: int) -> JsonResponse:
+    """Modifica valor de uma barra (+1 ou -1)"""
+    bar = get_object_or_404(CharacterBar, pk=bar_id)
+    character = bar.character
+    
+    # Verifica permissão: mestre ou dono
+    if character.campaign:
+        is_master = character.campaign.master == request.user
+        is_owner = character.assigned_to == request.user
+        if not (is_master or is_owner):
+            return JsonResponse({"error": "Sem permissão"}, status=403)
+    else:
+        if character.assigned_to != request.user and character.created_by != request.user:
+            return JsonResponse({"error": "Sem permissão"}, status=403)
+    
+    action = request.POST.get("action")
+    
+    if action == "increase":
+        bar.current = min(bar.current + 1, bar.max_value)
+    elif action == "decrease":
+        bar.current = max(bar.current - 1, 0)
+    else:
+        return JsonResponse({"error": "Ação inválida"}, status=400)
+    
+    bar.save()
+    return JsonResponse({"success": True, "current": bar.current})
+
+
+@login_required
+@require_POST
+def delete_bar(request: HttpRequest, bar_id: int) -> JsonResponse:
+    """Deleta uma barra personalizada"""
+    bar = get_object_or_404(CharacterBar, pk=bar_id)
+    character = bar.character
+    
+    # Apenas mestre pode deletar
+    if character.campaign:
+        if character.campaign.master != request.user:
+            return JsonResponse({"error": "Sem permissão"}, status=403)
+    elif character.created_by != request.user:
+        return JsonResponse({"error": "Sem permissão"}, status=403)
+    
+    bar.delete()
+    return JsonResponse({"success": True})
 

@@ -93,6 +93,7 @@ class Character(models.Model):
         on_delete=models.SET_NULL,
         related_name="characters",
     )
+    visible = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -135,6 +136,21 @@ class CharacterSkill(models.Model):
 class CharacterAbility(models.Model):
     character = models.ForeignKey(Character, on_delete=models.CASCADE, related_name="abilities")
     name = models.CharField(max_length=80)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["order", "name"]
+
+    def __str__(self) -> str:  # pragma: no cover - simple display
+        return f"{self.character.name}: {self.name}"
+
+
+class CharacterBar(models.Model):
+    character = models.ForeignKey(Character, on_delete=models.CASCADE, related_name="bars")
+    name = models.CharField(max_length=80)
+    current = models.IntegerField(default=0)
+    max_value = models.IntegerField(default=100)
+    color = models.CharField(max_length=20, default="#ff4444")
     order = models.PositiveIntegerField(default=0)
 
     class Meta:

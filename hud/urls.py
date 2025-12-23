@@ -23,4 +23,8 @@ urlpatterns = [
     path("reset-password/<str:token>/", views.reset_password, name="reset_password"),
     path("characters/<int:character_id>/modify-hp/", views.modify_hp, name="modify_hp"),
     path("characters/<int:character_id>/modify-sp/", views.modify_sp, name="modify_sp"),
+    path("characters/<int:character_id>/toggle-visibility/", views.toggle_character_visibility, name="toggle_character_visibility"),
+    path("characters/<int:character_id>/add-bar/", views.add_character_bar, name="add_character_bar"),
+    path("bars/<int:bar_id>/modify/", views.modify_bar, name="modify_bar"),
+    path("bars/<int:bar_id>/delete/", views.delete_bar, name="delete_bar"),
 ]

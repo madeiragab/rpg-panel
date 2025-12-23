@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
+{% load hud_filters %}
 
 {% block content %}
 {% if is_master and campaign and campaign_characters %}
@@ -14,18 +15,18 @@
     </div>
 </nav>
 {% endif %}
-<div class="hud-layout" {% if campaign and campaign.banner %}style="background-image: linear-gradient(rgba(12, 15, 26, 0.85), rgba(12, 15, 26, 0.85)), url('{{ campaign.banner.url }}'); background-size: cover; background-attachment: fixed; background-position: center;"{% endif %}>
-    <div style="padding: 12px;">
-        {% if campaign %}
-            {% if is_master %}
-            <a href="{% url 'campaign_detail' campaign.pk %}" class="hud-button ghost">Voltar para Campanha</a>
-            {% else %}
-            <a href="{% url 'campaign_detail' campaign.pk %}?mode=player" class="hud-button ghost">Voltar para Campanha</a>
-            {% endif %}
+<div style="padding: 12px 24px; max-width: 1400px; margin: 0 auto;">
+    {% if campaign %}
+        {% if is_master %}
+        <a href="{% url 'campaign_detail' campaign.pk %}" class="hud-button ghost">Voltar para Campanha</a>
         {% else %}
-            <a href="{% url 'home' %}" class="hud-button ghost">Voltar</a>
+        <a href="{% url 'campaign_detail' campaign.pk %}?mode=player" class="hud-button ghost">Voltar para Campanha</a>
         {% endif %}
-    </div>
+    {% else %}
+        <a href="{% url 'home' %}" class="hud-button ghost">Voltar</a>
+    {% endif %}
+</div>
+<div class="hud-layout" {% if campaign and campaign.banner %}style="background-image: linear-gradient(rgba(12, 15, 26, 0.85), rgba(12, 15, 26, 0.85)), url('{{ campaign.banner.url }}'); background-size: cover; background-attachment: fixed; background-position: center;"{% endif %}>
     {% if not is_master %}
         <div class="player-view-notice">
             <p>📖 Você está visualizando este personagem em modo leitura</p>
@@ -82,24 +83,39 @@
                 {% endif %}
             {% endif %}
         </div>
-        <div class="stat-grid">
-            <div class="stat-card">
-                <div class="stat-label">HP</div>
-                <div class="stat-value" style="display: flex; align-items: center; gap: 8px;">
-                    <button class="hud-button ghost" onclick="modifyStat({{ character.id }}, 'hp', 'decrease')" style="padding: 4px 8px;">−</button>
-                    <span id="hp-display">{{ character.hp_current }} / {{ character.hp_max }}</span>
-                    <button class="hud-button ghost" onclick="modifyStat({{ character.id }}, 'hp', 'increase')" style="padding: 4px 8px;">+</button>
+        <div id="bars-container" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px;">
+            {% for bar in character.bars.all %}
+            <div class="character-bar" data-bar-id="{{ bar.id }}" style="display: flex; align-items: center; gap: 12px;">
+                <span style="font-weight: 600; min-width: 80px; color: var(--text);">{{ bar.name }}</span>
+                <button class="hud-button ghost" onclick="modifyBar({{ bar.id }}, 'decrease')" style="padding: 4px 8px; font-size: 16px;">−</button>
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
+                    <span class="bar-display" style="font-size: 0.9rem; color: var(--muted);">{{ bar.current }} / {{ bar.max_value }}</span>
+                    <div style="width: 100%; height: 10px; background: rgba(255, 255, 255, 0.1); border-radius: 5px; overflow: hidden;">
+                        <div class="bar-fill" style="height: 100%; background: {{ bar.color }}; width: {{ bar.current|div:bar.max_value|mul:100 }}%; transition: width 0.3s ease;"></div>
+                    </div>
                 </div>
+                <button class="hud-button ghost" onclick="modifyBar({{ bar.id }}, 'increase')" style="padding: 4px 8px; font-size: 16px;">+</button>
+                {% if is_master %}
+                <button class="hud-button danger" onclick="deleteBar({{ bar.id }})" style="padding: 4px 8px; font-size: 12px;">×</button>
+                {% endif %}
             </div>
-            <div class="stat-card">
-                <div class="stat-label">SP</div>
-                <div class="stat-value" style="display: flex; align-items: center; gap: 8px;">
-                    <button class="hud-button ghost" onclick="modifyStat({{ character.id }}, 'sp', 'decrease')" style="padding: 4px 8px;">−</button>
-                    <span id="sp-display">{{ character.sp_current }} / {{ character.sp_max }}</span>
-                    <button class="hud-button ghost" onclick="modifyStat({{ character.id }}, 'sp', 'increase')" style="padding: 4px 8px;">+</button>
+            {% endfor %}
+        </div>
+        
+        {% if is_master %}
+        <div style="margin-bottom: 20px;">
+            <button id="add-bar-btn" class="hud-button" onclick="showAddBarForm()" style="width: 100%;">+ Adicionar Barra</button>
+            <div id="add-bar-form" style="display: none; margin-top: 12px; padding: 16px; background: var(--panel); border-radius: 8px;">
+                <input type="text" id="bar-name" placeholder="Nome (ex: Vida, Mana, Sanidade)" style="width: 100%; padding: 8px; margin-bottom: 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text);">
+                <input type="number" id="bar-max" placeholder="Valor máximo" value="100" style="width: 100%; padding: 8px; margin-bottom: 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text);">
+                <input type="color" id="bar-color" value="#ff4444" style="width: 100%; height: 40px; margin-bottom: 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px;">
+                <div style="display: flex; gap: 8px;">
+                    <button class="hud-button" onclick="addBar({{ character.id }})">Criar</button>
+                    <button class="hud-button ghost" onclick="hideAddBarForm()">Cancelar</button>
                 </div>
             </div>
         </div>
+        {% endif %}
         <div class="portrait-wrap">
             <div class="portrait-thumb{% if not character.image %} empty{% endif %}"
                  {% if character.image %}style="background-image: url('{{ character.image.url }}')"{% endif %}></div>
@@ -234,11 +250,99 @@
         .then(data => {
             if (data.success) {
                 const display = document.getElementById(`${statType}-display`);
+                const bar = document.getElementById(`${statType}-bar`);
                 const currentValue = statType === 'hp' ? data.hp_current : data.sp_current;
-                const maxValue = display.textContent.split(' / ')[1];
+                const maxValue = parseInt(display.textContent.split(' / ')[1]);
+                const percentage = (currentValue / maxValue) * 100;
+                
                 display.textContent = `${currentValue} / ${maxValue}`;
+                bar.style.width = `${percentage}%`;
             } else {
                 alert(data.error || 'Erro ao modificar');
+            }
+        })
+        .catch(error => console.error('Erro:', error));
+    }
+    
+    function showAddBarForm() {
+        document.getElementById('add-bar-form').style.display = 'block';
+        document.getElementById('add-bar-btn').style.display = 'none';
+    }
+    
+    function hideAddBarForm() {
+        document.getElementById('add-bar-form').style.display = 'none';
+        document.getElementById('add-bar-btn').style.display = 'block';
+    }
+    
+    function addBar(characterId) {
+        const name = document.getElementById('bar-name').value.trim();
+        const maxValue = document.getElementById('bar-max').value;
+        const color = document.getElementById('bar-color').value;
+        
+        if (!name) {
+            alert('Digite um nome para a barra');
+            return;
+        }
+        
+        fetch(`/characters/${characterId}/add-bar/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: `name=${encodeURIComponent(name)}&max_value=${maxValue}&color=${encodeURIComponent(color)}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert(data.error || 'Erro ao criar barra');
+            }
+        })
+        .catch(error => console.error('Erro:', error));
+    }
+    
+    function modifyBar(barId, action) {
+        fetch(`/bars/${barId}/modify/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: `action=${action}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const barEl = document.querySelector(`[data-bar-id="${barId}"]`);
+                const display = barEl.querySelector('.bar-display');
+                const fill = barEl.querySelector('.bar-fill');
+                const maxValue = parseInt(display.textContent.split(' / ')[1]);
+                const percentage = (data.current / maxValue) * 100;
+                
+                display.textContent = `${data.current} / ${maxValue}`;
+                fill.style.width = `${percentage}%`;
+            } else {
+                alert(data.error || 'Erro ao modificar');
+            }
+        })
+        .catch(error => console.error('Erro:', error));
+    }
+    
+    function deleteBar(barId) {
+        if (!confirm('Tem certeza que deseja deletar esta barra?')) return;
+        
+        fetch(`/bars/${barId}/delete/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.querySelector(`[data-bar-id="${barId}"]`).remove();
             }
         })
         .catch(error => console.error('Erro:', error));

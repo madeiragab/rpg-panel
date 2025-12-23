@@ -69,7 +69,14 @@
                             <div class="character-card-image empty"></div>
                         {% endif %}
                         <div class="character-card-info">
-                            <h3>{{ character.name }}</h3>
+                            <h3>
+                                {{ character.name }}
+                                {% if is_master %}
+                                <button onclick="toggleVisibility({{ character.id }}, this)" class="hud-button ghost" style="font-size: 18px; padding: 4px 8px;" title="{% if character.visible %}Ocultar personagem{% else %}Mostrar personagem{% endif %}">
+                                    {% if character.visible %}👁️{% else %}🚫{% endif %}
+                                </button>
+                                {% endif %}
+                            </h3>
                             {% if character.assigned_to %}
                                 <div class="list-inline" style="gap:6px; align-items:center; margin-bottom:8px;">
                                     <span class="mini-thumb" style="width:28px;height:28px;border-radius:50%;border:1px solid var(--border); background:{% if character.assigned_to.profile.avatar %}url('{{ character.assigned_to.profile.avatar.url }}'){% else %}#ffffff{% endif %}; background-size: cover; background-position: center;"></span>
@@ -381,5 +388,23 @@ searchInput.addEventListener('input', (e) => {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => doSearch(q), 200);
 });
+
+function toggleVisibility(characterId, button) {
+    fetch(`/characters/${characterId}/toggle-visibility/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            button.textContent = data.visible ? '👁️' : '🚫';
+            button.title = data.visible ? 'Ocultar personagem' : 'Mostrar personagem';
+        }
+    })
+    .catch(error => console.error('Erro:', error));
+}
 </script>
 {% endblock %}
