@@ -84,8 +84,11 @@ class CharacterForm(forms.ModelForm):
 class ItemForm(forms.ModelForm):
     class Meta:
         model = Item
-        fields = ["name", "image"]
-        labels = {"name": "Nome", "image": "Imagem (upload)"}
+        fields = ["name", "image", "description"]
+        labels = {"name": "Nome", "image": "Imagem (upload)", "description": "Descrição"}
+        widgets = {
+            "description": forms.Textarea(attrs={"rows": 3, "placeholder": "Detalhes, efeitos, usos..."}),
+        }
 
 
 class RegistrationForm(forms.Form):

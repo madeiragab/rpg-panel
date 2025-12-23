@@ -170,6 +170,7 @@ class Item(models.Model):
     )
     name = models.CharField(max_length=120)
     image = models.ImageField(upload_to="items/", null=True, blank=True)
+    description = models.TextField(blank=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

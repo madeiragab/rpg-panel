@@ -118,14 +118,14 @@
             </div>
             <div class="items-grid">
                 {% for item in items %}
-                    <div class="item-card">
+                    <div class="item-card" data-name="{{ item.name|escape }}" data-description="{{ item.description|default_if_none:''|escape }}" data-image="{% if item.image %}{{ item.image.url }}{% endif %}">
                         {% if item.image %}
                             <div class="item-card-image" style="background-image: url('{{ item.image.url }}')"></div>
                         {% else %}
                             <div class="item-card-image empty"></div>
                         {% endif %}
                         <p>{{ item.name }}</p>
-                        <form method="post" action="{% url 'delete_item' item.pk %}" onsubmit="return confirm('Tem certeza que deseja deletar este item?');" style="margin-top:8px;">
+                        <form method="post" action="{% url 'delete_item' item.pk %}" onsubmit="event.stopPropagation(); return confirm('Tem certeza que deseja deletar este item?');" style="margin-top:8px;">
                             {% csrf_token %}
                             <button type="submit" class="hud-button danger">Deletar</button>
                         </form>
@@ -133,6 +133,14 @@
                 {% empty %}
                     <p class="muted">Nenhum item criado ainda.</p>
                 {% endfor %}
+            </div>
+
+            <div id="item-detail" class="selected-item-display" style="display:none;">
+                <div id="item-detail-figure" class="selected-item-figure empty"></div>
+                <div>
+                    <div id="item-detail-name" class="selected-item-name"></div>
+                    <p id="item-detail-description" class="muted" style="white-space: pre-wrap;"></p>
+                </div>
             </div>
             <div id="create-item" class="panel-card" style="display:none;">
                 <h3 class="panel-subtitle">Criar Item</h3>
@@ -302,6 +310,32 @@ if (toggleItem) {
         createItem.style.display = createItem.style.display === 'none' ? 'block' : 'none';
     });
 }
+
+// Item detail viewer (apenas mestre)
+const itemCards = document.querySelectorAll('.item-card');
+const detailPanel = document.getElementById('item-detail');
+const detailName = document.getElementById('item-detail-name');
+const detailDesc = document.getElementById('item-detail-description');
+const detailFigure = document.getElementById('item-detail-figure');
+
+itemCards.forEach(card => {
+    card.addEventListener('click', () => {
+        if (!detailPanel) return;
+        const name = card.dataset.name || '';
+        const desc = card.dataset.description || '';
+        const image = card.dataset.image || '';
+        detailName.textContent = name;
+        detailDesc.textContent = desc || 'Sem descrição para este item.';
+        if (image) {
+            detailFigure.style.backgroundImage = `url('${image}')`;
+            detailFigure.classList.remove('empty');
+        } else {
+            detailFigure.style.backgroundImage = '';
+            detailFigure.classList.add('empty');
+        }
+        detailPanel.style.display = 'grid';
+    });
+});
 </script>
 <script>
 // Live search players by nickname
