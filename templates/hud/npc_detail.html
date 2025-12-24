@@ -115,6 +115,29 @@
             </form>
         {% endif %}
     </section>
+
+    <section class="panel-card column">
+        <div class="list-inline" style="justify-content: space-between; align-items: center;">
+            <h2 class="panel-title" style="margin: 0;">Inventário</h2>
+            <button type="button" class="hud-button ghost" id="toggle-npc-inventory" aria-expanded="false" style="padding: 4px 12px; font-size: 18px;">+</button>
+        </div>
+        <div id="npc-inventory" class="inventory-grid-wrap" style="display: none; margin-top: 12px;">
+            <div class="inventory-grid" aria-live="polite">
+                {% for slot in slots %}
+                    <div class="inventory-slot" style="cursor: default;">
+                        <div class="slot-figure{% if not slot.item or not slot.item.image %} empty{% endif %}"
+                             {% if slot.item and slot.item.image %}style="background-image: url('{{ slot.item.image.url }}')"{% endif %}></div>
+                        <span class="slot-label">{{ slot.label }}</span>
+                        {% if slot.item %}
+                            <span class="muted" style="font-size: 0.85rem;">{{ slot.item.name }}</span>
+                        {% else %}
+                            <span class="muted" style="font-size: 0.85rem;">Vazio</span>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
 </div>
 
 <script>
@@ -199,6 +222,18 @@ async function deleteNPCBar(barId) {
         }
     })
     .catch(error => console.error('Erro:', error));
+}
+
+// Toggle inventory visibility (default collapsed)
+const toggleInventoryBtn = document.getElementById('toggle-npc-inventory');
+const inventorySection = document.getElementById('npc-inventory');
+if (toggleInventoryBtn && inventorySection) {
+    toggleInventoryBtn.addEventListener('click', () => {
+        const isOpen = inventorySection.style.display === 'block';
+        inventorySection.style.display = isOpen ? 'none' : 'block';
+        toggleInventoryBtn.textContent = isOpen ? '+' : '−';
+        toggleInventoryBtn.setAttribute('aria-expanded', (!isOpen).toString());
+    });
 }
 </script>
 {% endblock %}
