@@ -8,6 +8,7 @@ urlpatterns = [
     path("player/", views.player_dashboard, name="player_dashboard"),
     path("campaigns/<int:pk>/", views.campaign_detail, name="campaign_detail"),
     path("campaigns/<int:pk>/search_players/", views.search_players, name="search_players"),
+    path("campaigns/<int:pk>/leave/", views.leave_campaign, name="leave_campaign"),
     path("characters/", views.character_list, name="character_list"),
     path("characters/<int:pk>/", views.character_detail, name="character_detail"),
     path("npcs/<int:pk>/", views.npc_detail, name="npc_detail"),

@@ -301,6 +301,12 @@
                         <div class="list-inline">
                             <span class="mini-thumb" style="width:36px;height:36px;border-radius:50%;border:1px solid var(--border); background:{% if p.profile.avatar %}url('{{ p.profile.avatar.url }}'){% else %}#ffffff{% endif %}; background-size: cover; background-position: center;"></span>
                             <span>{{ p.username }}</span>
+                            {% if p.id == user.id %}
+                                <form method="post" action="{% url 'leave_campaign' campaign.pk %}" style="margin-left: auto;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="hud-button danger" style="padding: 4px 12px; font-size: 14px;">Sair</button>
+                                </form>
+                            {% endif %}
                         </div>
                     </li>
                     {% endfor %}

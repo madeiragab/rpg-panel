@@ -369,6 +369,28 @@ def delete_npc(request: HttpRequest, pk: int) -> HttpResponse:
 
 @login_required
 @require_POST
+def leave_campaign(request: HttpRequest, pk: int) -> HttpResponse:
+    """Remove o jogador da campanha e desvincula seus personagens."""
+    campaign = get_object_or_404(Campaign, pk=pk)
+    
+    # Verificar se o usuário está na campanha
+    if request.user not in campaign.players.all():
+        return HttpResponseForbidden("Você não está nesta campanha.")
+    
+    # Desvincula todos os personagens do jogador
+    characters = Character.objects.filter(campaign=campaign, assigned_to=request.user)
+    for char in characters:
+        char.assigned_to = None
+        char.save()
+    
+    # Remove o jogador da campanha
+    campaign.players.remove(request.user)
+    messages.success(request, f"Você saiu da campanha '{campaign.name}'.")
+    return redirect("player_dashboard")
+
+
+@login_required
+@require_POST
 def delete_item(request: HttpRequest, pk: int) -> HttpResponse:
     item = get_object_or_404(Item, pk=pk)
     if not item.campaign or item.campaign.master != request.user:

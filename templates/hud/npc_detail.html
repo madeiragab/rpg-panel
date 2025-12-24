@@ -67,10 +67,23 @@
             {% endfor %}
         </div>
 
+        <div class="portrait-wrap">
+            <div class="portrait-thumb{% if not npc.image %} empty{% endif %}"
+                 {% if npc.image %}style="background-image: url('{{ npc.image.url }}')"{% endif %}></div>
+            <div class="portrait-hint muted">Retrato do NPC (opcional)</div>
+        </div>
+
         {% if is_master %}
-            <form method="post" class="panel-form" id="add-bar-form">
+            <form method="post" enctype="multipart/form-data" class="panel-form compact">
                 {% csrf_token %}
-                <h3 class="panel-subtitle" style="margin-top: 20px;">Adicionar Barra</h3>
+                <input type="hidden" name="form_type" value="npc">
+                {{ npc_form.as_p }}
+                <button type="submit" class="hud-button">Atualizar informações</button>
+            </form>
+
+            <form method="post" class="panel-form" id="add-bar-form" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">
+                {% csrf_token %}
+                <h3 class="panel-subtitle">Adicionar Barra</h3>
                 <label for="bar-name">Nome da barra</label>
                 <input type="text" id="bar-name" placeholder="Ex.: Sanidade, Karma..." />
                 <label for="bar-max">Valor máximo</label>
@@ -79,16 +92,6 @@
                 <input type="color" id="bar-color" value="#70e0ff" />
                 <button type="button" class="hud-button ghost" onclick="addNPCBar()">Adicionar</button>
             </form>
-
-            <div id="npc-edit-form" style="margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--border);">
-                <h3 class="panel-subtitle">Editar Informações</h3>
-                <form method="post" enctype="multipart/form-data" class="panel-form">
-                    {% csrf_token %}
-                    <input type="hidden" name="form_type" value="npc">
-                    {{ npc_form.as_p }}
-                    <button type="submit" class="hud-button">Salvar</button>
-                </form>
-            </div>
         {% endif %}
     </section>
 
