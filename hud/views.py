@@ -218,8 +218,9 @@ def campaign_detail(request: HttpRequest, pk: int) -> HttpResponse:
     # Filter assigned_to to show only players in this campaign
     character_form.fields["assigned_to"].queryset = campaign.players.all()
     item_form = ItemForm(prefix="item")
-    npc_form = NPCForm(prefix="npc")
-    npc_form.fields["assigned_to_character"].queryset = campaign.characters.all()
+    npc_form = NPCForm(prefix="npc") if is_master else None
+    if is_master and npc_form:
+        npc_form.fields["assigned_to_character"].queryset = campaign.characters.all()
     players = campaign.players.select_related("profile").all()
     search_results = []
     if is_master:
