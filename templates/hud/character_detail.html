@@ -142,8 +142,14 @@
                 {% csrf_token %}
                 <input type="hidden" name="form_type" value="attribute">
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                    {{ attribute_form.name }}
-                    {{ attribute_form.value }}
+                    <div>
+                        <label for="id_attribute-name" style="display: block; font-size: 0.9rem; margin-bottom: 4px;">Nome</label>
+                        <input type="text" name="attribute-name" placeholder="Ex: Força, Inteligência" style="width: 100%; padding: 6px; border: 1px solid var(--border); border-radius: 4px; background: rgba(255,255,255,0.05); color: var(--text);">
+                    </div>
+                    <div>
+                        <label for="id_attribute-value" style="display: block; font-size: 0.9rem; margin-bottom: 4px;">Valor</label>
+                        <input type="text" name="attribute-value" placeholder="Ex: 18, A+, Excelente" style="width: 100%; padding: 6px; border: 1px solid var(--border); border-radius: 4px; background: rgba(255,255,255,0.05); color: var(--text);">
+                    </div>
                 </div>
                 <button type="submit" class="hud-button ghost" style="margin-top: 8px;">+ Atributo</button>
             </form>
