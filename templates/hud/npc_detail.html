@@ -73,8 +73,27 @@
             <div class="portrait-hint muted">Retrato do NPC (opcional)</div>
         </div>
 
+        <div class="attributes-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px;">
+            {% for attr in npc.attributes.all %}
+                <div class="attribute-box" style="background: rgba(20,26,42,0.4); padding: 8px; border-radius: 6px; text-align: center;">
+                    <div style="font-size: 0.75rem; color: var(--muted); text-transform: uppercase;">{{ attr.name }}</div>
+                    <div style="font-size: 1.1rem; font-weight: 600; color: var(--text);">{{ attr.value }}</div>
+                </div>
+            {% endfor %}
+        </div>
+
         {% if is_master %}
-            <form method="post" enctype="multipart/form-data" class="panel-form compact">
+            <form method="post" class="panel-form compact" style="margin-top: 12px;">
+                {% csrf_token %}
+                <input type="hidden" name="form_type" value="attribute">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    {{ attribute_form.name }}
+                    {{ attribute_form.value }}
+                </div>
+                <button type="submit" class="hud-button ghost" style="margin-top: 8px;">+ Atributo</button>
+            </form>
+
+            <form method="post" enctype="multipart/form-data" class="panel-form compact" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">
                 {% csrf_token %}
                 <input type="hidden" name="form_type" value="npc">
                 {{ npc_form.as_p }}

@@ -33,14 +33,16 @@ def _mask_email(email: str) -> str:
 from .forms import (
     CampaignForm,
     CharacterAbilityForm,
+    CharacterAttributeForm,
     CharacterForm,
     CharacterSkillForm,
     ItemForm,
     NPCForm,
     NPCAbilityForm,
+    NPCAttributeForm,
     NPCSkillForm,
 )
-from .models import Campaign, Character, InventorySlot, Item, NPC, NPCAbility, NPCBar, NPCInventorySlot, NPCSkill, UserProfile, CharacterBar
+from .models import Campaign, Character, CharacterAttribute, InventorySlot, Item, NPC, NPCAbility, NPCAttribute, NPCBar, NPCInventorySlot, NPCSkill, UserProfile, CharacterBar
 
 
 def forgot_password(request: HttpRequest) -> HttpResponse:
@@ -464,6 +466,7 @@ def character_detail(request: HttpRequest, pk: int) -> HttpResponse:
 
     skill_form = CharacterSkillForm(prefix="skill")
     ability_form = CharacterAbilityForm(prefix="ability")
+    attribute_form = CharacterAttributeForm(prefix="attribute")
     character_form = CharacterForm(instance=character, prefix="character")
 
     if request.method == "POST" and is_master:
@@ -488,6 +491,17 @@ def character_detail(request: HttpRequest, pk: int) -> HttpResponse:
             if ability_form.is_valid():
                 ability = ability_form.save(commit=False)
                 ability.character = character
+                ability.save()
+                messages.success(request, "Habilidade adicionada.")
+                return redirect("character_detail", pk=character.pk)
+        elif form_type == "attribute":
+            attribute_form = CharacterAttributeForm(request.POST, prefix="attribute")
+            if attribute_form.is_valid():
+                attr = attribute_form.save(commit=False)
+                attr.character = character
+                attr.save()
+                messages.success(request, "Atributo adicionado.")
+                return redirect("character_detail", pk=character.pk)
                 ability.save()
                 messages.success(request, "Habilidade adicionada.")
                 return redirect("character_detail", pk=character.pk)
@@ -531,6 +545,7 @@ def character_detail(request: HttpRequest, pk: int) -> HttpResponse:
             "character_form": character_form,
             "skill_form": skill_form,
             "ability_form": ability_form,
+            "attribute_form": attribute_form,
             "items": items,
             "campaign": character.campaign,
             "campaign_characters": campaign_characters,
@@ -776,6 +791,7 @@ def npc_detail(request: HttpRequest, pk: int) -> HttpResponse:
 
     skill_form = NPCSkillForm(prefix="skill")
     ability_form = NPCAbilityForm(prefix="ability")
+    attribute_form = NPCAttributeForm(prefix="attribute")
     npc_form = NPCForm(instance=npc, prefix="npc")
     npc_form.fields["assigned_to_character"].queryset = campaign.characters.all()
 
@@ -804,6 +820,14 @@ def npc_detail(request: HttpRequest, pk: int) -> HttpResponse:
                 ability.save()
                 messages.success(request, "Habilidade adicionada.")
                 return redirect("npc_detail", pk=npc.pk)
+        elif form_type == "attribute":
+            attribute_form = NPCAttributeForm(request.POST, prefix="attribute")
+            if attribute_form.is_valid():
+                attr = attribute_form.save(commit=False)
+                attr.npc = npc
+                attr.save()
+                messages.success(request, "Atributo adicionado.")
+                return redirect("npc_detail", pk=npc.pk)
 
     npc.ensure_slots()
     slots_list = list(NPCInventorySlot.objects.filter(npc=npc).order_by("position"))
@@ -820,6 +844,7 @@ def npc_detail(request: HttpRequest, pk: int) -> HttpResponse:
             "npc_form": npc_form,
             "skill_form": skill_form,
             "ability_form": ability_form,
+            "attribute_form": attribute_form,
             "items": items,
             "campaign": campaign,
         },

@@ -220,6 +220,19 @@ class CharacterBar(models.Model):
         return f"{self.character.name}: {self.name}"
 
 
+class CharacterAttribute(models.Model):
+    character = models.ForeignKey(Character, on_delete=models.CASCADE, related_name="attributes")
+    name = models.CharField(max_length=80)
+    value = models.CharField(max_length=40)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["order", "name"]
+
+    def __str__(self) -> str:  # pragma: no cover - simple display
+        return f"{self.character.name}: {self.name} = {self.value}"
+
+
 class NPCSkill(models.Model):
     npc = models.ForeignKey(NPC, on_delete=models.CASCADE, related_name="skills")
     name = models.CharField(max_length=80)
@@ -258,6 +271,19 @@ class NPCBar(models.Model):
 
     def __str__(self) -> str:  # pragma: no cover - simple display
         return f"{self.npc.name}: {self.name}"
+
+
+class NPCAttribute(models.Model):
+    npc = models.ForeignKey(NPC, on_delete=models.CASCADE, related_name="attributes")
+    name = models.CharField(max_length=80)
+    value = models.CharField(max_length=40)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["order", "name"]
+
+    def __str__(self) -> str:  # pragma: no cover - simple display
+        return f"{self.npc.name}: {self.name} = {self.value}"
 
 
 class Item(models.Model):

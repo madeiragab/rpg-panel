@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib.auth.models import User
 
-from .models import Campaign, Character, CharacterAbility, CharacterSkill, Item, NPC, NPCAbility, NPCSkill, UserProfile
+from .models import Campaign, Character, CharacterAbility, CharacterAttribute, CharacterSkill, Item, NPC, NPCAbility, NPCAttribute, NPCSkill, UserProfile
 
 
 class ForgotPasswordForm(forms.Form):
@@ -123,6 +123,26 @@ class NPCAbilityForm(forms.ModelForm):
         model = NPCAbility
         fields = ["name", "order"]
         labels = {"name": "Nome", "order": "Ordem"}
+
+
+class CharacterAttributeForm(forms.ModelForm):
+    class Meta:
+        model = CharacterAttribute
+        fields = ["name", "value", "order"]
+        labels = {"name": "Nome", "value": "Valor", "order": "Ordem"}
+        widgets = {
+            "order": forms.HiddenInput(),
+        }
+
+
+class NPCAttributeForm(forms.ModelForm):
+    class Meta:
+        model = NPCAttribute
+        fields = ["name", "value", "order"]
+        labels = {"name": "Nome", "value": "Valor", "order": "Ordem"}
+        widgets = {
+            "order": forms.HiddenInput(),
+        }
 
 
 class RegistrationForm(forms.Form):
