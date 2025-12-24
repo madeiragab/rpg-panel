@@ -4,12 +4,22 @@
 {% block content %}
 <div style="padding: 12px 24px; max-width: 1400px; margin: 0 auto;">
     {% if campaign %}
+        {% if is_master %}
         <a href="{% url 'campaign_detail' campaign.pk %}" class="hud-button ghost">Voltar para Campanha</a>
+        {% else %}
+        <a href="{% url 'campaign_detail' campaign.pk %}?mode=player" class="hud-button ghost">Voltar para Campanha</a>
+        {% endif %}
     {% else %}
         <a href="{% url 'home' %}" class="hud-button ghost">Voltar</a>
     {% endif %}
 </div>
 <div class="hud-layout" {% if campaign and campaign.banner %}style="background-image: linear-gradient(rgba(12, 15, 26, 0.85), rgba(12, 15, 26, 0.85)), url('{{ campaign.banner.url }}'); background-size: cover; background-attachment: fixed; background-position: center;"{% endif %}>
+    {% if not is_master %}
+        <div class="player-view-notice">
+            <p>📖 Você está visualizando este NPC em modo leitura</p>
+        </div>
+    {% endif %}
+
     <section class="panel-card column">
         <h2 class="panel-title">Perícias / Proficiências</h2>
         <div class="tags-wrap">
@@ -21,12 +31,14 @@
                 <span class="muted">Sem perícias cadastradas.</span>
             {% endfor %}
         </div>
-        <form method="post" class="panel-form compact">
-            {% csrf_token %}
-            <input type="hidden" name="form_type" value="skill">
-            {{ skill_form.as_p }}
-            <button type="submit" class="hud-button ghost">Adicionar perícia</button>
-        </form>
+        {% if is_master %}
+            <form method="post" class="panel-form compact">
+                {% csrf_token %}
+                <input type="hidden" name="form_type" value="skill">
+                {{ skill_form.as_p }}
+                <button type="submit" class="hud-button ghost">Adicionar perícia</button>
+            </form>
+        {% endif %}
     </section>
 
     <section class="panel-card column">
@@ -38,40 +50,46 @@
             {% for bar in npc.bars.all %}
             <div class="character-bar" data-bar-id="{{ bar.id }}" style="display: flex; align-items: center; gap: 12px;">
                 <span style="font-weight: 600; min-width: 80px; color: var(--text);">{{ bar.name }}</span>
-                <button class="hud-button ghost" onclick="modifyNPCBar({{ bar.id }}, 'decrease')" style="padding: 4px 8px; font-size: 16px;">−</button>
+                {% if is_master %}
+                    <button class="hud-button ghost" onclick="modifyNPCBar({{ bar.id }}, 'decrease')" style="padding: 4px 8px; font-size: 16px;">−</button>
+                {% endif %}
                 <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
                     <span class="bar-display" style="font-size: 0.9rem; color: var(--muted);" data-current="{{ bar.current }}" data-max="{{ bar.max_value }}">{{ bar.current }} / {{ bar.max_value }}</span>
                     <div style="width: 100%; height: 10px; background: rgba(255, 255, 255, 0.1); border-radius: 5px; overflow: hidden;">
                         <div class="bar-fill" style="height: 100%; background: {{ bar.color }}; width: {% widthratio bar.current bar.max_value 100 %}%; transition: width 0.3s ease;"></div>
                     </div>
                 </div>
-                <button class="hud-button ghost" onclick="modifyNPCBar({{ bar.id }}, 'increase')" style="padding: 4px 8px; font-size: 16px;">+</button>
-                <button class="hud-button danger" onclick="deleteNPCBar({{ bar.id }})" style="padding: 4px 8px; font-size: 12px;">×</button>
+                {% if is_master %}
+                    <button class="hud-button ghost" onclick="modifyNPCBar({{ bar.id }}, 'increase')" style="padding: 4px 8px; font-size: 16px;">+</button>
+                    <button class="hud-button danger" onclick="deleteNPCBar({{ bar.id }})" style="padding: 4px 8px; font-size: 12px;">×</button>
+                {% endif %}
             </div>
             {% endfor %}
         </div>
 
-        <form method="post" class="panel-form" id="add-bar-form">
-            {% csrf_token %}
-            <h3 class="panel-subtitle" style="margin-top: 20px;">Adicionar Barra</h3>
-            <label for="bar-name">Nome da barra</label>
-            <input type="text" id="bar-name" placeholder="Ex.: Sanidade, Karma..." />
-            <label for="bar-max">Valor máximo</label>
-            <input type="number" id="bar-max" value="100" min="1" />
-            <label for="bar-color">Cor</label>
-            <input type="color" id="bar-color" value="#70e0ff" />
-            <button type="button" class="hud-button ghost" onclick="addNPCBar()">Adicionar</button>
-        </form>
-
-        <div id="npc-edit-form" style="margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--border);">
-            <h3 class="panel-subtitle">Editar Informações</h3>
-            <form method="post" enctype="multipart/form-data" class="panel-form">
+        {% if is_master %}
+            <form method="post" class="panel-form" id="add-bar-form">
                 {% csrf_token %}
-                <input type="hidden" name="form_type" value="npc">
-                {{ npc_form.as_p }}
-                <button type="submit" class="hud-button">Salvar</button>
+                <h3 class="panel-subtitle" style="margin-top: 20px;">Adicionar Barra</h3>
+                <label for="bar-name">Nome da barra</label>
+                <input type="text" id="bar-name" placeholder="Ex.: Sanidade, Karma..." />
+                <label for="bar-max">Valor máximo</label>
+                <input type="number" id="bar-max" value="100" min="1" />
+                <label for="bar-color">Cor</label>
+                <input type="color" id="bar-color" value="#70e0ff" />
+                <button type="button" class="hud-button ghost" onclick="addNPCBar()">Adicionar</button>
             </form>
-        </div>
+
+            <div id="npc-edit-form" style="margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--border);">
+                <h3 class="panel-subtitle">Editar Informações</h3>
+                <form method="post" enctype="multipart/form-data" class="panel-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="form_type" value="npc">
+                    {{ npc_form.as_p }}
+                    <button type="submit" class="hud-button">Salvar</button>
+                </form>
+            </div>
+        {% endif %}
     </section>
 
     <section class="panel-card column">
@@ -85,12 +103,14 @@
                 <span class="muted">Sem habilidades cadastradas.</span>
             {% endfor %}
         </div>
-        <form method="post" class="panel-form compact">
-            {% csrf_token %}
-            <input type="hidden" name="form_type" value="ability">
-            {{ ability_form.as_p }}
-            <button type="submit" class="hud-button ghost">Adicionar habilidade</button>
-        </form>
+        {% if is_master %}
+            <form method="post" class="panel-form compact">
+                {% csrf_token %}
+                <input type="hidden" name="form_type" value="ability">
+                {{ ability_form.as_p }}
+                <button type="submit" class="hud-button ghost">Adicionar habilidade</button>
+            </form>
+        {% endif %}
     </section>
 </div>
 

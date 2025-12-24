@@ -734,8 +734,22 @@ def npc_detail(request: HttpRequest, pk: int) -> HttpResponse:
     npc = get_object_or_404(NPC, pk=pk)
     campaign = npc.campaign
 
-    # Apenas mestre pode acessar
-    if not campaign or campaign.master != request.user:
+    # Verificar acesso
+    is_master = False
+    is_player = False
+    
+    if campaign:
+        # Mestre da campanha tem acesso total
+        is_master = campaign.master == request.user
+        # Jogador só vê se o NPC está vinculado a um de seus personagens
+        is_player = request.user in campaign.players.all() and npc.assigned_to_character and npc.assigned_to_character.assigned_to == request.user
+    
+    # Se mode=player, força modo leitura mesmo sendo mestre
+    if request.GET.get("mode") == "player":
+        is_master = False
+
+    # Jogador não tem acesso se o NPC não está vinculado a ele
+    if not campaign or (not is_master and not is_player):
         return HttpResponseForbidden("Você não tem acesso a este NPC.")
 
     skill_form = NPCSkillForm(prefix="skill")
@@ -743,7 +757,7 @@ def npc_detail(request: HttpRequest, pk: int) -> HttpResponse:
     npc_form = NPCForm(instance=npc, prefix="npc")
     npc_form.fields["assigned_to_character"].queryset = campaign.characters.all()
 
-    if request.method == "POST" and campaign.master == request.user:
+    if request.method == "POST" and is_master:
         form_type = request.POST.get("form_type")
         if form_type == "npc":
             npc_form = NPCForm(request.POST, request.FILES, instance=npc, prefix="npc")
@@ -779,6 +793,8 @@ def npc_detail(request: HttpRequest, pk: int) -> HttpResponse:
         {
             "npc": npc,
             "slots": slots_list,
+            "is_master": is_master,
+            "is_player": is_player,
             "npc_form": npc_form,
             "skill_form": skill_form,
             "ability_form": ability_form,
