@@ -122,7 +122,7 @@
             <button type="button" class="hud-button ghost" id="toggle-npc-inventory" aria-expanded="false" style="padding: 4px 12px; font-size: 18px;">+</button>
         </div>
         <div id="npc-inventory" class="inventory-grid-wrap" style="display: none; margin-top: 12px;">
-            <div class="inventory-grid" aria-live="polite">
+            <div class="inventory-grid" aria-live="polite" style="width: 100%; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));">
                 {% for slot in slots %}
                     <div class="inventory-slot" style="cursor: default;">
                         <div class="slot-figure{% if not slot.item or not slot.item.image %} empty{% endif %}"
