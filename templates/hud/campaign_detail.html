@@ -189,9 +189,10 @@
                             {% else %}
                                 <p class="muted">Não vinculado a nenhum personagem</p>
                             {% endif %}
-                            <div class="list-inline">
+                        <div class="list-inline">
                                 <a href="{% url 'character_detail' npc.id %}" class="hud-button" style="display:none;">Ver</a>
                                 {% if is_master %}
+                                <a href="{% url 'npc_detail' npc.pk %}" class="hud-button">Editar</a>
                                 <form method="post" action="{% url 'delete_npc' npc.pk %}" onsubmit="return confirm('Tem certeza que deseja deletar este NPC?');">
                                     {% csrf_token %}
                                     <button type="submit" class="hud-button danger">Deletar</button>

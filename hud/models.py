@@ -220,6 +220,46 @@ class CharacterBar(models.Model):
         return f"{self.character.name}: {self.name}"
 
 
+class NPCSkill(models.Model):
+    npc = models.ForeignKey(NPC, on_delete=models.CASCADE, related_name="skills")
+    name = models.CharField(max_length=80)
+    value = models.CharField(max_length=40, blank=True)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["order", "name"]
+
+    def __str__(self) -> str:  # pragma: no cover - simple display
+        return f"{self.npc.name}: {self.name}"
+
+
+class NPCAbility(models.Model):
+    npc = models.ForeignKey(NPC, on_delete=models.CASCADE, related_name="abilities")
+    name = models.CharField(max_length=80)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["order", "name"]
+
+    def __str__(self) -> str:  # pragma: no cover - simple display
+        return f"{self.npc.name}: {self.name}"
+
+
+class NPCBar(models.Model):
+    npc = models.ForeignKey(NPC, on_delete=models.CASCADE, related_name="bars")
+    name = models.CharField(max_length=80)
+    current = models.IntegerField(default=0)
+    max_value = models.IntegerField(default=100)
+    color = models.CharField(max_length=20, default="#ff4444")
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["order", "name"]
+
+    def __str__(self) -> str:  # pragma: no cover - simple display
+        return f"{self.npc.name}: {self.name}"
+
+
 class Item(models.Model):
     campaign = models.ForeignKey(
         Campaign,

@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib.auth.models import User
 
-from .models import Campaign, Character, CharacterAbility, CharacterSkill, Item, NPC, UserProfile
+from .models import Campaign, Character, CharacterAbility, CharacterSkill, Item, NPC, NPCAbility, NPCSkill, UserProfile
 
 
 class ForgotPasswordForm(forms.Form):
@@ -113,6 +113,20 @@ class NPCForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         # Make assigned_to_character optional
         self.fields["assigned_to_character"].required = False
+
+
+class NPCSkillForm(forms.ModelForm):
+    class Meta:
+        model = NPCSkill
+        fields = ["name", "value", "order"]
+        labels = {"name": "Nome", "value": "Valor", "order": "Ordem"}
+
+
+class NPCAbilityForm(forms.ModelForm):
+    class Meta:
+        model = NPCAbility
+        fields = ["name", "order"]
+        labels = {"name": "Nome", "order": "Ordem"}
 
 
 class RegistrationForm(forms.Form):

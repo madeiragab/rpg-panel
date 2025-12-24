@@ -37,8 +37,10 @@ from .forms import (
     CharacterSkillForm,
     ItemForm,
     NPCForm,
+    NPCAbilityForm,
+    NPCSkillForm,
 )
-from .models import Campaign, Character, InventorySlot, Item, NPC, NPCInventorySlot, UserProfile, CharacterBar
+from .models import Campaign, Character, InventorySlot, Item, NPC, NPCAbility, NPCBar, NPCInventorySlot, NPCSkill, UserProfile, CharacterBar
 
 
 def forgot_password(request: HttpRequest) -> HttpResponse:
@@ -735,3 +737,136 @@ def delete_bar(request: HttpRequest, bar_id: int) -> JsonResponse:
     bar.delete()
     return JsonResponse({"success": True})
 
+
+@login_required
+def npc_detail(request: HttpRequest, pk: int) -> HttpResponse:
+    npc = get_object_or_404(NPC, pk=pk)
+    campaign = npc.campaign
+
+    # Apenas mestre pode acessar
+    if not campaign or campaign.master != request.user:
+        return HttpResponseForbidden("Você não tem acesso a este NPC.")
+
+    skill_form = NPCSkillForm(prefix="skill")
+    ability_form = NPCAbilityForm(prefix="ability")
+    npc_form = NPCForm(instance=npc, prefix="npc")
+    npc_form.fields["assigned_to_character"].queryset = campaign.characters.all()
+
+    if request.method == "POST" and campaign.master == request.user:
+        form_type = request.POST.get("form_type")
+        if form_type == "npc":
+            npc_form = NPCForm(request.POST, request.FILES, instance=npc, prefix="npc")
+            if npc_form.is_valid():
+                npc_form.save()
+                npc.ensure_slots()
+                messages.success(request, "NPC atualizado.")
+                return redirect("npc_detail", pk=npc.pk)
+        elif form_type == "skill":
+            skill_form = NPCSkillForm(request.POST, prefix="skill")
+            if skill_form.is_valid():
+                skill = skill_form.save(commit=False)
+                skill.npc = npc
+                skill.save()
+                messages.success(request, "Perícia adicionada.")
+                return redirect("npc_detail", pk=npc.pk)
+        elif form_type == "ability":
+            ability_form = NPCAbilityForm(request.POST, prefix="ability")
+            if ability_form.is_valid():
+                ability = ability_form.save(commit=False)
+                ability.npc = npc
+                ability.save()
+                messages.success(request, "Habilidade adicionada.")
+                return redirect("npc_detail", pk=npc.pk)
+
+    npc.ensure_slots()
+    slots_list = list(NPCInventorySlot.objects.filter(npc=npc).order_by("position"))
+    items = Item.objects.filter(campaign=campaign) if campaign else Item.objects.none()
+
+    return render(
+        request,
+        "hud/npc_detail.html",
+        {
+            "npc": npc,
+            "slots": slots_list,
+            "npc_form": npc_form,
+            "skill_form": skill_form,
+            "ability_form": ability_form,
+            "items": items,
+            "campaign": campaign,
+        },
+    )
+
+
+@login_required
+def add_npc_bar(request: HttpRequest, pk: int) -> JsonResponse:
+    """Adiciona uma barra dinâmica ao NPC."""
+    npc = get_object_or_404(NPC, pk=pk)
+    campaign = npc.campaign
+
+    if not campaign or campaign.master != request.user:
+        return JsonResponse({"success": False, "error": "Não autorizado"}, status=403)
+
+    if request.method == "POST":
+        name = request.POST.get("name", "").strip()
+        max_value = int(request.POST.get("max_value", 100))
+        color = request.POST.get("color", "#70e0ff")
+
+        if not name or max_value <= 0:
+            return JsonResponse({"success": False, "error": "Dados inválidos"})
+
+        bar = NPCBar.objects.create(
+            npc=npc, name=name, max_value=max_value, current=max_value, color=color
+        )
+        return JsonResponse(
+            {
+                "success": True,
+                "bar": {
+                    "id": bar.id,
+                    "name": bar.name,
+                    "current": bar.current,
+                    "max_value": bar.max_value,
+                    "color": bar.color,
+                },
+            }
+        )
+
+    return JsonResponse({"success": False, "error": "Método não permitido"}, status=405)
+
+
+@login_required
+def modify_npc_bar(request: HttpRequest, npc_pk: int, bar_id: int) -> JsonResponse:
+    """Modifica o valor atual de uma barra do NPC."""
+    npc = get_object_or_404(NPC, pk=npc_pk)
+    campaign = npc.campaign
+    bar = get_object_or_404(NPCBar, id=bar_id, npc=npc)
+
+    if not campaign or campaign.master != request.user:
+        return JsonResponse({"success": False, "error": "Não autorizado"}, status=403)
+
+    if request.method == "POST":
+        action = request.POST.get("action", "increase")
+        if action == "increase":
+            bar.current = min(bar.current + 1, bar.max_value)
+        elif action == "decrease":
+            bar.current = max(bar.current - 1, 0)
+        bar.save()
+        return JsonResponse({"success": True, "current": bar.current})
+
+    return JsonResponse({"success": False, "error": "Método não permitido"}, status=405)
+
+
+@login_required
+def delete_npc_bar(request: HttpRequest, npc_pk: int, bar_id: int) -> JsonResponse:
+    """Deleta uma barra do NPC."""
+    npc = get_object_or_404(NPC, pk=npc_pk)
+    campaign = npc.campaign
+    bar = get_object_or_404(NPCBar, id=bar_id, npc=npc)
+
+    if not campaign or campaign.master != request.user:
+        return JsonResponse({"success": False, "error": "Não autorizado"}, status=403)
+
+    if request.method == "POST":
+        bar.delete()
+        return JsonResponse({"success": True})
+
+    return JsonResponse({"success": False, "error": "Método não permitido"}, status=405)

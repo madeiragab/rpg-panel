@@ -10,6 +10,7 @@ urlpatterns = [
     path("campaigns/<int:pk>/search_players/", views.search_players, name="search_players"),
     path("characters/", views.character_list, name="character_list"),
     path("characters/<int:pk>/", views.character_detail, name="character_detail"),
+    path("npcs/<int:pk>/", views.npc_detail, name="npc_detail"),
     path(
         "characters/<int:character_id>/slots/<int:slot_id>/assign/",
         views.assign_slot,
@@ -29,4 +30,7 @@ urlpatterns = [
     path("characters/<int:character_id>/add-bar/", views.add_character_bar, name="add_character_bar"),
     path("bars/<int:bar_id>/modify/", views.modify_bar, name="modify_bar"),
     path("bars/<int:bar_id>/delete/", views.delete_bar, name="delete_bar"),
+    path("npcs/<int:pk>/add-bar/", views.add_npc_bar, name="add_npc_bar"),
+    path("npcs/<int:npc_pk>/<int:bar_id>/modify-bar/", views.modify_npc_bar, name="modify_npc_bar"),
+    path("npcs/<int:npc_pk>/<int:bar_id>/delete-bar/", views.delete_npc_bar, name="delete_npc_bar"),
 ]
