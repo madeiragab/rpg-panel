@@ -36,8 +36,9 @@ from .forms import (
     CharacterForm,
     CharacterSkillForm,
     ItemForm,
+    NPCForm,
 )
-from .models import Campaign, Character, InventorySlot, Item, UserProfile, CharacterBar
+from .models import Campaign, Character, InventorySlot, Item, NPC, NPCInventorySlot, UserProfile, CharacterBar
 
 
 def forgot_password(request: HttpRequest) -> HttpResponse:
@@ -166,11 +167,34 @@ def player_dashboard(request: HttpRequest) -> HttpResponse:
     # Player mode: força modo de visualização
     player_mode = request.GET.get("mode") == "player"
     
+    # Collect all characters and NPCs para exibir na navbar
+    all_characters_and_npcs = []
+    for character in request.user.characters.all():
+        all_characters_and_npcs.append({
+            'id': character.id,
+            'name': character.name,
+            'avatar': character.image.url if character.image else None,
+            'type': 'character'
+        })
+    for npc in NPC.objects.filter(assigned_to_character__assigned_to=request.user, visible=True):
+        all_characters_and_npcs.append({
+            'id': npc.id,
+            'name': npc.name,
+            'avatar': npc.image.url if npc.image else None,
+            'type': 'npc'
+        })
+    
+    show_character_navbar = len(all_characters_and_npcs) > 1
+    
     return render(
         request,
         "hud/player_dashboard.html",
-        {"campaigns": campaigns_as_player, "player_mode": player_mode},
-    )
+        {
+            "campaigns": campaigns_as_player,
+            "player_mode": player_mode,
+            "characters_and_npcs": all_characters_and_npcs,
+            "show_character_navbar": show_character_navbar,
+        },
 
 
 @login_required
@@ -193,6 +217,8 @@ def campaign_detail(request: HttpRequest, pk: int) -> HttpResponse:
     # Filter assigned_to to show only players in this campaign
     character_form.fields["assigned_to"].queryset = campaign.players.all()
     item_form = ItemForm(prefix="item")
+    npc_form = NPCForm(prefix="npc")
+    npc_form.fields["assigned_to_character"].queryset = campaign.characters.all()
     players = campaign.players.select_related("profile").all()
     search_results = []
     if is_master:
@@ -237,6 +263,15 @@ def campaign_detail(request: HttpRequest, pk: int) -> HttpResponse:
                 item.created_by = request.user
                 item.save()
                 messages.success(request, "Item adicionado à campanha.")
+                return redirect("campaign_detail", pk=campaign.pk)
+        elif form_type == "npc":
+            npc_form = NPCForm(request.POST, request.FILES, prefix="npc")
+            if npc_form.is_valid():
+                npc = npc_form.save(commit=False)
+                npc.campaign = campaign
+                npc.created_by = request.user
+                npc.save()
+                messages.success(request, "NPC adicionado à campanha.")
                 return redirect("campaign_detail", pk=campaign.pk)
         elif form_type == "item_update":
             item_id = request.POST.get("item_id")
@@ -285,6 +320,7 @@ def campaign_detail(request: HttpRequest, pk: int) -> HttpResponse:
         characters = characters.filter(visible=True)
     
     items = campaign.items.all()
+    npcs = campaign.npcs.all()
 
     return render(
         request,
@@ -295,7 +331,9 @@ def campaign_detail(request: HttpRequest, pk: int) -> HttpResponse:
             "character_form": character_form,
             "campaign_form": campaign_form,
             "item_form": item_form,
+            "npc_form": npc_form,
             "items": items,
+            "npcs": npcs,
             "is_master": is_master,
             "players": players,
             "search_results": search_results,
@@ -332,6 +370,18 @@ def search_players(request: HttpRequest, pk: int) -> JsonResponse:
                 }
             )
     return JsonResponse(results, safe=False)
+
+
+@login_required
+@require_POST
+def delete_npc(request: HttpRequest, pk: int) -> HttpResponse:
+    npc = get_object_or_404(NPC, pk=pk)
+    if not npc.campaign or npc.campaign.master != request.user:
+        return HttpResponseForbidden("Sem permissão")
+    campaign_id = npc.campaign_id
+    npc.delete()
+    messages.success(request, "NPC deletado.")
+    return redirect("campaign_detail", pk=campaign_id)
 
 
 @login_required
@@ -580,6 +630,22 @@ def toggle_character_visibility(request: HttpRequest, character_id: int) -> Json
     character.save()
     
     return JsonResponse({"success": True, "visible": character.visible})
+
+
+@login_required
+@require_POST
+def toggle_npc_visibility(request: HttpRequest, npc_id: int) -> JsonResponse:
+    """Alterna visibilidade do NPC (apenas mestre)"""
+    npc = get_object_or_404(NPC, pk=npc_id)
+    
+    # Apenas mestre da campanha pode alterar
+    if not npc.campaign or npc.campaign.master != request.user:
+        return JsonResponse({"error": "Sem permissão"}, status=403)
+    
+    npc.visible = not npc.visible
+    npc.save()
+    
+    return JsonResponse({"success": True, "visible": npc.visible})
 
 
 @login_required

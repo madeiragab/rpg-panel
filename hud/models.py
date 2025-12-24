@@ -66,6 +66,63 @@ class UserProfile(models.Model):
         return self.role == self.ROLE_PLAYER
 
 
+class NPC(models.Model):
+    campaign = models.ForeignKey(
+        Campaign,
+        on_delete=models.CASCADE,
+        related_name="npcs",
+        null=True,
+        blank=True,
+    )
+    name = models.CharField(max_length=120)
+    image = models.ImageField(upload_to="npcs/", null=True, blank=True)
+    hp_max = models.PositiveIntegerField(default=10)
+    hp_current = models.PositiveIntegerField(default=10)
+    sp_max = models.PositiveIntegerField(default=10)
+    sp_current = models.PositiveIntegerField(default=10)
+    inventory_capacity = models.PositiveIntegerField(default=16)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="created_npcs",
+    )
+    assigned_to_character = models.ForeignKey(
+        "Character",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="npcs",
+    )
+    visible = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self) -> str:  # pragma: no cover - simple display
+        return self.name
+
+    def clamp_stats(self) -> None:
+        self.hp_current = min(self.hp_current, self.hp_max)
+        self.sp_current = min(self.sp_current, self.sp_max)
+
+    def save(self, *args, **kwargs):  # type: ignore[override]
+        self.clamp_stats()
+        return super().save(*args, **kwargs)
+
+    def ensure_slots(self) -> None:
+        existing = set(self.slots.values_list("position", flat=True))
+        # Cria slots faltantes
+        missing = [pos for pos in range(1, self.inventory_capacity + 1) if pos not in existing]
+        NPCInventorySlot.objects.bulk_create(
+            [NPCInventorySlot(npc=self, position=pos) for pos in missing],
+            ignore_conflicts=True,
+        )
+        # Remove slots excedentes (quando capacidade diminui)
+        self.slots.filter(position__gt=self.inventory_capacity).delete()
+
+
 class Character(models.Model):
     campaign = models.ForeignKey(
         Campaign,
@@ -215,6 +272,31 @@ class InventorySlot(models.Model):
         return (self.position - 1) % INVENTORY_COLUMNS
 
 
+class NPCInventorySlot(models.Model):
+    npc = models.ForeignKey(NPC, on_delete=models.CASCADE, related_name="slots")
+    position = models.PositiveIntegerField()
+    item = models.ForeignKey(Item, null=True, blank=True, on_delete=models.SET_NULL, related_name="npc_slots")
+
+    class Meta:
+        ordering = ["position"]
+        unique_together = ("npc", "position")
+
+    def __str__(self) -> str:  # pragma: no cover - simple display
+        return f"{self.npc.name} slot {self.position}"
+
+    @property
+    def label(self) -> str:
+        return f"Slot {self.position}"
+
+    @property
+    def row(self) -> int:
+        return (self.position - 1) // INVENTORY_COLUMNS
+
+    @property
+    def col(self) -> int:
+        return (self.position - 1) % INVENTORY_COLUMNS
+
+
 @receiver(post_save, sender=get_user_model())
 def create_user_profile(sender, instance, created, **kwargs):  # noqa: ANN001
     if created:
@@ -223,6 +305,12 @@ def create_user_profile(sender, instance, created, **kwargs):  # noqa: ANN001
 
 @receiver(post_save, sender=Character)
 def create_character_slots(sender, instance: Character, created: bool, **kwargs):  # noqa: ANN001
+    if created:
+        instance.ensure_slots()
+
+
+@receiver(post_save, sender=NPC)
+def create_npc_slots(sender, instance: NPC, created: bool, **kwargs):  # noqa: ANN001
     if created:
         instance.ensure_slots()
 

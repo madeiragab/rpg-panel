@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib.auth.models import User
 
-from .models import Campaign, Character, CharacterAbility, CharacterSkill, Item, UserProfile
+from .models import Campaign, Character, CharacterAbility, CharacterSkill, Item, NPC, UserProfile
 
 
 class ForgotPasswordForm(forms.Form):
@@ -89,6 +89,30 @@ class ItemForm(forms.ModelForm):
         widgets = {
             "description": forms.Textarea(attrs={"rows": 3, "placeholder": "Detalhes, efeitos, usos..."}),
         }
+
+
+class NPCForm(forms.ModelForm):
+    class Meta:
+        model = NPC
+        fields = ["name", "image", "hp_max", "hp_current", "sp_max", "sp_current", "inventory_capacity", "assigned_to_character"]
+        widgets = {
+            "assigned_to_character": forms.Select(attrs={"class": "hud-select"}),
+        }
+        labels = {
+            "name": "Nome do NPC",
+            "image": "Imagem (upload)",
+            "hp_max": "HP Máximo",
+            "hp_current": "HP Atual",
+            "sp_max": "SP Máximo",
+            "sp_current": "SP Atual",
+            "inventory_capacity": "Capacidade de inventário",
+            "assigned_to_character": "Vinculado ao personagem",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Make assigned_to_character optional
+        self.fields["assigned_to_character"].required = False
 
 
 class RegistrationForm(forms.Form):

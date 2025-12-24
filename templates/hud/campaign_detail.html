@@ -51,6 +51,7 @@
             <button class="tab-button active" data-tab="characters">Personagens</button>
             {% if request.GET.mode != 'player' %}
             <button class="tab-button" data-tab="items">Itens</button>
+            <button class="tab-button" data-tab="npcs">NPCs</button>
             {% endif %}
             <button class="tab-button" data-tab="players">Jogadores</button>
         </div>
@@ -156,6 +157,59 @@
                     {% csrf_token %}
                     <input type="hidden" name="form_type" value="item">
                     {{ item_form.as_p }}
+                    <button type="submit" class="hud-button">Criar</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="tab-content" id="npcs-tab" style="display: none;">
+            <div class="panel-header">
+                <h2 class="panel-title">NPCs</h2>
+                <button id="toggle-create-npc" class="hud-button">+</button>
+            </div>
+            <div class="characters-grid">
+                {% for npc in npcs %}
+                    <div class="character-card">
+                        {% if npc.image %}
+                            <div class="character-card-image" style="background-image: url('{{ npc.image.url }}')"></div>
+                        {% else %}
+                            <div class="character-card-image empty"></div>
+                        {% endif %}
+                        <div class="character-card-info">
+                            <h3>
+                                {{ npc.name }}
+                                <button onclick="toggleNPCVisibility({{ npc.id }}, this)" class="hud-button ghost" style="font-size: 18px; padding: 4px 8px;" title="{% if npc.visible %}Ocultar NPC{% else %}Mostrar NPC{% endif %}">
+                                    {% if npc.visible %}👁️{% else %}🚫{% endif %}
+                                </button>
+                            </h3>
+                            {% if npc.assigned_to_character %}
+                                <div class="list-inline" style="gap:6px; align-items:center; margin-bottom:8px;">
+                                    <span class="muted" style="font-size:0.85rem;">Vinculado: {{ npc.assigned_to_character.name }}</span>
+                                </div>
+                            {% else %}
+                                <p class="muted">Não vinculado a nenhum personagem</p>
+                            {% endif %}
+                            <div class="list-inline">
+                                <a href="{% url 'character_detail' npc.id %}" class="hud-button" style="display:none;">Ver</a>
+                                {% if is_master %}
+                                <form method="post" action="{% url 'delete_npc' npc.pk %}" onsubmit="return confirm('Tem certeza que deseja deletar este NPC?');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="hud-button danger">Deletar</button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                {% empty %}
+                    <p class="muted">Nenhum NPC criado ainda.</p>
+                {% endfor %}
+            </div>
+            <div id="create-npc" class="panel-card" style="display:none;">
+                <h3 class="panel-subtitle">Criar NPC</h3>
+                <form method="post" enctype="multipart/form-data" class="panel-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="form_type" value="npc">
+                    {{ npc_form.as_p }}
                     <button type="submit" class="hud-button">Criar</button>
                 </form>
             </div>
@@ -318,6 +372,13 @@ if (toggleItem) {
         createItem.style.display = createItem.style.display === 'none' ? 'block' : 'none';
     });
 }
+const toggleNPC = document.getElementById('toggle-create-npc');
+const createNPC = document.getElementById('create-npc');
+if (toggleNPC) {
+    toggleNPC.addEventListener('click', () => {
+        createNPC.style.display = createNPC.style.display === 'none' ? 'block' : 'none';
+    });
+}
 
 // Item detail viewer (apenas mestre)
 const itemCards = document.querySelectorAll('.item-card');
@@ -450,6 +511,24 @@ function toggleVisibility(characterId, button) {
         if (data.success) {
             button.textContent = data.visible ? '👁️' : '🚫';
             button.title = data.visible ? 'Ocultar personagem' : 'Mostrar personagem';
+        }
+    })
+    .catch(error => console.error('Erro:', error));
+}
+
+function toggleNPCVisibility(npcId, button) {
+    fetch(`/npcs/${npcId}/toggle-visibility/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            button.textContent = data.visible ? '👁️' : '🚫';
+            button.title = data.visible ? 'Ocultar NPC' : 'Mostrar NPC';
         }
     })
     .catch(error => console.error('Erro:', error));
