@@ -404,6 +404,7 @@ a:hover { color: var(--accent-2); }
     border: 1px solid var(--border);
     background: var(--panel);
     background-size: cover;
+    background-repeat: no-repeat;
     background-position: center;
     position: relative;
 }
@@ -440,6 +441,7 @@ a:hover { color: var(--accent-2); }
     border: 1px solid var(--border);
     background: var(--panel);
     background-size: cover;
+    background-repeat: no-repeat;
     background-position: center;
     flex-shrink: 0;
 }
@@ -452,6 +454,7 @@ a:hover { color: var(--accent-2); }
     border: 1px solid var(--border);
     background: var(--panel);
     background-size: cover;
+    background-repeat: no-repeat;
     background-position: center;
     flex-shrink: 0;
 }
@@ -464,6 +467,7 @@ a:hover { color: var(--accent-2); }
     border: 1px solid var(--border);
     background: var(--panel);
     background-size: cover;
+    background-repeat: no-repeat;
     background-position: center;
     flex-shrink: 0;
 }
@@ -651,6 +655,7 @@ a:hover { color: var(--accent-2); }
     width: 100%;
     height: 160px;
     background-size: cover;
+    background-repeat: no-repeat;
     background-position: center;
     background-color: var(--panel-strong);
 }
@@ -737,6 +742,7 @@ a:hover { color: var(--accent-2); }
     width: 100%;
     height: 160px;
     background-size: cover;
+    background-repeat: no-repeat;
     background-position: center;
     background-color: var(--panel-strong);
 }
@@ -897,6 +903,7 @@ a:hover { color: var(--accent-2); }
     width: 100%;
     height: 180px;
     background-size: cover;
+    background-repeat: no-repeat;
     background-position: center;
     background-color: var(--panel-strong);
 }
@@ -1005,6 +1012,7 @@ a:hover { color: var(--accent-2); }
     width: 100%;
     height: 200px;
     background-size: cover;
+    background-repeat: no-repeat;
     background-position: center;
     background-color: var(--panel-strong);
 }
@@ -1048,7 +1056,8 @@ a:hover { color: var(--accent-2); }
     width: 100%;
     height: 100px;
     background-size: contain;
-    background-position: center;
+    background-repeat: no-repeat;
+    background-position: center center;
     background-color: var(--panel-strong);
     border-radius: 8px;
     margin-bottom: 8px;
