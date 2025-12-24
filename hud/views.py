@@ -195,6 +195,7 @@ def player_dashboard(request: HttpRequest) -> HttpResponse:
             "characters_and_npcs": all_characters_and_npcs,
             "show_character_navbar": show_character_navbar,
         },
+    )
 
 
 @login_required
