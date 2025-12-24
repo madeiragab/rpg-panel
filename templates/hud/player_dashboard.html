@@ -3,23 +3,6 @@
 
 {% block content %}
 <div class="content">
-    {% if show_character_navbar and characters_and_npcs %}
-    <div class="character-navbar">
-        <div class="character-navbar-inner">
-            {% for item in characters_and_npcs %}
-                <a href="{% if item.type == 'character' %}{% url 'character_detail' item.id %}?mode=player{% else %}#{% endif %}" class="character-nav-item">
-                    {% if item.avatar %}
-                        <img src="{{ item.avatar }}" alt="{{ item.name }}" class="character-nav-avatar">
-                    {% else %}
-                        <div class="character-nav-avatar"></div>
-                    {% endif %}
-                    <span class="character-nav-name">{{ item.name }}</span>
-                </a>
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
-
     <div class="dashboard-header">
         <h1 class="panel-title">Minhas Campanhas</h1>
         <a href="{% url 'home' %}" class="hud-button ghost">Voltar</a>

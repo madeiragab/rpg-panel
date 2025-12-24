@@ -169,33 +169,12 @@ def player_dashboard(request: HttpRequest) -> HttpResponse:
     # Player mode: força modo de visualização
     player_mode = request.GET.get("mode") == "player"
     
-    # Collect all characters and NPCs para exibir na navbar
-    all_characters_and_npcs = []
-    for character in request.user.characters.all():
-        all_characters_and_npcs.append({
-            'id': character.id,
-            'name': character.name,
-            'avatar': character.image.url if character.image else None,
-            'type': 'character'
-        })
-    for npc in NPC.objects.filter(assigned_to_character__assigned_to=request.user, visible=True):
-        all_characters_and_npcs.append({
-            'id': npc.id,
-            'name': npc.name,
-            'avatar': npc.image.url if npc.image else None,
-            'type': 'npc'
-        })
-    
-    show_character_navbar = len(all_characters_and_npcs) > 1
-    
     return render(
         request,
         "hud/player_dashboard.html",
         {
             "campaigns": campaigns_as_player,
             "player_mode": player_mode,
-            "characters_and_npcs": all_characters_and_npcs,
-            "show_character_navbar": show_character_navbar,
         },
     )
 
@@ -509,6 +488,16 @@ def character_detail(request: HttpRequest, pk: int) -> HttpResponse:
     slots_list = list(InventorySlot.objects.filter(character=character).order_by("position"))
     items = Item.objects.filter(campaign=character.campaign) if character.campaign else Item.objects.none()
     campaign_characters = character.campaign.characters.all() if character.campaign else []
+    
+    # Buscar NPCs visíveis vinculados ao personagem do jogador
+    visible_npcs = NPC.objects.none()
+    if character.campaign and is_player:
+        visible_npcs = NPC.objects.filter(
+            campaign=character.campaign,
+            assigned_to_character=character,
+            visible=True
+        )
+    
     return render(
         request,
         "hud/character_detail.html",
@@ -516,12 +505,14 @@ def character_detail(request: HttpRequest, pk: int) -> HttpResponse:
             "character": character,
             "slots": slots_list,
             "is_master": is_master,
+            "is_player": is_player,
             "character_form": character_form,
             "skill_form": skill_form,
             "ability_form": ability_form,
             "items": items,
             "campaign": character.campaign,
             "campaign_characters": campaign_characters,
+            "visible_npcs": visible_npcs,
         },
     )
 
