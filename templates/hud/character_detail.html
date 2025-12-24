@@ -7,13 +7,13 @@
 <nav class="character-navbar">
     <div class="character-navbar-inner">
         {% for char in campaign_characters %}
-        <a href="{% url 'character_detail' char.pk %}" class="character-nav-item {% if char.id == character.id %}active{% endif %}" title="{{ char.name }}">
+        <a href="{% url 'character_detail' char.pk %}{% if not is_master %}?mode=player{% endif %}" class="character-nav-item {% if char.id == character.id %}active{% endif %}" title="{{ char.name }}">
             <span class="character-nav-avatar" style="background:{% if char.image %}url('{{ char.image.url }}'){% else %}#ffffff{% endif %}; background-size: cover; background-position: center;"></span>
             <span class="character-nav-name">{{ char.name }}</span>
         </a>
         {% endfor %}
         {% for npc in visible_npcs %}
-        <a href="{% url 'npc_detail' npc.pk %}" class="character-nav-item" title="{{ npc.name }}">
+        <a href="{% url 'npc_detail' npc.pk %}{% if not is_master %}?mode=player{% endif %}" class="character-nav-item" title="{{ npc.name }}">
             <span class="character-nav-avatar" style="background:{% if npc.image %}url('{{ npc.image.url }}'){% else %}#888888{% endif %}; background-size: cover; background-position: center;"></span>
             <span class="character-nav-name">{{ npc.name }}</span>
         </a>
