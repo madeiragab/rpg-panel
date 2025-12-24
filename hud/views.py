@@ -417,6 +417,7 @@ def character_detail(request: HttpRequest, pk: int) -> HttpResponse:
             character_form = CharacterForm(request.POST, request.FILES, instance=character, prefix="character")
             if character_form.is_valid():
                 character_form.save()
+                character.ensure_slots()  # Ajusta slots após mudança de capacidade
                 messages.success(request, "Personagem atualizado.")
                 return redirect("character_detail", pk=character.pk)
         elif form_type == "skill":

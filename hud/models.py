@@ -113,11 +113,14 @@ class Character(models.Model):
 
     def ensure_slots(self) -> None:
         existing = set(self.slots.values_list("position", flat=True))
+        # Cria slots faltantes
         missing = [pos for pos in range(1, self.inventory_capacity + 1) if pos not in existing]
         InventorySlot.objects.bulk_create(
             [InventorySlot(character=self, position=pos) for pos in missing],
             ignore_conflicts=True,
         )
+        # Remove slots excedentes (quando capacidade diminui)
+        self.slots.filter(position__gt=self.inventory_capacity).delete()
 
 
 class CharacterSkill(models.Model):
