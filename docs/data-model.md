@@ -1,0 +1,139 @@
+# Data Model
+
+All models live in `hud/models.py`. Everything is scoped to a **campaign**,
+which is the aggregate root of the domain.
+
+```mermaid
+erDiagram
+    User ||--|| UserProfile : has
+    User ||--o{ Campaign : "masters"
+    User }o--o{ Campaign : "plays in"
+    Campaign ||--o{ Character : contains
+    Campaign ||--o{ NPC : contains
+    Campaign ||--o{ Item : contains
+    User ||--o{ Character : "assigned to"
+    Character ||--o{ InventorySlot : has
+    NPC ||--o{ NPCInventorySlot : has
+    InventorySlot }o--o| Item : holds
+    Character ||--o{ CharacterBar : has
+    Character ||--o{ CharacterAttribute : has
+    Character ||--o{ CharacterSkill : has
+    Character ||--o{ CharacterAbility : has
+    Character ||--o{ NPC : "linked companions"
+    User ||--o{ PasswordResetToken : requests
+```
+
+## Campaign
+
+The container everything else hangs from.
+
+| Field | Notes |
+|---|---|
+| `name`, `description` | |
+| `banner` | Optional image (`campaigns/`) |
+| `master` | FK to user — **the only account with edit rights** |
+| `players` | M2M to users; the master is added automatically on creation |
+| `created_at`, `updated_at` | Ordered newest first |
+
+Deleting a campaign cascades to its characters, NPCs and items — hence the
+exact-name confirmation in the UI.
+
+## UserProfile
+
+Created automatically by a `post_save` signal on `User`.
+
+| Field | Notes |
+|---|---|
+| `role` | `MASTER` / `PLAYER` — **legacy**, real authorization is per campaign |
+| `display_name` | Full name shown in the UI |
+| `nickname` | Used by the player search |
+| `avatar` | Optional image (`avatars/`) |
+
+## Character and NPC
+
+`Character` and `NPC` are structurally twins — same stats, same inventory
+mechanics, same sheet sub-entities. They differ in ownership and default
+visibility:
+
+| | Character | NPC |
+|---|---|---|
+| Belongs to | Campaign | Campaign |
+| Controlled by | A player (`assigned_to`) | The master |
+| `visible` default | `True` | `False` |
+| Extra link | — | `assigned_to_character` (companion of a character) |
+
+Shared fields: `name`, `image`, `hp_max`/`hp_current`, `sp_max`/`sp_current`,
+`inventory_capacity` (default 16), `created_by`, timestamps.
+
+Two invariants are enforced in `save()`:
+
+- **`clamp_stats()`** — `hp_current` and `sp_current` can never exceed their
+  maximum, no matter what a form or endpoint sends.
+- **`ensure_slots()`** — the inventory always has exactly
+  `inventory_capacity` slots (see below).
+
+> The `hp_*` / `sp_*` fields are the original stat system. Migration
+> `0010_migrate_hp_sp_to_bars` moved them into the generic **bar** system;
+> the columns are kept for compatibility with existing data and the
+> `modify_hp` / `modify_sp` endpoints.
+
+## Sheet sub-entities
+
+Each of these exists in a `Character…` and an `NPC…` flavor, all ordered by
+`order` then `name`:
+
+| Model | Fields | Purpose |
+|---|---|---|
+| `…Bar` | `name`, `current`, `max_value`, `color` | Custom resources (HP, mana, sanity…) |
+| `…Attribute` | `name`, `value` | Free-form stats (STR, DEX…) |
+| `…Skill` | `name`, `value` (optional) | Proficiencies |
+| `…Ability` | `name` | Named abilities |
+
+Values are `CharField`, not numbers, on purpose: different systems write
+attributes as `18`, `+3` or `d8`, and the panel does not interpret them.
+
+## Item and inventory slots
+
+`Item` is campaign-scoped and shared: the same item row can sit in several
+inventories, because slots reference it by FK.
+
+`InventorySlot` / `NPCInventorySlot`:
+
+| Field | Notes |
+|---|---|
+| `character` / `npc` | Owner |
+| `position` | 1-based; `unique_together` with the owner |
+| `item` | Nullable — `SET_NULL`, so deleting an item empties the slot instead of destroying it |
+
+Layout helpers (`row`, `col`) derive the grid position from
+`INVENTORY_COLUMNS = 4`, which is why the UI renders a 4-wide grid without
+storing coordinates.
+
+### The `ensure_slots()` contract
+
+```python
+existing = set(self.slots.values_list("position", flat=True))
+missing  = [p for p in range(1, self.inventory_capacity + 1) if p not in existing]
+# bulk_create(missing, ignore_conflicts=True)
+# then: delete slots with position > inventory_capacity
+```
+
+Consequences worth knowing:
+
+- Slots are **always** materialized in the database, never rendered as
+  virtual placeholders — the template can iterate `character.slots` directly.
+- **Shrinking capacity deletes the excess slots**, and any item sitting in
+  them is unassigned (the `Item` row itself survives).
+- The method is safe to call repeatedly (`ignore_conflicts=True`).
+
+## PasswordResetToken
+
+| Field | Notes |
+|---|---|
+| `user` | FK |
+| `token` | Unique random string used in the reset URL |
+| `created_at`, `expires_at` | Expiry checked at redeem time |
+| `used` | Single-use flag |
+
+Tokens are never deleted after use, which leaves an audit trail of reset
+attempts.

@@ -20,11 +20,20 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-vb^bj2+m8=8zgkaat_$cwk1i2!+&wcb&2uxj2q18zaqheseflb"
-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG", "False") == "True"
+
+# SECURITY WARNING: keep the secret key used in production secret!
+# Em producao a chave vem da variavel de ambiente DJANGO_SECRET_KEY.
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "")
+if not SECRET_KEY:
+    if not DEBUG:
+        raise RuntimeError(
+            "DJANGO_SECRET_KEY nao definida. Gere uma com:\n"
+            "  python -c \"from django.core.management.utils import get_random_secret_key;"
+            " print(get_random_secret_key())\""
+        )
+    SECRET_KEY = "django-insecure-apenas-para-desenvolvimento-local"
 
 ALLOWED_HOSTS = [
     "galibinja.pythonanywhere.com",
