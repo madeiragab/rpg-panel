@@ -1,3 +1,5 @@
+> 🇧🇷 [Português](architecture.pt-BR.md) · 🇬🇧 **English**
+
 # Architecture
 
 RPG Panel is a deliberately small Django project: **one project package**

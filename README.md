@@ -1,3 +1,5 @@
+> 🇧🇷 [Português](README.pt-BR.md) · 🇬🇧 **English**
+
 # RPG Panel 🎲
 
 RPG Panel is a private web panel for managing tabletop RPG campaigns.
