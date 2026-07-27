@@ -1,3 +1,5 @@
+> 🇧🇷 **Português** · 🇬🇧 [English](README.en.md)
+
 # Arquivos Visuais do RPG Panel
 
 Esta pasta contém todos os arquivos estáticos (CSS e JavaScript) do projeto.

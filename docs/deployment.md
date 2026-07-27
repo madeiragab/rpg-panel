@@ -1,3 +1,5 @@
+> 🇧🇷 [Português](deployment.pt-BR.md) · 🇬🇧 **English**
+
 # Deployment
 
 The panel runs anywhere that can serve a WSGI app. It is currently deployed

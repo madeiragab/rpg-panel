@@ -1,3 +1,5 @@
+> 🇧🇷 [Português](data-model.pt-BR.md) · 🇬🇧 **English**
+
 # Data Model
 
 All models live in `hud/models.py`. Everything is scoped to a **campaign**,
