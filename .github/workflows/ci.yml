@@ -1,0 +1,45 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+
+    env:
+      # settings.py recusa subir sem chave quando DEBUG=False. O CI roda no
+      # modo de produção de propósito: é assim que o deploy no PythonAnywhere
+      # sobe, e um erro que só aparece com DEBUG desligado tem que aparecer
+      # aqui, não lá.
+      DJANGO_SECRET_KEY: chave-descartavel-so-do-ci
+      DEBUG: "False"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: checagem do Django
+        run: python manage.py check --fail-level WARNING
+
+      - name: migrações sem pendência
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: testes
+        run: python manage.py test --verbosity 2
+
+      # O WhiteNoise usa CompressedManifestStaticFilesStorage: se um template
+      # apontar para um estático que não existe, a página só quebra em
+      # produção. O collectstatic quebra aqui primeiro.
+      - name: estáticos coletam
+        run: python manage.py collectstatic --noinput

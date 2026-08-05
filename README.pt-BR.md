@@ -2,6 +2,8 @@
 
 # RPG Panel 🎲
 
+[![ci](https://github.com/madeiragab/rpg-panel/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/madeiragab/rpg-panel/actions/workflows/ci.yml)
+
 O RPG Panel é um painel web privado para gerenciar campanhas de RPG de mesa. Ele centraliza campanhas, jogadores, personagens, NPCs e inventário, com separação clara de papéis entre mestres e jogadores.
 
 Isto **não é um produto público**, **não é uma engine de jogo** e **não é um sistema de RPG completo**. Ele existe para substituir PDFs, anotações e planilhas espalhadas quando uma campanha cresce.
