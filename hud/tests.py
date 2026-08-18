@@ -13,6 +13,7 @@ por um motivo que não tem nada a ver com a regra sendo testada.
 
 from django.contrib.auth import get_user_model
 from django.core import mail
+from django.core.cache import cache
 from django.db import IntegrityError, transaction
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -439,9 +440,11 @@ class RecuperacaoDeSenhaTests(TestCase):
         self.client.post(reverse('forgot_password'), {'username': 'ana'})
         self.client.post(reverse('forgot_password'), {'username': 'ana'})
         primeiro, segundo = PasswordResetToken.objects.order_by('created_at')
+        # O banco guarda o hash: o token que serve de link só existe no e-mail.
+        cru = mail.outbox[0].body.split('/reset-password/')[1].split()[0].strip('/')
 
         resposta = self.client.post(
-            reverse('reset_password', args=[primeiro.token]),
+            reverse('reset_password', args=[cru]),
             {'password': 'OutraSenha!2026', 'password_confirm': 'OutraSenha!2026'},
         )
         self.assertEqual(resposta.status_code, 302)
@@ -550,5 +553,224 @@ class InventarioDoNpcTests(TestCase):
         resposta = self.client.get(
             reverse('assign_npc_slot', args=[self.npc.pk, self.slot.pk])
         )
+
+        self.assertEqual(resposta.status_code, 405)
+
+
+@SEM_REDIRECT_HTTPS
+@override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+class TokenDeResetTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.ana = make_user('ana')
+        self.ana.email = 'ana@example.com'
+        self.ana.save()
+
+    def _token_do_email(self):
+        corpo = mail.outbox[0].body
+        return corpo.split('/reset-password/')[1].split()[0].strip('/')
+
+    def test_o_banco_guarda_o_hash_e_nao_o_token_do_link(self):
+        self.client.post(reverse('forgot_password'), {'username': 'ana'})
+
+        cru = self._token_do_email()
+        guardado = PasswordResetToken.objects.get()
+
+        self.assertNotEqual(guardado.token, cru)
+        self.assertEqual(guardado.token, PasswordResetToken.hash_token(cru))
+
+    def test_o_link_do_email_funciona(self):
+        self.client.post(reverse('forgot_password'), {'username': 'ana'})
+        cru = self._token_do_email()
+
+        resposta = self.client.post(
+            reverse('reset_password', args=[cru]),
+            {'password': 'OutraSenha!2026', 'password_confirm': 'OutraSenha!2026'},
+        )
+
+        self.assertEqual(resposta.status_code, 302)
+        self.ana.refresh_from_db()
+        self.assertTrue(self.ana.check_password('OutraSenha!2026'))
+
+    def test_o_hash_guardado_nao_serve_como_link(self):
+        """Quem lesse o banco não poderia usar o que está lá como token."""
+        self.client.post(reverse('forgot_password'), {'username': 'ana'})
+        guardado = PasswordResetToken.objects.get()
+
+        resposta = self.client.get(reverse('reset_password', args=[guardado.token]))
+
+        self.assertEqual(resposta.status_code, 302)
+        self.assertIn('/login', resposta.url)
+
+
+@SEM_REDIRECT_HTTPS
+@override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+class LimiteDePedidosDeResetTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.ana = make_user('ana')
+        self.ana.email = 'ana@example.com'
+        self.ana.save()
+
+    def tearDown(self):
+        cache.clear()
+
+    def test_a_conta_para_de_receber_email_depois_do_teto(self):
+        for _ in range(10):
+            self.client.post(reverse('forgot_password'), {'username': 'ana'})
+
+        self.assertEqual(len(mail.outbox), 5)
+
+    def test_a_resposta_continua_a_mesma_depois_do_teto(self):
+        primeira = self.client.post(reverse('forgot_password'), {'username': 'ana'})
+        for _ in range(10):
+            self.client.post(reverse('forgot_password'), {'username': 'ana'})
+        depois = self.client.post(reverse('forgot_password'), {'username': 'ana'})
+
+        # Se a tela mudasse ao bater o teto, ela viraria outro jeito de
+        # descobrir quais contas existem.
+        self.assertEqual(primeira.status_code, depois.status_code)
+        self.assertEqual(primeira.content, depois.content)
+
+
+@SEM_REDIRECT_HTTPS
+@SEM_MANIFESTO
+class CriacaoNaCampanhaTests(TestCase):
+    """Os POST do campaign_detail: só o mestre cria, e sempre na campanha dele."""
+
+    def setUp(self):
+        self.mestre = make_user('mestre')
+        self.jogador = make_user('jogador')
+        self.campanha = Campaign.objects.create(name='Ossos', master=self.mestre)
+        self.campanha.players.add(self.mestre, self.jogador)
+        self.url = reverse('campaign_detail', args=[self.campanha.pk])
+
+    def test_mestre_cria_personagem_na_campanha(self):
+        self.client.force_login(self.mestre)
+
+        self.client.post(self.url, {
+            'form_type': 'character',
+            'character-name': 'Kai',
+            'character-inventory_capacity': 16,
+            'character-assigned_to': self.jogador.pk,
+        })
+
+        personagem = Character.objects.get(name='Kai')
+        self.assertEqual(personagem.campaign, self.campanha)
+        self.assertEqual(personagem.created_by, self.mestre)
+        self.assertEqual(personagem.assigned_to, self.jogador)
+
+    def test_jogador_nao_cria_personagem(self):
+        self.client.force_login(self.jogador)
+
+        self.client.post(self.url, {
+            'form_type': 'character',
+            'character-name': 'Intruso',
+            'character-inventory_capacity': 16,
+            'character-assigned_to': self.jogador.pk,
+        })
+
+        self.assertFalse(Character.objects.filter(name='Intruso').exists())
+
+    def test_mestre_cria_item_e_npc_na_campanha(self):
+        self.client.force_login(self.mestre)
+
+        self.client.post(self.url, {'form_type': 'item', 'item-name': 'Adaga'})
+        self.client.post(self.url, {
+            'form_type': 'npc', 'npc-name': 'Vulto', 'npc-inventory_capacity': 16,
+        })
+
+        self.assertEqual(Item.objects.get(name='Adaga').campaign, self.campanha)
+        self.assertEqual(NPC.objects.get(name='Vulto').campaign, self.campanha)
+
+    def test_apagar_campanha_exige_o_nome_certo(self):
+        self.client.force_login(self.mestre)
+
+        self.client.post(self.url, {'form_type': 'delete_campaign', 'confirm_name': 'Ossos!'})
+        self.assertTrue(Campaign.objects.filter(pk=self.campanha.pk).exists())
+
+        self.client.post(self.url, {'form_type': 'delete_campaign', 'confirm_name': 'Ossos'})
+        self.assertFalse(Campaign.objects.filter(pk=self.campanha.pk).exists())
+
+    def test_jogador_nao_apaga_campanha(self):
+        self.client.force_login(self.jogador)
+
+        self.client.post(self.url, {'form_type': 'delete_campaign', 'confirm_name': 'Ossos'})
+
+        self.assertTrue(Campaign.objects.filter(pk=self.campanha.pk).exists())
+
+
+@SEM_REDIRECT_HTTPS
+@SEM_MANIFESTO
+class EdicaoDeFichaTests(TestCase):
+    """Os POST do character_detail e do npc_detail."""
+
+    def setUp(self):
+        self.mestre = make_user('mestre')
+        self.jogador = make_user('jogador')
+        self.campanha = Campaign.objects.create(name='Ossos', master=self.mestre)
+        self.campanha.players.add(self.mestre, self.jogador)
+        self.personagem = Character.objects.create(
+            name='Kai', created_by=self.mestre, campaign=self.campanha,
+            assigned_to=self.jogador,
+        )
+        self.npc = NPC.objects.create(
+            name='Vulto', created_by=self.mestre, campaign=self.campanha
+        )
+
+    def test_mestre_adiciona_atributo_ao_personagem(self):
+        self.client.force_login(self.mestre)
+
+        self.client.post(
+            reverse('character_detail', args=[self.personagem.pk]),
+            {'form_type': 'attribute', 'attribute-name': 'Forca', 'attribute-value': '3'},
+        )
+
+        self.assertEqual(self.personagem.attributes.get().name, 'Forca')
+
+    def test_atributo_sem_valor_avisa_em_vez_de_derrubar(self):
+        """Este caminho quebrava com NameError por um ability.save() orfao."""
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.post(
+            reverse('character_detail', args=[self.personagem.pk]),
+            {'form_type': 'attribute', 'attribute-name': 'Forca', 'attribute-value': ''},
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(self.personagem.attributes.count(), 0)
+
+    def test_jogador_dono_da_ficha_nao_adiciona_atributo(self):
+        self.client.force_login(self.jogador)
+
+        self.client.post(
+            reverse('character_detail', args=[self.personagem.pk]),
+            {'form_type': 'attribute', 'attribute-name': 'Forca', 'attribute-value': '3'},
+        )
+
+        self.assertEqual(self.personagem.attributes.count(), 0)
+
+    def test_mestre_adiciona_pericia_ao_npc(self):
+        self.client.force_login(self.mestre)
+
+        self.client.post(
+            reverse('npc_detail', args=[self.npc.pk]),
+            {'form_type': 'skill', 'skill-name': 'Furtividade', 'skill-value': '+4',
+             'skill-order': 0},
+        )
+
+        self.assertEqual(self.npc.skills.get().name, 'Furtividade')
+
+    def test_jogador_sem_vinculo_nao_abre_o_npc(self):
+        self.client.force_login(self.jogador)
+
+        resposta = self.client.get(reverse('npc_detail', args=[self.npc.pk]))
+
+        self.assertEqual(resposta.status_code, 403)
+
+    def test_barra_do_npc_recusa_get(self):
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.get(reverse('add_npc_bar', args=[self.npc.pk]))
 
         self.assertEqual(resposta.status_code, 405)

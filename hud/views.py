@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from typing import Any
-import secrets
 from datetime import timedelta
 
 from django.contrib import messages
 from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from django.core.mail import send_mail
 from django.http import HttpRequest, HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -33,6 +33,43 @@ from .forms import (
 from .models import Campaign, Character, CharacterAttribute, InventorySlot, Item, NPC, NPCAbility, NPCAttribute, NPCBar, NPCInventorySlot, NPCSkill, UserProfile, CharacterBar
 
 
+PEDIDOS_POR_CONTA = 5
+PEDIDOS_POR_IP = 10
+JANELA_DE_PEDIDOS = 60 * 60  # 1 hora
+
+
+def _pode_pedir_reset(request: HttpRequest, username: str) -> bool:
+    """Segura o gatilho do esqueci-a-senha.
+
+    Sem isto, o endereço vira um botão de disparar e-mail em série contra a
+    caixa de qualquer usuário. Conta e IP têm cotas separadas: a da conta
+    protege a vítima, a do IP protege o resto.
+
+    O contador vive no cache padrão, que é de processo. Num servidor com vários
+    workers cada um tem o seu, então o teto real é o número de workers vezes a
+    cota. Ainda assim é a diferença entre milhares de e-mails e algumas dezenas.
+    """
+    ip = (request.META.get("REMOTE_ADDR") or "sem-ip").strip()
+    chaves = (
+        (f"reset:conta:{username}", PEDIDOS_POR_CONTA),
+        (f"reset:ip:{ip}", PEDIDOS_POR_IP),
+    )
+
+    for chave, teto in chaves:
+        if cache.get(chave, 0) >= teto:
+            return False
+
+    for chave, _teto in chaves:
+        cache.add(chave, 0, JANELA_DE_PEDIDOS)
+        try:
+            cache.incr(chave)
+        except ValueError:
+            # A entrada expirou entre o add e o incr; na próxima ela existe.
+            cache.set(chave, 1, JANELA_DE_PEDIDOS)
+
+    return True
+
+
 def forgot_password(request: HttpRequest) -> HttpResponse:
     """Solicita reset de senha por username.
 
@@ -47,18 +84,10 @@ def forgot_password(request: HttpRequest) -> HttpResponse:
         if form.is_valid():
             username = form.cleaned_data["username"]
             user = User.objects.filter(username=username).first()
-            if user is not None and user.email:
-                # Gera token único
-                token = secrets.token_urlsafe(32)
-                # Token expira em 24 horas
-                expires_at = timezone.now() + timedelta(hours=24)
-
-                # Cria registro do token
-                PasswordResetToken.objects.create(
-                    user=user,
-                    token=token,
-                    expires_at=expires_at
-                )
+            if user is not None and user.email and _pode_pedir_reset(request, username):
+                # O banco guarda só o hash; o valor cru sai daqui direto para o
+                # e-mail e não fica em lugar nenhum.
+                token = PasswordResetToken.emitir(user, timedelta(hours=24))
 
                 # Envia email
                 reset_url = request.build_absolute_uri(f"/reset-password/{token}/")
@@ -80,7 +109,10 @@ def forgot_password(request: HttpRequest) -> HttpResponse:
 def reset_password(request: HttpRequest, token: str) -> HttpResponse:
     """Reseta a senha com token válido"""
     try:
-        reset_token = PasswordResetToken.objects.get(token=token)
+        # O que está gravado é o hash, então a busca é pelo hash do que chegou.
+        reset_token = PasswordResetToken.objects.get(
+            token=PasswordResetToken.hash_token(token)
+        )
     except PasswordResetToken.DoesNotExist:
         messages.error(request, "Token inválido ou expirado.")
         return redirect("login")
@@ -874,6 +906,7 @@ def npc_detail(request: HttpRequest, pk: int) -> HttpResponse:
 
 
 @login_required
+@require_POST
 def add_npc_bar(request: HttpRequest, pk: int) -> JsonResponse:
     """Adiciona uma barra dinâmica ao NPC."""
     npc = get_object_or_404(NPC, pk=pk)
@@ -910,6 +943,7 @@ def add_npc_bar(request: HttpRequest, pk: int) -> JsonResponse:
 
 
 @login_required
+@require_POST
 def modify_npc_bar(request: HttpRequest, npc_pk: int, bar_id: int) -> JsonResponse:
     """Modifica o valor atual de uma barra do NPC."""
     npc = get_object_or_404(NPC, pk=npc_pk)
@@ -932,6 +966,7 @@ def modify_npc_bar(request: HttpRequest, npc_pk: int, bar_id: int) -> JsonRespon
 
 
 @login_required
+@require_POST
 def delete_npc_bar(request: HttpRequest, npc_pk: int, bar_id: int) -> JsonResponse:
     """Deleta uma barra do NPC."""
     npc = get_object_or_404(NPC, pk=npc_pk)

@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import hashlib
+import secrets
+from datetime import timedelta
+
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import models
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+from django.utils import timezone
 
 
 INVENTORY_ROWS = 4
@@ -382,6 +387,17 @@ def create_npc_slots(sender, instance: NPC, created: bool, **kwargs):  # noqa: A
 
 
 class PasswordResetToken(models.Model):
+    """O que fica guardado é o hash do token, nunca o token em si.
+
+    O valor sorteado só existe dentro do link que vai por e-mail. Guardar ele
+    cru no banco significaria que qualquer cópia do db.sqlite3 — backup,
+    download, olhada no admin — vira senha de todo mundo.
+
+    SHA-256 puro basta aqui: o token tem 32 bytes de aleatoriedade real, então
+    não há o que adivinhar por força bruta. Senha de usuário é outra história e
+    continua no hasher do Django.
+    """
+
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -397,3 +413,18 @@ class PasswordResetToken(models.Model):
 
     def __str__(self) -> str:  # pragma: no cover
         return f"Reset token for {self.user.username}"
+
+    @staticmethod
+    def hash_token(raw_token: str) -> str:
+        return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+
+    @classmethod
+    def emitir(cls, user, validade: timedelta) -> str:
+        """Cria o registro e devolve o token cru, que só o e-mail vê."""
+        raw_token = secrets.token_urlsafe(32)
+        cls.objects.create(
+            user=user,
+            token=cls.hash_token(raw_token),
+            expires_at=timezone.now() + validade,
+        )
+        return raw_token
