@@ -558,6 +558,7 @@ class InventarioDoNpcTests(TestCase):
 
 
 @SEM_REDIRECT_HTTPS
+@SEM_MANIFESTO
 @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
 class TokenDeResetTests(TestCase):
     def setUp(self):
@@ -604,6 +605,7 @@ class TokenDeResetTests(TestCase):
 
 
 @SEM_REDIRECT_HTTPS
+@SEM_MANIFESTO
 @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
 class LimiteDePedidosDeResetTests(TestCase):
     def setUp(self):
