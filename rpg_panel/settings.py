@@ -46,6 +46,20 @@ CSRF_TRUSTED_ORIGINS = [
     "https://galibinja.pythonanywhere.com",
 ]
 
+# Endurecimento de produção. Só liga com DEBUG desligado: em desenvolvimento o
+# site roda em http://127.0.0.1 e cookie "secure" simplesmente não chegaria.
+# O SECURE_PROXY_SSL_HEADER é obrigatório junto do SSL_REDIRECT — quem termina
+# o TLS é o proxy do PythonAnywhere, e sem ele o Django acha que a requisição
+# veio em texto puro e entra em laço de redirecionamento.
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000  # 1 ano
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+
 
 # Application definition
 

@@ -75,9 +75,9 @@ O fluxo de redefinição embutido do Django foi substituído por um customizado,
 
 1. `forgot_password` localiza a conta e cria um `PasswordResetToken` com um carimbo de expiração.
 2. O link é enviado por SMTP do Gmail (credenciais vindas de variáveis de ambiente — veja [deployment.pt-BR.md](deployment.pt-BR.md)).
-3. `reset_password` valida o token (existe, não está `used`, não expirou), define a nova senha e marca o token como usado.
+3. `reset_password` valida o token (existe, não está `used`, não expirou), define a nova senha e queima **todos** os tokens abertos daquela conta — pedir três resets e usar um não pode deixar os outros dois valendo.
 
-A tela de confirmação mostra um e-mail **mascarado** (`_mask_email`), então a página nunca revela o endereço completo de uma conta.
+A tela de confirmação é a mesma exista ou não a conta, e não mostra endereço nenhum. Responder "usuário não encontrado" entregaria quais contas existem para quem estivesse chutando nomes; pelo mesmo motivo o envio é `fail_silently`, para que uma falha de SMTP no caminho do usuário existente não vire o mesmo vazamento por outra porta.
 
 ## Assets de frontend
 

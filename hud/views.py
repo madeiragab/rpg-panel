@@ -5,6 +5,7 @@ import secrets
 from datetime import timedelta
 
 from django.contrib import messages
+from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.core.mail import send_mail
@@ -16,19 +17,6 @@ from django.db.models import Q
 from .forms import RegistrationForm, ProfileEditForm, ForgotPasswordForm, ResetPasswordForm
 from .models import UserProfile, PasswordResetToken
 
-
-def _mask_email(email: str) -> str:
-    """Mascara parte local do email (ex.: anji****@gmail.com)."""
-    if "@" not in email:
-        return email
-    local, domain = email.split("@", 1)
-    if len(local) <= 2:
-        masked_local = local[0] + "*" * max(len(local) - 1, 1)
-    elif len(local) <= 4:
-        masked_local = local[:2] + "*" * (len(local) - 2)
-    else:
-        masked_local = local[:3] + "*" * (len(local) - 3)
-    return f"{masked_local}@{domain}"
 
 from .forms import (
     CampaignForm,
@@ -46,44 +34,46 @@ from .models import Campaign, Character, CharacterAttribute, InventorySlot, Item
 
 
 def forgot_password(request: HttpRequest) -> HttpResponse:
-    """Solicita reset de senha por username"""
+    """Solicita reset de senha por username.
+
+    A resposta é a mesma exista ou não a conta, e o e-mail não aparece na tela:
+    dizer "usuário não encontrado" entrega quais contas existem para quem está
+    chutando nomes. Por isso o envio também é `fail_silently` — um erro de SMTP
+    que só acontecesse no caminho do usuário existente seria o mesmo vazamento
+    por outra porta.
+    """
     if request.method == "POST":
         form = ForgotPasswordForm(request.POST)
         if form.is_valid():
             username = form.cleaned_data["username"]
-            try:
-                user = User.objects.get(username=username)
+            user = User.objects.filter(username=username).first()
+            if user is not None and user.email:
                 # Gera token único
                 token = secrets.token_urlsafe(32)
                 # Token expira em 24 horas
                 expires_at = timezone.now() + timedelta(hours=24)
-                
+
                 # Cria registro do token
                 PasswordResetToken.objects.create(
                     user=user,
                     token=token,
                     expires_at=expires_at
                 )
-                
+
                 # Envia email
                 reset_url = request.build_absolute_uri(f"/reset-password/{token}/")
                 send_mail(
                     subject="Recuperar sua senha - Painel RPG HUD",
                     message=f"Olá {user.username},\n\nClique no link abaixo para resetar sua senha:\n\n{reset_url}\n\nEste link expira em 24 horas.",
-                    from_email="noreply@rpg-panel.com",
+                    from_email=None,  # cai no DEFAULT_FROM_EMAIL
                     recipient_list=[user.email],
+                    fail_silently=True,
                 )
-                
-                # Mostra email mascarado
-                masked_email = _mask_email(user.email)
-                return render(request, "registration/forgot_password_sent.html", {
-                    "email": masked_email
-                })
-            except User.DoesNotExist:
-                messages.error(request, "Usuário não encontrado.")
+
+            return render(request, "registration/forgot_password_sent.html")
     else:
         form = ForgotPasswordForm()
-    
+
     return render(request, "registration/forgot_password.html", {"form": form})
 
 
@@ -111,11 +101,13 @@ def reset_password(request: HttpRequest, token: str) -> HttpResponse:
             password = form.cleaned_data["password"]
             reset_token.user.set_password(password)
             reset_token.user.save()
-            
-            # Marca token como usado
-            reset_token.used = True
-            reset_token.save()
-            
+
+            # Queima todos os tokens abertos do usuário, não só este. Se alguém
+            # pediu três resets, os outros dois continuariam valendo por 24h.
+            PasswordResetToken.objects.filter(
+                user=reset_token.user, used=False
+            ).update(used=True)
+
             messages.success(request, "Senha alterada com sucesso! Faça login com sua nova senha.")
             return redirect("login")
     else:
@@ -125,11 +117,6 @@ def reset_password(request: HttpRequest, token: str) -> HttpResponse:
         "form": form,
         "token": token
     })
-def _user_is_master(user) -> bool:  # noqa: ANN001
-    """Legado: mantido por compatibilidade com templates antigas"""
-    return True  # Removido: agora verificamos por campanha específica
-
-
 @login_required
 def home(request: HttpRequest) -> HttpResponse:
     return render(request, "hud/role_choice.html")
@@ -417,7 +404,12 @@ def delete_character(request: HttpRequest, pk: int) -> HttpResponse:
 def user_page(request: HttpRequest) -> HttpResponse:
     form = ProfileEditForm(user=request.user, data=request.POST or None, files=request.FILES or None)
     if request.method == "POST" and form.is_valid():
-        form.save()
+        trocou_senha = bool(form.cleaned_data.get("senha"))
+        user = form.save()
+        # Trocar a senha invalida o hash guardado na sessão: sem isto o usuário
+        # é deslogado no mesmo clique em que atualiza o perfil.
+        if trocou_senha:
+            update_session_auth_hash(request, user)
         messages.success(request, "Perfil atualizado.")
         return redirect("user_page")
     return render(
@@ -506,9 +498,6 @@ def character_detail(request: HttpRequest, pk: int) -> HttpResponse:
                 return redirect("character_detail", pk=character.pk)
             else:
                 messages.error(request, "Nome e valor do atributo são obrigatórios.")
-                ability.save()
-                messages.success(request, "Habilidade adicionada.")
-                return redirect("character_detail", pk=character.pk)
         elif form_type == "change_player":
             assigned_to_id = request.POST.get("assigned_to")
             if assigned_to_id:
@@ -572,7 +561,12 @@ def assign_slot(request: HttpRequest, character_id: int, slot_id: int) -> JsonRe
     item_id = request.POST.get("item_id")
 
     if item_id:
-        item = get_object_or_404(Item, pk=item_id)
+        # O item tem que ser da mesma campanha do personagem: sem esse filtro,
+        # um id de outra mesa entra no slot e a resposta devolve nome e imagem.
+        if character.campaign:
+            item = get_object_or_404(Item, pk=item_id, campaign=character.campaign)
+        else:
+            item = get_object_or_404(Item, pk=item_id, campaign__isnull=True)
         slot.item = item
         slot.save()
         return JsonResponse(
@@ -586,10 +580,32 @@ def assign_slot(request: HttpRequest, character_id: int, slot_id: int) -> JsonRe
 
 
 @login_required
+@require_POST
+def assign_npc_slot(request: HttpRequest, npc_id: int, slot_id: int) -> JsonResponse:
+    """Põe ou tira um item de um slot do NPC. Só o mestre da campanha mexe."""
+    npc = get_object_or_404(NPC, pk=npc_id)
+    if not npc.campaign or npc.campaign.master != request.user:
+        return JsonResponse({"error": "Sem permissão"}, status=403)
+
+    slot = get_object_or_404(NPCInventorySlot, pk=slot_id, npc=npc)
+    item_id = request.POST.get("item_id")
+
+    if item_id:
+        item = get_object_or_404(Item, pk=item_id, campaign=npc.campaign)
+        slot.item = item
+        slot.save()
+        return JsonResponse(
+            {"success": True, "itemName": item.name, "itemImage": item.image.url if item.image else ""}
+        )
+
+    slot.item = None
+    slot.save()
+    return JsonResponse({"success": True, "itemName": "Vazio", "itemImage": ""})
+
+
+@login_required
 def character_list(request: HttpRequest) -> HttpResponse:
-    """Legado: redireciona para master_dashboard"""
-    if not _user_is_master(request.user):
-        return HttpResponseForbidden("Apenas mestres podem acessar esta página.")
+    """Legado: a rota continua no menu, o painel do mestre é quem responde."""
     return redirect("master_dashboard")
 
 

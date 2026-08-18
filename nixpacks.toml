@@ -1,5 +1,2 @@
-[phases.setup]
-nixPkgs = ["postgresql"]
-
 [start]
 cmd = "python manage.py collectstatic --noinput && gunicorn rpg_panel.wsgi:application"

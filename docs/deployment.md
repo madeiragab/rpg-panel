@@ -28,6 +28,14 @@ python -c "from django.core.management.utils import get_random_secret_key; print
 > existing sessions and password-reset tokens, which is the desired
 > outcome here.
 
+## HTTPS hardening
+
+With `DEBUG` off, `settings.py` turns on HTTPS-only session and CSRF cookies, the redirect to HTTPS, and a one-year HSTS. `SECURE_PROXY_SSL_HEADER` goes with them: the host's proxy is what terminates TLS, and without that setting Django sees the request as plain text and enters a redirect loop.
+
+None of it turns on in development — the site runs on `http://127.0.0.1`, where a cookie marked `secure` would simply never arrive.
+
+CI runs `manage.py check --deploy --fail-level WARNING`, so this set cannot quietly disappear from `settings.py`.
+
 ## Allowed hosts
 
 `ALLOWED_HOSTS` and `CSRF_TRUSTED_ORIGINS` are hardcoded in
