@@ -15,6 +15,7 @@ Isto **não é um produto público**, **não é uma engine de jogo** e **não é
 | [docs/architecture.pt-BR.md](docs/architecture.pt-BR.md) | Layout do app, fluxo de requisição, modelo de permissões, signals |
 | [docs/data-model.pt-BR.md](docs/data-model.pt-BR.md) | Todos os modelos, relacionamentos e invariantes |
 | [docs/api.pt-BR.md](docs/api.pt-BR.md) | API REST: autenticação JWT, endereços, papéis |
+| [docs/audio-player.pt-BR.md](docs/audio-player.pt-BR.md) | Player de áudio da campanha: sincronização, Pusher, YouTube |
 | [docs/deployment.pt-BR.md](docs/deployment.pt-BR.md) | Variáveis de ambiente, deploy, arquivos estáticos/mídia |
 
 ---

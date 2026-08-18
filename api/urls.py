@@ -14,5 +14,6 @@ urlpatterns = [
     path("token/refresh/", views.RenovarTokenView.as_view(), name="api_token_refresh"),
     path("token/logout/", views.RevogarTokenView.as_view(), name="api_token_logout"),
     path("me/", views.PerfilView.as_view(), name="api_me"),
+    path("pusher/auth/", views.PusherAuthView.as_view(), name="api_pusher_auth"),
     path("", include(router.urls)),
 ]

@@ -104,6 +104,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "hud.context_processors.user_role",
+                "hud.context_processors.pusher",
             ],
         },
     },
@@ -218,6 +219,15 @@ LOGIN_URL = "login"
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+
+# Pusher: o empurrão em tempo real do player de áudio. Sem estas variáveis o
+# player não quebra — ele cai no polling lento que já faz por segurança, só
+# deixa de ser instantâneo. A chave pública vai para o navegador de propósito;
+# é com ela que o cliente assina o canal. O segredo nunca sai do servidor.
+PUSHER_APP_ID = os.environ.get("PUSHER_APP_ID", "")
+PUSHER_KEY = os.environ.get("PUSHER_KEY", "")
+PUSHER_SECRET = os.environ.get("PUSHER_SECRET", "")
+PUSHER_CLUSTER = os.environ.get("PUSHER_CLUSTER", "mt1")
 
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = "smtp.gmail.com"

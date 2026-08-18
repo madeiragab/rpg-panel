@@ -14,9 +14,11 @@ Duas coisas que valem explicação:
 from __future__ import annotations
 
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from rest_framework import serializers
 
 from hud.models import (
+    AudioTrack,
     Campaign,
     Character,
     CharacterAbility,
@@ -31,6 +33,7 @@ from hud.models import (
     NPCBar,
     NPCInventorySlot,
     NPCSkill,
+    PlaybackState,
     UserProfile,
 )
 
@@ -237,3 +240,67 @@ class AtribuirItemSerializer(serializers.Serializer):
 
 class AdicionarJogadorSerializer(serializers.Serializer):
     user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
+
+
+class AudioTrackSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AudioTrack
+        fields = ["id", "youtube_id", "title", "order"]
+        read_only_fields = ["youtube_id", "order"]
+
+
+class NovaFaixaSerializer(serializers.Serializer):
+    """Entrada de faixa nova: o mestre cola um link, não um id.
+
+    O `url` aceita qualquer formato do YouTube — a normalização é da view, que
+    chama `api.youtube.extrair_id`.
+    """
+
+    url = serializers.CharField(max_length=500)
+    title = serializers.CharField(max_length=200, required=False, allow_blank=True)
+
+
+class ReordenarFaixasSerializer(serializers.Serializer):
+    """A lista inteira de ids na ordem nova.
+
+    Mandar a lista toda em vez de "mova a faixa X para a posição 3" evita que
+    dois arrastões seguidos se cruzem e deixem a ordem em algo que ninguém pediu.
+    """
+
+    order = serializers.ListField(child=serializers.IntegerField(), allow_empty=True)
+
+
+class PlaybackStateSerializer(serializers.ModelSerializer):
+    position_seconds = serializers.SerializerMethodField()
+    stale = serializers.BooleanField(source="esfriou", read_only=True)
+    server_time = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PlaybackState
+        fields = [
+            "track", "is_playing", "position_seconds",
+            "loop_mode", "updated_at", "stale", "server_time",
+        ]
+
+    def get_position_seconds(self, estado) -> float:
+        # A posição de agora, não a de quando o mestre salvou: quem chega
+        # depois entraria atrasado pelo tanto que o pedido demorou.
+        return round(estado.posicao_agora(), 2)
+
+    def get_server_time(self, estado) -> str:
+        # O cliente compara o relógio dele com o nosso antes de decidir que
+        # está fora de sincronia. Relógio de usuário erra com frequência.
+        return timezone.now().isoformat()
+
+
+class EstadoDoPlayerSerializer(serializers.Serializer):
+    """O que o mestre manda ao mexer nos controles."""
+
+    track = serializers.PrimaryKeyRelatedField(
+        queryset=AudioTrack.objects.all(), allow_null=True, required=False
+    )
+    is_playing = serializers.BooleanField(required=False)
+    position_seconds = serializers.FloatField(required=False, min_value=0)
+    loop_mode = serializers.ChoiceField(
+        choices=PlaybackState.LOOP_CHOICES, required=False
+    )

@@ -12,7 +12,7 @@ from django.core.mail import send_mail
 from django.http import HttpRequest, HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 from django.db.models import Q
 from .forms import RegistrationForm, ProfileEditForm, ForgotPasswordForm, ResetPasswordForm
 from .models import UserProfile, PasswordResetToken
@@ -981,3 +981,23 @@ def delete_npc_bar(request: HttpRequest, npc_pk: int, bar_id: int) -> JsonRespon
         return JsonResponse({"success": True})
 
     return JsonResponse({"success": False, "error": "Método não permitido"}, status=405)
+
+
+@login_required
+@require_GET
+def token_do_player(request: HttpRequest) -> JsonResponse:
+    """Emite um access curto para o widget de áudio da página.
+
+    O painel é autenticado por sessão e a API só entende JWT, de propósito. Em
+    vez de aceitar cookie na API — o que traria CSRF de volta por uma porta onde
+    ninguém olha — a página pede aqui um token de quinze minutos e usa ele nas
+    chamadas.
+
+    Não há aumento de privilégio: o usuário já poderia obter este mesmo token
+    mandando a própria senha em `/api/token/`. E o refresh não passa por aqui,
+    porque um refresh de sete dias dentro do HTML seria bem pior do que um
+    access que morre sozinho.
+    """
+    from rest_framework_simplejwt.tokens import AccessToken
+
+    return JsonResponse({"access": str(AccessToken.for_user(request.user))})

@@ -14,6 +14,7 @@ supports platforms that read it (Railway, Render, Heroku-likes).
 | `DEBUG` | No | `True` enables debug mode and a development-only secret key fallback. Defaults to `False`. |
 | `EMAIL_HOST_USER` | For password reset | Gmail account used to send reset e-mails. |
 | `EMAIL_HOST_PASSWORD` | For password reset | Gmail **app password** (not the account password). |
+| `PUSHER_APP_ID` `PUSHER_KEY` `PUSHER_SECRET` `PUSHER_CLUSTER` | No | Real time for the audio player. Without them the player falls back to 10s polling and keeps working — see [audio-player.md](audio-player.md). |
 
 Generate a secret key with:
 

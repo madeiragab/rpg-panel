@@ -10,11 +10,12 @@ HTML aplica. A API não tem uma segunda versão delas.
 
 from __future__ import annotations
 
-from django.db.models import Q
+from django.db.models import Max, Q
 from django.shortcuts import get_object_or_404
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.generics import RetrieveUpdateAPIView
+from rest_framework.views import APIView
 from rest_framework.permissions import SAFE_METHODS, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import (
@@ -24,6 +25,7 @@ from rest_framework_simplejwt.views import (
 )
 
 from hud.models import (
+    AudioTrack,
     Campaign,
     Character,
     CharacterBar,
@@ -32,9 +34,11 @@ from hud.models import (
     NPC,
     NPCBar,
     NPCInventorySlot,
+    PlaybackState,
     UserProfile,
 )
 
+from . import realtime
 from .permissions import (
     campanhas_do_usuario,
     eh_mestre,
@@ -47,19 +51,25 @@ from .permissions import (
 )
 from .serializers import (
     AdicionarJogadorSerializer,
+    AudioTrackSerializer,
     AtribuirItemSerializer,
     CampaignSerializer,
     CharacterBarSerializer,
     CharacterSerializer,
     CharacterStatusSerializer,
+    EstadoDoPlayerSerializer,
     InventorySlotSerializer,
     ItemSerializer,
     NPCBarSerializer,
     NPCInventorySlotSerializer,
     NPCSerializer,
+    NovaFaixaSerializer,
     PerfilSerializer,
+    PlaybackStateSerializer,
+    ReordenarFaixasSerializer,
 )
 from .throttles import ThrottleDeToken
+from .youtube import LinkInvalido, extrair_id
 
 
 class TokenPorSenhaView(TokenObtainPairView):
@@ -163,6 +173,132 @@ class CampaignViewSet(viewsets.ModelViewSet):
         )
         campanha.players.remove(request.user)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    # ------------------------------------------------------------------
+    # Player de áudio da campanha
+    #
+    # O estado no banco é a fonte da verdade; o Pusher é só o empurrão que
+    # avisa mais rápido. Por isso todo escrita salva primeiro e publica depois,
+    # e a publicação nunca decide se o pedido deu certo.
+    # ------------------------------------------------------------------
+
+    def _payload_do_audio(self, campanha):
+        estado, _ = PlaybackState.objects.get_or_create(campaign=campanha)
+        return {
+            "state": PlaybackStateSerializer(estado).data,
+            "tracks": AudioTrackSerializer(campanha.tracks.all(), many=True).data,
+        }
+
+    def _avisar(self, campanha, evento="audio"):
+        corpo = self._payload_do_audio(campanha)
+        realtime.publicar(campanha.pk, evento, corpo)
+        return corpo
+
+    @action(detail=True, methods=["get"], url_path="audio")
+    def audio(self, request, pk=None):
+        # GET: `has_object_permission` cobra só participação, então o jogador
+        # lê a trilha da mesa dele.
+        campanha = self.get_object()
+        return Response(self._payload_do_audio(campanha))
+
+    @action(detail=True, methods=["post"], url_path="audio/tracks")
+    def adicionar_faixa(self, request, pk=None):
+        campanha = self.get_object()
+
+        corpo = NovaFaixaSerializer(data=request.data)
+        corpo.is_valid(raise_exception=True)
+        try:
+            youtube_id = extrair_id(corpo.validated_data["url"])
+        except LinkInvalido as erro:
+            return Response({"url": str(erro)}, status=status.HTTP_400_BAD_REQUEST)
+
+        if campanha.tracks.filter(youtube_id=youtube_id).exists():
+            return Response(
+                {"url": "Essa faixa já está na lista."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        ultima = campanha.tracks.aggregate(fim=Max("order"))["fim"]
+        AudioTrack.objects.create(
+            campaign=campanha,
+            youtube_id=youtube_id,
+            title=corpo.validated_data.get("title", "").strip(),
+            order=0 if ultima is None else ultima + 1,
+            added_by=request.user,
+        )
+
+        return Response(self._avisar(campanha), status=status.HTTP_201_CREATED)
+
+    @action(
+        detail=True,
+        methods=["delete"],
+        url_path=r"audio/tracks/(?P<track_pk>[^/.]+)",
+    )
+    def remover_faixa(self, request, pk=None, track_pk=None):
+        campanha = self.get_object()
+        faixa = get_object_or_404(AudioTrack, pk=track_pk, campaign=campanha)
+
+        estado, _ = PlaybackState.objects.get_or_create(campaign=campanha)
+        if estado.track_id == faixa.pk:
+            # Tirar a faixa que está tocando não pode deixar o player apontando
+            # para o vazio com `is_playing` ligado.
+            estado.track = None
+            estado.is_playing = False
+            estado.position_seconds = 0
+            estado.save()
+
+        faixa.delete()
+        return Response(self._avisar(campanha))
+
+    @action(detail=True, methods=["patch"], url_path="audio/order")
+    def reordenar_faixas(self, request, pk=None):
+        campanha = self.get_object()
+
+        corpo = ReordenarFaixasSerializer(data=request.data)
+        corpo.is_valid(raise_exception=True)
+        pedidos = corpo.validated_data["order"]
+
+        existentes = list(campanha.tracks.values_list("id", flat=True))
+        if sorted(pedidos) != sorted(existentes):
+            # A lista tem que ser exatamente a da campanha: id de fora ou faixa
+            # faltando é sinal de tela desatualizada, e aplicar isso deixaria a
+            # ordem em algo que ninguém pediu.
+            return Response(
+                {"order": "A lista não bate com as faixas desta campanha."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        for posicao, track_id in enumerate(pedidos):
+            AudioTrack.objects.filter(pk=track_id).update(order=posicao)
+
+        return Response(self._avisar(campanha))
+
+    @action(detail=True, methods=["patch"], url_path="audio/state")
+    def estado_do_audio(self, request, pk=None):
+        campanha = self.get_object()
+
+        corpo = EstadoDoPlayerSerializer(data=request.data)
+        corpo.is_valid(raise_exception=True)
+        dados = corpo.validated_data
+
+        faixa = dados.get("track", ...)
+        if faixa is not ... and faixa is not None and faixa.campaign_id != campanha.pk:
+            return Response(
+                {"track": "Essa faixa não é desta campanha."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        estado, _ = PlaybackState.objects.get_or_create(campaign=campanha)
+        if faixa is not ...:
+            estado.track = faixa
+        for campo in ("is_playing", "position_seconds", "loop_mode"):
+            if campo in dados:
+                setattr(estado, campo, dados[campo])
+        # `updated_at` é auto_now: salvar aqui é o que faz o estado parar de
+        # esfriar. É por isso que o mestre manda o batimento de tempos em tempos.
+        estado.save()
+
+        return Response(self._avisar(campanha))
 
 
 class PermissaoPersonagem(IsAuthenticated):
@@ -382,3 +518,37 @@ class ItemViewSet(viewsets.ModelViewSet):
                 self.request, message="Só o mestre da campanha cria item nela."
             )
         serializer.save(created_by=self.request.user)
+
+
+class PusherAuthView(APIView):
+    """Assina a entrada de um cliente num canal privado de campanha.
+
+    O Pusher não sabe nada das nossas regras: ele pergunta ao servidor se aquele
+    socket pode entrar naquele canal. Aqui é onde a resposta acontece, e é a
+    mesma regra do resto — participa da campanha, entra; não participa, 403.
+    """
+
+    def post(self, request):
+        canal = request.data.get("channel_name", "")
+        socket_id = request.data.get("socket_id", "")
+
+        campaign_id = realtime.campanha_do_canal(canal)
+        if not campaign_id or not socket_id:
+            return Response(
+                {"detail": "Canal inválido."}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        campanha = get_object_or_404(Campaign, pk=campaign_id)
+        if not participa(request.user, campanha):
+            return Response(
+                {"detail": "Você não está nesta campanha."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if not realtime.configurado():
+            return Response(
+                {"detail": "Pusher não configurado neste servidor."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        return Response(realtime.autenticar(canal, socket_id))

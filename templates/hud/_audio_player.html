@@ -1,0 +1,112 @@
+{% load static %}
+{# Player de áudio da campanha.
+
+   A miniatura do YouTube fica visível de propósito. Os Termos da API do YouTube
+   não permitem esconder o player nem separar o áudio do vídeo, e uma conta
+   cortada custaria mais caro do que os 200 pixels que ela ocupa aqui.
+
+   Quem controla é só o mestre. O jogador recebe o estado e toca o mesmo vídeo
+   no próprio navegador — não há áudio trafegando pelo servidor. #}
+
+<style>
+  #player-audio {
+    position: fixed; right: 18px; bottom: 18px; z-index: 900;
+    width: 260px; border-radius: 12px; overflow: hidden;
+    background: rgba(14, 16, 24, 0.94);
+    border: 1px solid rgba(120, 220, 255, 0.28);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+    font-size: 0.85rem; color: #dfe7f5;
+  }
+  #player-audio .pa-topo {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; padding: 8px 10px; cursor: pointer;
+    background: rgba(120, 220, 255, 0.08);
+  }
+  #player-audio .pa-titulo { font-weight: 600; letter-spacing: 0.02em; }
+  #player-audio .pa-corpo { padding: 10px; }
+  #player-audio.recolhido .pa-corpo { display: none; }
+  #player-audio .pa-video {
+    width: 100%; aspect-ratio: 16 / 9; background: #000;
+    border-radius: 8px; overflow: hidden; margin-bottom: 8px;
+  }
+  #player-audio .pa-video iframe { width: 100%; height: 100%; border: 0; }
+  #player-audio .pa-agora {
+    min-height: 2.4em; margin-bottom: 8px; line-height: 1.2;
+    color: #9fb4d0; word-break: break-word;
+  }
+  #player-audio .pa-botoes { display: flex; gap: 6px; flex-wrap: wrap; }
+  #player-audio button {
+    background: rgba(120, 220, 255, 0.12); color: #dfe7f5;
+    border: 1px solid rgba(120, 220, 255, 0.3); border-radius: 6px;
+    padding: 4px 9px; cursor: pointer; font-size: 0.85rem;
+  }
+  #player-audio button:hover { background: rgba(120, 220, 255, 0.24); }
+  #player-audio button[disabled] { opacity: 0.4; cursor: default; }
+  #player-audio input[type="text"] {
+    width: 100%; margin-top: 8px; padding: 5px 7px; border-radius: 6px;
+    border: 1px solid rgba(120, 220, 255, 0.28);
+    background: rgba(0, 0, 0, 0.3); color: #dfe7f5;
+  }
+  #player-audio ol {
+    list-style: none; margin: 8px 0 0; padding: 0;
+    max-height: 168px; overflow-y: auto;
+  }
+  #player-audio li {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 6px; border-radius: 6px; margin-bottom: 3px;
+    background: rgba(255, 255, 255, 0.04);
+  }
+  #player-audio li.tocando { background: rgba(120, 220, 255, 0.18); }
+  #player-audio li.arrastando { opacity: 0.4; }
+  #player-audio li .pa-nome {
+    flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  #player-audio li[draggable="true"] { cursor: grab; }
+  #player-audio .pa-aviso { color: #ffd479; margin-top: 6px; }
+  #player-audio .pa-volume { width: 100%; margin-top: 8px; }
+</style>
+
+<div id="player-audio"
+     class="recolhido"
+     data-campanha="{{ campaign.pk }}"
+     data-mestre="{{ is_master|yesno:'1,0' }}"
+     data-url-token="{% url 'token_do_player' %}"
+     data-pusher-key="{{ pusher_key }}"
+     data-pusher-cluster="{{ pusher_cluster }}">
+
+  <div class="pa-topo" id="pa-topo">
+    <span class="pa-titulo">♪ Trilha</span>
+    <span id="pa-estado-curto">—</span>
+  </div>
+
+  <div class="pa-corpo">
+    <div class="pa-video"><div id="pa-video"></div></div>
+
+    <div class="pa-agora" id="pa-agora">Nada tocando.</div>
+
+    <div class="pa-botoes">
+      {% if is_master %}
+        <button type="button" id="pa-anterior" title="Anterior">⏮</button>
+        <button type="button" id="pa-tocar" title="Tocar ou pausar">▶</button>
+        <button type="button" id="pa-proxima" title="Próxima">⏭</button>
+        <button type="button" id="pa-loop" title="Repetição">↻ off</button>
+      {% else %}
+        <button type="button" id="pa-entrar">Entrar no áudio</button>
+      {% endif %}
+      <button type="button" id="pa-mudo" title="Mudo só para você">🔊</button>
+    </div>
+
+    <input type="range" class="pa-volume" id="pa-volume" min="0" max="100" value="60"
+           aria-label="Volume (só seu)">
+
+    {% if is_master %}
+      <input type="text" id="pa-link" placeholder="Cole um link do YouTube e tecle Enter">
+    {% endif %}
+
+    <ol id="pa-lista"></ol>
+
+    <div class="pa-aviso" id="pa-aviso"></div>
+  </div>
+</div>
+
+<script src="{% static 'hud/audio_player.js' %}" defer></script>
