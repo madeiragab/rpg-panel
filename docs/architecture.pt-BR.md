@@ -73,7 +73,7 @@ Páginas com múltiplos formulários (como `character_detail`, que edita a ficha
 
 O fluxo de redefinição embutido do Django foi substituído por um customizado, para que o texto do e-mail e o tempo de vida do token fiquem sob controle do projeto:
 
-1. `forgot_password` localiza a conta e cria um `PasswordResetToken` com um carimbo de expiração.
+1. `forgot_password` localiza a conta e chama `PasswordResetToken.emitir`, que sorteia 32 bytes, grava **só o SHA-256 deles** e devolve o valor cru para o e-mail. O que está no banco não abre link nenhum: uma cópia do `db.sqlite3` deixa de ser a senha de todo mundo. O pedido passa antes por uma cota de cinco por conta e dez por IP a cada hora, senão o endereço vira um botão de disparar e-mail em série contra a caixa de qualquer usuário.
 2. O link é enviado por SMTP do Gmail (credenciais vindas de variáveis de ambiente — veja [deployment.pt-BR.md](deployment.pt-BR.md)).
 3. `reset_password` valida o token (existe, não está `used`, não expirou), define a nova senha e queima **todos** os tokens abertos daquela conta — pedir três resets e usar um não pode deixar os outros dois valendo.
 
@@ -87,4 +87,6 @@ A tela de confirmação é a mesma exista ou não a conta, e não mostra endere�
 - `inventory.js` — renderização de slots e atribuição de itens;
 - `drag.js` — arrastar e soltar entre slots do inventário.
 
-Os arquivos estáticos são servidos pelo **WhiteNoise** em produção com nomes comprimidos e com hash (`CompressedManifestStaticFilesStorage`), então o `collectstatic` precisa rodar a cada deploy.
+Os arquivos estáticos são servidos pelo **WhiteNoise** em produção com nomes comprimidos e com hash (`CompressedManifestStaticFilesStorage`, declarado em `STORAGES`), então o `collectstatic` precisa rodar a cada deploy.
+
+Não existe `STATICFILES_DIRS`: `hud/static/` é diretório de app e o finder já acha sozinho. Apontar para ele de novo fazia o `collectstatic` encontrar cada arquivo duas vezes e avisar, a cada deploy, que ia ignorar uma das cópias.

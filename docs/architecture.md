@@ -100,8 +100,11 @@ Django form `prefix`es to keep field names from colliding.
 Django's built-in reset flow was replaced by a custom one so the e-mail
 copy and the token lifetime stay under project control:
 
-1. `forgot_password` looks up the account and creates a
-   `PasswordResetToken` with an expiry timestamp.
+1. `forgot_password` looks up the account and calls `PasswordResetToken.emitir`, which
+   draws 32 random bytes, stores **only their SHA-256** and hands the raw value to the
+   e-mail. What sits in the database opens no link: a copy of `db.sqlite3` stops being
+   everyone's password. Each request first passes a quota of five per account and ten
+   per IP per hour, otherwise the endpoint is a button for mailbombing any user.
 2. The link is e-mailed via Gmail SMTP (credentials from environment
    variables — see [deployment.md](deployment.md)).
 3. `reset_password` validates the token (exists, not `used`, not expired),
@@ -124,5 +127,10 @@ them:
 - `drag.js` — drag-and-drop between inventory slots.
 
 Static files are served by **WhiteNoise** in production with hashed,
-compressed names (`CompressedManifestStaticFilesStorage`), so
-`collectstatic` must run on every deploy.
+compressed names (`CompressedManifestStaticFilesStorage`, declared under
+`STORAGES`), so `collectstatic` must run on every deploy.
+
+There is no `STATICFILES_DIRS`: `hud/static/` is an app directory and the
+app finder picks it up on its own. Pointing at it again made `collectstatic`
+find every file twice and warn, on each deploy, that it was ignoring one of
+the copies.

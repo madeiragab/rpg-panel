@@ -107,7 +107,7 @@ Cada personagem e NPC suporta:
 
 ### Backend
 - Python 3.11
-- Django 5.1
+- Django 5.2 LTS
 - SQLite (desenvolvimento)
 - Pillow (tratamento de imagens)
 - Gunicorn + WhiteNoise (produção)
