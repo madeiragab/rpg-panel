@@ -30,6 +30,13 @@ from hud.models import (
 
 User = get_user_model()
 
+# O CI roda com DEBUG desligado de propósito, e é aí que o settings.py liga o
+# SECURE_SSL_REDIRECT. O cliente de teste fala http, então toda requisição
+# viraria 301 antes de chegar na view e o teste mediria o redirecionamento em
+# vez da regra. Quem precisa do cliente desliga só o redirecionamento — o resto
+# do modo de produção continua valendo.
+SEM_REDIRECT_HTTPS = override_settings(SECURE_SSL_REDIRECT=False)
+
 SEM_MANIFESTO = override_settings(
     STORAGES={
         "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
@@ -140,6 +147,7 @@ class ClampDeStatusTests(TestCase):
         self.assertEqual(personagem.hp_current, 5)
 
 
+@SEM_REDIRECT_HTTPS
 class AcessoACampanhaTests(TestCase):
     def setUp(self):
         self.mestre = make_user('mestre')
@@ -229,6 +237,7 @@ class AcessoACampanhaTests(TestCase):
         self.assertNotIn('Segredo', [p.name for p in resposta.context['characters']])
 
 
+@SEM_REDIRECT_HTTPS
 class ModificarStatusTests(TestCase):
     def setUp(self):
         self.mestre = make_user('mestre')
@@ -301,6 +310,7 @@ class ModificarStatusTests(TestCase):
         self.assertEqual(resposta.status_code, 405)
 
 
+@SEM_REDIRECT_HTTPS
 class VisibilidadeTests(TestCase):
     def setUp(self):
         self.mestre = make_user('mestre')
@@ -401,6 +411,7 @@ class SenhaTests(TestCase):
 
 @SEM_MANIFESTO
 @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+@SEM_REDIRECT_HTTPS
 class RecuperacaoDeSenhaTests(TestCase):
     def setUp(self):
         self.ana = make_user('ana')
@@ -441,6 +452,7 @@ class RecuperacaoDeSenhaTests(TestCase):
         self.assertTrue(segundo.used)
 
 
+@SEM_REDIRECT_HTTPS
 class IsolamentoDeItemTests(TestCase):
     """Item de uma campanha não pode entrar no slot de outra.
 
@@ -482,6 +494,7 @@ class IsolamentoDeItemTests(TestCase):
         self.assertIsNone(self.slot.item)
 
 
+@SEM_REDIRECT_HTTPS
 class InventarioDoNpcTests(TestCase):
     def setUp(self):
         self.mestre = make_user('mestre')
