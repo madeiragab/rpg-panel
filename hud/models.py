@@ -428,3 +428,93 @@ class PasswordResetToken(models.Model):
             expires_at=timezone.now() + validade,
         )
         return raw_token
+
+
+class AudioTrack(models.Model):
+    """Uma faixa da trilha da campanha, apontando para um vídeo do YouTube.
+
+    Guardamos o id de onze caracteres, não a URL inteira. A mesma faixa chega
+    de cinco formatos diferentes (`watch?v=`, `youtu.be/`, `shorts/`, `embed/`,
+    com lista e tempo pendurados atrás), e normalizar na entrada evita ter a
+    mesma música quatro vezes na lista por causa do formato do link.
+    """
+
+    campaign = models.ForeignKey(
+        Campaign, on_delete=models.CASCADE, related_name="tracks"
+    )
+    youtube_id = models.CharField(max_length=20)
+    title = models.CharField(max_length=200, blank=True)
+    order = models.PositiveIntegerField(default=0)
+    added_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="tracks_added",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["order", "id"]
+        unique_together = ("campaign", "youtube_id")
+
+    def __str__(self) -> str:  # pragma: no cover - simple display
+        return self.title or self.youtube_id
+
+
+class PlaybackState(models.Model):
+    """O que está tocando numa campanha, agora.
+
+    Ninguém transmite áudio: cada navegador toca o vídeo por conta própria e usa
+    esta linha para saber o quê, de onde e se está rodando. Por isso
+    `position_seconds` sozinho não basta — ele é a posição no instante
+    `updated_at`. Quem chega depois calcula onde a faixa deveria estar somando o
+    tempo decorrido, senão todo mundo entraria atrasado pelo tanto que demorou
+    para pedir.
+    """
+
+    LOOP_OFF = "OFF"
+    LOOP_ONE = "ONE"
+    LOOP_ALL = "ALL"
+    LOOP_CHOICES = (
+        (LOOP_OFF, "Sem repetição"),
+        (LOOP_ONE, "Repetir a faixa"),
+        (LOOP_ALL, "Repetir a lista"),
+    )
+
+    # Depois deste tempo sem notícia do mestre, o estado não vale mais: a aba
+    # dele caiu, fechou ou dormiu. Sem isso os jogadores ficariam tocando
+    # sozinhos uma trilha que o mestre parou de ouvir faz meia hora.
+    SEGUNDOS_ATE_ESFRIAR = 90
+
+    campaign = models.OneToOneField(
+        Campaign, on_delete=models.CASCADE, related_name="playback"
+    )
+    track = models.ForeignKey(
+        AudioTrack, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    is_playing = models.BooleanField(default=False)
+    position_seconds = models.FloatField(default=0)
+    loop_mode = models.CharField(max_length=3, choices=LOOP_CHOICES, default=LOOP_OFF)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self) -> str:  # pragma: no cover - simple display
+        return f"{self.campaign.name}: {self.track or 'nada'}"
+
+    @property
+    def esfriou(self) -> bool:
+        idade = (timezone.now() - self.updated_at).total_seconds()
+        return idade > self.SEGUNDOS_ATE_ESFRIAR
+
+    def posicao_agora(self) -> float:
+        """Onde a faixa está neste instante, não onde estava quando salvamos."""
+        if not self.is_playing or self.esfriou:
+            return self.position_seconds
+        decorrido = (timezone.now() - self.updated_at).total_seconds()
+        return self.position_seconds + max(decorrido, 0)
+
+
+@receiver(post_save, sender=Campaign)
+def create_playback_state(sender, instance: Campaign, created: bool, **kwargs):  # noqa: ANN001
+    if created:
+        PlaybackState.objects.create(campaign=instance)

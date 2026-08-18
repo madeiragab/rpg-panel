@@ -15,13 +15,24 @@ teste que falha porque outro teste gastou a cota não diz nada sobre a regra.
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework.test import APIClient
 
-from hud.models import Campaign, Character, Item, NPC
+from api.youtube import LinkInvalido, extrair_id
+from hud.models import (
+    AudioTrack,
+    Campaign,
+    Character,
+    Item,
+    NPC,
+    PlaybackState,
+)
 
 User = get_user_model()
 
@@ -556,3 +567,355 @@ class PerfilAPITests(BaseAPITests):
         resposta = self.client.get(reverse("api_me"))
 
         self.assertEqual(resposta.status_code, 401)
+
+
+@SEM_REDIRECT_HTTPS
+class ExtrairIdDoYoutubeTests(TestCase):
+    """O mestre cola o link que o navegador dele deu, não um id limpo."""
+
+    def test_formatos_que_apontam_para_o_mesmo_video(self):
+        esperado = "dQw4w9WgXcQ"
+        for entrada in [
+            "dQw4w9WgXcQ",
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PL123&index=4",
+            "https://youtu.be/dQw4w9WgXcQ",
+            "https://youtu.be/dQw4w9WgXcQ?t=42",
+            "https://m.youtube.com/watch?v=dQw4w9WgXcQ",
+            "https://music.youtube.com/watch?v=dQw4w9WgXcQ",
+            "https://www.youtube.com/shorts/dQw4w9WgXcQ",
+            "https://www.youtube.com/embed/dQw4w9WgXcQ",
+            "youtube.com/watch?v=dQw4w9WgXcQ",
+        ]:
+            with self.subTest(entrada=entrada):
+                self.assertEqual(extrair_id(entrada), esperado)
+
+    def test_link_que_nao_e_do_youtube_e_recusado(self):
+        for entrada in ["", "   ", "https://vimeo.com/123456", "https://exemplo.com/watch?v=dQw4w9WgXcQ"]:
+            with self.subTest(entrada=entrada):
+                with self.assertRaises(LinkInvalido):
+                    extrair_id(entrada)
+
+    def test_link_do_youtube_sem_video_e_recusado(self):
+        with self.assertRaises(LinkInvalido):
+            extrair_id("https://www.youtube.com/results?search_query=musica")
+
+
+@SEM_REDIRECT_HTTPS
+class EstadoDoPlaybackTests(TestCase):
+    def setUp(self):
+        self.mestre = make_user("mestre")
+        self.campanha = Campaign.objects.create(name="Ossos", master=self.mestre)
+
+    def test_campanha_nova_ja_nasce_com_estado(self):
+        self.assertTrue(PlaybackState.objects.filter(campaign=self.campanha).exists())
+
+    def test_a_posicao_anda_sozinha_enquanto_toca(self):
+        """A posição salva é a de um instante; quem chega depois soma o resto."""
+        estado = self.campanha.playback
+        estado.is_playing = True
+        estado.position_seconds = 10
+        estado.save()
+
+        PlaybackState.objects.filter(pk=estado.pk).update(
+            updated_at=timezone.now() - timedelta(seconds=5)
+        )
+        estado.refresh_from_db()
+
+        self.assertAlmostEqual(estado.posicao_agora(), 15, delta=1)
+
+    def test_pausado_a_posicao_fica_parada(self):
+        estado = self.campanha.playback
+        estado.is_playing = False
+        estado.position_seconds = 10
+        estado.save()
+
+        PlaybackState.objects.filter(pk=estado.pk).update(
+            updated_at=timezone.now() - timedelta(seconds=30)
+        )
+        estado.refresh_from_db()
+
+        self.assertEqual(estado.posicao_agora(), 10)
+
+    def test_estado_velho_esfria_e_para_de_andar(self):
+        """A aba do mestre caiu: ninguém continua tocando sozinho para sempre."""
+        estado = self.campanha.playback
+        estado.is_playing = True
+        estado.position_seconds = 10
+        estado.save()
+
+        PlaybackState.objects.filter(pk=estado.pk).update(
+            updated_at=timezone.now()
+            - timedelta(seconds=PlaybackState.SEGUNDOS_ATE_ESFRIAR + 30)
+        )
+        estado.refresh_from_db()
+
+        self.assertTrue(estado.esfriou)
+        self.assertEqual(estado.posicao_agora(), 10)
+
+
+class PlayerDaCampanhaAPITests(BaseAPITests):
+    def setUp(self):
+        super().setUp()
+        self.url_audio = reverse("campaign-audio", args=[self.campanha.pk])
+        self.url_faixas = reverse("campaign-adicionar-faixa", args=[self.campanha.pk])
+        self.url_estado = reverse("campaign-estado-do-audio", args=[self.campanha.pk])
+        self.url_ordem = reverse("campaign-reordenar-faixas", args=[self.campanha.pk])
+
+    def _add(self, url):
+        return self.client.post(self.url_faixas, {"url": url}, format="json")
+
+    def test_jogador_ve_a_trilha_da_mesa_dele(self):
+        self.como(self.jogador)
+
+        resposta = self.client.get(self.url_audio)
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn("state", resposta.data)
+        self.assertIn("tracks", resposta.data)
+
+    def test_estranho_nao_ve_a_trilha(self):
+        self.como(self.estranho)
+
+        resposta = self.client.get(self.url_audio)
+
+        self.assertEqual(resposta.status_code, 404)
+
+    def test_mestre_adiciona_faixa_por_link(self):
+        self.como(self.mestre)
+
+        resposta = self._add("https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PL1")
+
+        self.assertEqual(resposta.status_code, 201)
+        faixa = AudioTrack.objects.get()
+        self.assertEqual(faixa.youtube_id, "dQw4w9WgXcQ")
+        self.assertEqual(faixa.added_by, self.mestre)
+
+    def test_jogador_nao_adiciona_faixa(self):
+        self.como(self.jogador)
+
+        resposta = self._add("https://youtu.be/dQw4w9WgXcQ")
+
+        self.assertEqual(resposta.status_code, 403)
+        self.assertEqual(AudioTrack.objects.count(), 0)
+
+    def test_link_ruim_da_400_com_recado(self):
+        self.como(self.mestre)
+
+        resposta = self.client.post(
+            self.url_faixas, {"url": "https://vimeo.com/1"}, format="json"
+        )
+
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn("url", resposta.data)
+
+    def test_a_mesma_faixa_nao_entra_duas_vezes(self):
+        self.como(self.mestre)
+        self._add("https://youtu.be/dQw4w9WgXcQ")
+
+        # Mesmo vídeo, outro formato de link: continua sendo o mesmo vídeo.
+        resposta = self._add("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+
+        self.assertEqual(resposta.status_code, 400)
+        self.assertEqual(AudioTrack.objects.count(), 1)
+
+    def test_as_faixas_entram_no_fim_da_fila(self):
+        self.como(self.mestre)
+
+        self._add("https://youtu.be/aaaaaaaaaaa")
+        self._add("https://youtu.be/bbbbbbbbbbb")
+        resposta = self._add("https://youtu.be/ccccccccccc")
+
+        ids = [f["youtube_id"] for f in resposta.data["tracks"]]
+        self.assertEqual(ids, ["aaaaaaaaaaa", "bbbbbbbbbbb", "ccccccccccc"])
+
+    def test_mestre_reordena_arrastando(self):
+        self.como(self.mestre)
+        self._add("https://youtu.be/aaaaaaaaaaa")
+        self._add("https://youtu.be/bbbbbbbbbbb")
+        corpo = self._add("https://youtu.be/ccccccccccc")
+        ids = [f["id"] for f in corpo.data["tracks"]]
+
+        resposta = self.client.patch(
+            self.url_ordem, {"order": [ids[2], ids[0], ids[1]]}, format="json"
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        nova = [f["youtube_id"] for f in resposta.data["tracks"]]
+        self.assertEqual(nova, ["ccccccccccc", "aaaaaaaaaaa", "bbbbbbbbbbb"])
+
+    def test_ordem_que_nao_bate_com_a_lista_e_recusada(self):
+        """Tela desatualizada não pode reescrever a fila com dados velhos."""
+        self.como(self.mestre)
+        corpo = self._add("https://youtu.be/aaaaaaaaaaa")
+        faixa_id = corpo.data["tracks"][0]["id"]
+
+        resposta = self.client.patch(
+            self.url_ordem, {"order": [faixa_id, 9999]}, format="json"
+        )
+
+        self.assertEqual(resposta.status_code, 400)
+
+    def test_jogador_nao_reordena(self):
+        self.como(self.mestre)
+        corpo = self._add("https://youtu.be/aaaaaaaaaaa")
+        ids = [f["id"] for f in corpo.data["tracks"]]
+        self.como(self.jogador)
+
+        resposta = self.client.patch(self.url_ordem, {"order": ids}, format="json")
+
+        self.assertEqual(resposta.status_code, 403)
+
+    def test_mestre_toca_pausa_e_liga_o_loop(self):
+        self.como(self.mestre)
+        corpo = self._add("https://youtu.be/aaaaaaaaaaa")
+        faixa_id = corpo.data["tracks"][0]["id"]
+
+        tocar = self.client.patch(
+            self.url_estado,
+            {"track": faixa_id, "is_playing": True, "position_seconds": 0, "loop_mode": "ALL"},
+            format="json",
+        )
+
+        self.assertEqual(tocar.status_code, 200)
+        self.assertTrue(tocar.data["state"]["is_playing"])
+        self.assertEqual(tocar.data["state"]["loop_mode"], "ALL")
+
+        pausar = self.client.patch(self.url_estado, {"is_playing": False}, format="json")
+        self.assertFalse(pausar.data["state"]["is_playing"])
+
+    def test_jogador_nao_controla_o_player(self):
+        self.como(self.jogador)
+
+        resposta = self.client.patch(self.url_estado, {"is_playing": True}, format="json")
+
+        self.assertEqual(resposta.status_code, 403)
+        self.campanha.playback.refresh_from_db()
+        self.assertFalse(self.campanha.playback.is_playing)
+
+    def test_faixa_de_outra_campanha_nao_entra_no_player(self):
+        alheia = Campaign.objects.create(name="Alheia", master=self.estranho)
+        intrusa = AudioTrack.objects.create(campaign=alheia, youtube_id="zzzzzzzzzzz")
+        self.como(self.mestre)
+
+        resposta = self.client.patch(
+            self.url_estado, {"track": intrusa.pk}, format="json"
+        )
+
+        self.assertEqual(resposta.status_code, 400)
+
+    def test_tirar_a_faixa_que_toca_para_o_player(self):
+        self.como(self.mestre)
+        corpo = self._add("https://youtu.be/aaaaaaaaaaa")
+        faixa_id = corpo.data["tracks"][0]["id"]
+        self.client.patch(
+            self.url_estado,
+            {"track": faixa_id, "is_playing": True},
+            format="json",
+        )
+
+        resposta = self.client.delete(
+            reverse("campaign-remover-faixa", args=[self.campanha.pk, faixa_id])
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIsNone(resposta.data["state"]["track"])
+        self.assertFalse(resposta.data["state"]["is_playing"])
+
+    def test_a_posicao_devolvida_e_a_de_agora(self):
+        self.como(self.mestre)
+        corpo = self._add("https://youtu.be/aaaaaaaaaaa")
+        faixa_id = corpo.data["tracks"][0]["id"]
+        self.client.patch(
+            self.url_estado,
+            {"track": faixa_id, "is_playing": True, "position_seconds": 30},
+            format="json",
+        )
+        PlaybackState.objects.filter(campaign=self.campanha).update(
+            updated_at=timezone.now() - timedelta(seconds=8)
+        )
+
+        resposta = self.client.get(self.url_audio)
+
+        # Quem abre a página no meio da música entra onde a mesa está, não onde
+        # a música estava quando o mestre apertou o play.
+        self.assertGreater(resposta.data["state"]["position_seconds"], 35)
+
+
+class PusherAuthTests(BaseAPITests):
+    def setUp(self):
+        super().setUp()
+        self.url = reverse("api_pusher_auth")
+        self.canal = f"private-campanha-{self.campanha.pk}-audio"
+
+    def test_estranho_nao_assina_o_canal_da_mesa(self):
+        self.como(self.estranho)
+
+        resposta = self.client.post(
+            self.url, {"channel_name": self.canal, "socket_id": "123.456"}, format="json"
+        )
+
+        self.assertEqual(resposta.status_code, 403)
+
+    def test_canal_de_outro_formato_e_recusado(self):
+        self.como(self.jogador)
+
+        resposta = self.client.post(
+            self.url,
+            {"channel_name": "private-outra-coisa", "socket_id": "123.456"},
+            format="json",
+        )
+
+        self.assertEqual(resposta.status_code, 400)
+
+    def test_sem_pusher_configurado_o_jogador_ouve_um_503_claro(self):
+        """Não é erro do usuário: o servidor é que não tem chave."""
+        self.como(self.jogador)
+
+        resposta = self.client.post(
+            self.url, {"channel_name": self.canal, "socket_id": "123.456"}, format="json"
+        )
+
+        self.assertEqual(resposta.status_code, 503)
+
+    def test_anonimo_nao_assina_nada(self):
+        resposta = self.client.post(
+            self.url, {"channel_name": self.canal, "socket_id": "123.456"}, format="json"
+        )
+
+        self.assertEqual(resposta.status_code, 401)
+
+
+@SEM_REDIRECT_HTTPS
+class PonteDeTokenTests(TestCase):
+    """A página é de sessão, a API é de JWT. Este endereço faz a ponte."""
+
+    def setUp(self):
+        self.ana = make_user("ana")
+        self.url = reverse("token_do_player")
+
+    def test_visitante_nao_ganha_token(self):
+        resposta = self.client.get(self.url)
+
+        self.assertEqual(resposta.status_code, 302)
+        self.assertIn("/login", resposta.url)
+
+    def test_logado_recebe_um_access_que_a_api_aceita(self):
+        self.client.force_login(self.ana)
+
+        resposta = self.client.get(self.url)
+        self.assertEqual(resposta.status_code, 200)
+        access = resposta.json()["access"]
+
+        api = APIClient()
+        api.credentials(HTTP_AUTHORIZATION=f"Bearer {access}")
+        self.assertEqual(api.get(reverse("campaign-list")).status_code, 200)
+
+    def test_a_ponte_nao_entrega_refresh(self):
+        self.client.force_login(self.ana)
+
+        corpo = self.client.get(self.url).json()
+
+        # Um refresh de sete dias dentro do HTML seria bem pior do que um
+        # access que morre sozinho em quinze minutos.
+        self.assertNotIn("refresh", corpo)

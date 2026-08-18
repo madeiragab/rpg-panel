@@ -18,6 +18,7 @@ It exists to replace scattered PDFs, notes, and spreadsheets when a campaign gro
 | [docs/architecture.md](docs/architecture.md) | App layout, request flow, permission model, signals |
 | [docs/data-model.md](docs/data-model.md) | Every model, relationship and invariant |
 | [docs/api.md](docs/api.md) | REST API: JWT auth, endpoints, roles |
+| [docs/audio-player.md](docs/audio-player.md) | Campaign audio player: sync, Pusher, YouTube |
 | [docs/deployment.md](docs/deployment.md) | Environment variables, deploy, static/media files |
 
 ---

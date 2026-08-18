@@ -12,6 +12,7 @@ O painel roda em qualquer lugar capaz de servir uma aplicação WSGI. Atualmente
 | `DEBUG` | Não | `True` liga o modo de depuração e um fallback de chave secreta exclusivo para desenvolvimento. Padrão: `False`. |
 | `EMAIL_HOST_USER` | Para redefinição de senha | Conta Gmail usada para enviar os e-mails de redefinição. |
 | `EMAIL_HOST_PASSWORD` | Para redefinição de senha | **Senha de app** do Gmail (não a senha da conta). |
+| `PUSHER_APP_ID` `PUSHER_KEY` `PUSHER_SECRET` `PUSHER_CLUSTER` | Não | Tempo real do player de áudio. Sem elas o player cai no polling de 10s e continua funcionando — veja [audio-player.pt-BR.md](audio-player.pt-BR.md). |
 
 Gere uma chave secreta com:
 

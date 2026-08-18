@@ -22,6 +22,7 @@ urlpatterns = [
         views.assign_npc_slot,
         name="assign_npc_slot",
     ),
+    path("audio/token/", views.token_do_player, name="token_do_player"),
     path("register/", views.register, name="register"),
     path("me/", views.user_page, name="user_page"),
     path("items/<int:pk>/delete/", views.delete_item, name="delete_item"),
