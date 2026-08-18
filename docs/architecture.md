@@ -105,10 +105,14 @@ copy and the token lifetime stay under project control:
 2. The link is e-mailed via Gmail SMTP (credentials from environment
    variables — see [deployment.md](deployment.md)).
 3. `reset_password` validates the token (exists, not `used`, not expired),
-   sets the new password and marks the token as used.
+   sets the new password and burns **every** open token for that account —
+   asking for three resets and using one must not leave the other two live.
 
-The confirmation screen shows a **masked** e-mail (`_mask_email`) so the
-page never reveals the full address of an account.
+The confirmation screen is identical whether or not the account exists, and
+shows no address at all. Answering "user not found" would hand out which
+accounts exist to anyone guessing names; for the same reason the send is
+`fail_silently`, so an SMTP failure on the existing-user path does not become
+the same leak through another door.
 
 ## Frontend assets
 

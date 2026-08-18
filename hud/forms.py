@@ -1,5 +1,6 @@
 from django import forms
 from django.contrib.auth.models import User
+from django.contrib.auth.password_validation import validate_password
 
 from .models import Campaign, Character, CharacterAbility, CharacterAttribute, CharacterSkill, Item, NPC, NPCAbility, NPCAttribute, NPCSkill, UserProfile
 
@@ -30,6 +31,10 @@ class ResetPasswordForm(forms.Form):
         if password and password_confirm:
             if password != password_confirm:
                 raise forms.ValidationError("As senhas não correspondem.")
+        # Sem esta chamada os AUTH_PASSWORD_VALIDATORS do settings.py não valem
+        # nada aqui: este form é um forms.Form escrito à mão, não o do Django.
+        if password:
+            validate_password(password)
         return cleaned_data
 class UserSelectWithAvatarWidget(forms.Select):
     """Custom widget to display username in options."""
@@ -71,14 +76,6 @@ class CharacterForm(forms.ModelForm):
         # Customize queryset to use username as display label
         if self.fields["assigned_to"].queryset.exists():
             self.fields["assigned_to"].label_from_instance = lambda obj: obj.username
-
-    def clean(self):  # noqa: WPS615
-        cleaned = super().clean()
-        hp_max = cleaned.get("hp_max") or 0
-        sp_max = cleaned.get("sp_max") or 0
-        cleaned["hp_current"] = min(cleaned.get("hp_current") or hp_max, hp_max)
-        cleaned["sp_current"] = min(cleaned.get("sp_current") or sp_max, sp_max)
-        return cleaned
 
 
 class ItemForm(forms.ModelForm):
@@ -160,6 +157,16 @@ class RegistrationForm(forms.Form):
         confirm = cleaned.get("confirmacao")
         if senha and confirm and senha != confirm:
             raise forms.ValidationError("As senhas não coincidem.")
+        if senha:
+            # O usuário ainda não existe; um User solto serve para o validador
+            # de semelhança comparar a senha com nome, apelido e e-mail.
+            candidato = User(
+                username=(cleaned.get("apelido") or "").strip(),
+                email=cleaned.get("email") or "",
+                first_name=cleaned.get("nome") or "",
+                last_name=cleaned.get("sobrenome") or "",
+            )
+            validate_password(senha, candidato)
         return cleaned
 
     def save(self):
@@ -205,6 +212,7 @@ class ProfileEditForm(forms.Form):
         if senha or confirm:
             if senha != confirm:
                 raise forms.ValidationError("As senhas não coincidem.")
+            validate_password(senha, self.user)
         return cleaned
 
     def save(self):

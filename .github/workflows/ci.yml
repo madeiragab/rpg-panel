@@ -14,7 +14,10 @@ jobs:
       # modo de produção de propósito: é assim que o deploy no PythonAnywhere
       # sobe, e um erro que só aparece com DEBUG desligado tem que aparecer
       # aqui, não lá.
-      DJANGO_SECRET_KEY: chave-descartavel-so-do-ci
+      # Descartável e pública de propósito — só existe para o CI subir. Tem
+      # mais de 50 caracteres porque o `check --deploy` reprova chave curta
+      # (security.W009), e essa checagem é justamente o que queremos valendo.
+      DJANGO_SECRET_KEY: ci-x7Qw2vLm9pR4tZs6BnK1jH8dY3fGa5CeUw0iOqTr-descartavel
       DEBUG: "False"
 
     steps:
@@ -31,6 +34,12 @@ jobs:
 
       - name: checagem do Django
         run: python manage.py check --fail-level WARNING
+
+      # O `check` comum não olha cookie seguro, HSTS nem redirecionamento para
+      # HTTPS: quem olha é o `--deploy`. Sem esta linha o endurecimento pode
+      # sumir do settings.py sem ninguém perceber.
+      - name: checagem de deploy
+        run: python manage.py check --deploy --fail-level WARNING
 
       - name: migrações sem pendência
         run: python manage.py makemigrations --check --dry-run

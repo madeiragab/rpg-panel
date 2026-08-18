@@ -12,16 +12,19 @@ por um motivo que não tem nada a ver com a regra sendo testada.
 """
 
 from django.contrib.auth import get_user_model
+from django.core import mail
 from django.db import IntegrityError, transaction
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
+from hud.forms import ProfileEditForm, RegistrationForm, ResetPasswordForm
 from hud.models import (
     Campaign,
     Character,
     InventorySlot,
     Item,
     NPC,
+    PasswordResetToken,
     UserProfile,
 )
 
@@ -342,3 +345,197 @@ class VisibilidadeTests(TestCase):
         self.assertEqual(resposta.status_code, 200)
         self.npc.refresh_from_db()
         self.assertTrue(self.npc.visible)
+
+
+class SenhaTests(TestCase):
+    """Os AUTH_PASSWORD_VALIDATORS só valem se os forms os chamarem.
+
+    Os três forms de senha são `forms.Form` escritos à mão, não os do Django:
+    sem a chamada explícita a `validate_password`, a lista no settings.py é
+    decoração e `123` entra como senha.
+    """
+
+    def test_cadastro_recusa_senha_fraca(self):
+        form = RegistrationForm(data={
+            'nome': 'Ana',
+            'sobrenome': 'Silva',
+            'apelido': 'ana',
+            'email': 'ana@example.com',
+            'senha': '123',
+            'confirmacao': '123',
+        })
+
+        self.assertFalse(form.is_valid())
+
+    def test_cadastro_aceita_senha_forte(self):
+        form = RegistrationForm(data={
+            'nome': 'Ana',
+            'sobrenome': 'Silva',
+            'apelido': 'ana',
+            'email': 'ana@example.com',
+            'senha': 'SenhaForte!2026',
+            'confirmacao': 'SenhaForte!2026',
+        })
+
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_reset_recusa_senha_fraca(self):
+        form = ResetPasswordForm(data={'password': '123', 'password_confirm': '123'})
+
+        self.assertFalse(form.is_valid())
+
+    def test_edicao_de_perfil_recusa_senha_fraca(self):
+        ana = make_user('ana')
+        form = ProfileEditForm(
+            user=ana,
+            data={
+                'apelido': 'ana',
+                'email': 'ana@example.com',
+                'senha': '123',
+                'confirmacao': '123',
+            },
+        )
+
+        self.assertFalse(form.is_valid())
+
+
+@SEM_MANIFESTO
+@override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+class RecuperacaoDeSenhaTests(TestCase):
+    def setUp(self):
+        self.ana = make_user('ana')
+        self.ana.email = 'ana@example.com'
+        self.ana.save()
+
+    def test_usuario_inexistente_responde_igual_ao_existente(self):
+        """Resposta diferente para nome que existe entrega a lista de contas."""
+        existente = self.client.post(reverse('forgot_password'), {'username': 'ana'})
+        inexistente = self.client.post(reverse('forgot_password'), {'username': 'ninguem'})
+
+        self.assertEqual(existente.status_code, inexistente.status_code)
+        self.assertEqual(existente.content, inexistente.content)
+
+    def test_so_o_usuario_existente_recebe_email_e_token(self):
+        self.client.post(reverse('forgot_password'), {'username': 'ninguem'})
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertEqual(PasswordResetToken.objects.count(), 0)
+
+        self.client.post(reverse('forgot_password'), {'username': 'ana'})
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(PasswordResetToken.objects.count(), 1)
+
+    def test_usar_um_token_queima_os_outros_do_mesmo_usuario(self):
+        self.client.post(reverse('forgot_password'), {'username': 'ana'})
+        self.client.post(reverse('forgot_password'), {'username': 'ana'})
+        primeiro, segundo = PasswordResetToken.objects.order_by('created_at')
+
+        resposta = self.client.post(
+            reverse('reset_password', args=[primeiro.token]),
+            {'password': 'OutraSenha!2026', 'password_confirm': 'OutraSenha!2026'},
+        )
+        self.assertEqual(resposta.status_code, 302)
+
+        primeiro.refresh_from_db()
+        segundo.refresh_from_db()
+        self.assertTrue(primeiro.used)
+        self.assertTrue(segundo.used)
+
+
+class IsolamentoDeItemTests(TestCase):
+    """Item de uma campanha não pode entrar no slot de outra.
+
+    O endpoint recebe o id do item pelo POST e devolve nome e imagem na
+    resposta: sem filtrar por campanha, ele vira uma janela para o material
+    das outras mesas.
+    """
+
+    def setUp(self):
+        self.mestre = make_user('mestre')
+        self.minha = Campaign.objects.create(name='Ossos', master=self.mestre)
+        self.alheia = Campaign.objects.create(name='Outra', master=make_user('estranho'))
+        self.personagem = Character.objects.create(
+            name='Kai', created_by=self.mestre, campaign=self.minha
+        )
+        self.slot = self.personagem.slots.first()
+        self.item_de_casa = Item.objects.create(name='Adaga', campaign=self.minha)
+        self.item_alheio = Item.objects.create(name='Relíquia', campaign=self.alheia)
+        self.client.force_login(self.mestre)
+
+    def _atribuir(self, item):
+        return self.client.post(
+            reverse('assign_slot', args=[self.personagem.pk, self.slot.pk]),
+            {'item_id': item.pk},
+        )
+
+    def test_item_da_propria_campanha_entra_no_slot(self):
+        resposta = self._atribuir(self.item_de_casa)
+
+        self.assertEqual(resposta.status_code, 200)
+        self.slot.refresh_from_db()
+        self.assertEqual(self.slot.item, self.item_de_casa)
+
+    def test_item_de_outra_campanha_e_recusado(self):
+        resposta = self._atribuir(self.item_alheio)
+
+        self.assertEqual(resposta.status_code, 404)
+        self.slot.refresh_from_db()
+        self.assertIsNone(self.slot.item)
+
+
+class InventarioDoNpcTests(TestCase):
+    def setUp(self):
+        self.mestre = make_user('mestre')
+        self.jogador = make_user('jogador')
+        self.campanha = Campaign.objects.create(name='Ossos', master=self.mestre)
+        self.campanha.players.add(self.jogador)
+        self.npc = NPC.objects.create(
+            name='Vulto', created_by=self.mestre, campaign=self.campanha
+        )
+        self.slot = self.npc.slots.first()
+        self.item = Item.objects.create(name='Adaga', campaign=self.campanha)
+
+    def _atribuir(self):
+        return self.client.post(
+            reverse('assign_npc_slot', args=[self.npc.pk, self.slot.pk]),
+            {'item_id': self.item.pk},
+        )
+
+    def test_mestre_poe_item_no_slot_do_npc(self):
+        self.client.force_login(self.mestre)
+
+        resposta = self._atribuir()
+
+        self.assertEqual(resposta.status_code, 200)
+        self.slot.refresh_from_db()
+        self.assertEqual(self.slot.item, self.item)
+
+    def test_slot_vazio_quando_o_post_vem_sem_item(self):
+        self.slot.item = self.item
+        self.slot.save()
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.post(
+            reverse('assign_npc_slot', args=[self.npc.pk, self.slot.pk])
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        self.slot.refresh_from_db()
+        self.assertIsNone(self.slot.item)
+
+    def test_jogador_da_campanha_nao_mexe_no_inventario_do_npc(self):
+        self.client.force_login(self.jogador)
+
+        resposta = self._atribuir()
+
+        self.assertEqual(resposta.status_code, 403)
+        self.slot.refresh_from_db()
+        self.assertIsNone(self.slot.item)
+
+    def test_get_e_recusado(self):
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.get(
+            reverse('assign_npc_slot', args=[self.npc.pk, self.slot.pk])
+        )
+
+        self.assertEqual(resposta.status_code, 405)

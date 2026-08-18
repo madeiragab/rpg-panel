@@ -146,24 +146,58 @@
             <h2 class="panel-title" style="margin: 0;">Inventário</h2>
             <button type="button" class="hud-button ghost" id="toggle-npc-inventory" aria-expanded="false" style="padding: 4px 12px; font-size: 18px;">+</button>
         </div>
-        <div id="npc-inventory" class="inventory-grid-wrap" style="display: none; margin-top: 12px;">
-            <div class="inventory-grid" aria-live="polite" style="width: 100%; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));">
-                {% for slot in slots %}
-                    <div class="inventory-slot" style="cursor: default;">
-                        <div class="slot-figure{% if not slot.item or not slot.item.image %} empty{% endif %}"
-                             {% if slot.item and slot.item.image %}style="background-image: url('{{ slot.item.image.url }}')"{% endif %}></div>
-                        <span class="slot-label">{{ slot.label }}</span>
-                        {% if slot.item %}
-                            <span class="muted" style="font-size: 0.85rem;">{{ slot.item.name }}</span>
-                        {% else %}
-                            <span class="muted" style="font-size: 0.85rem;">Vazio</span>
-                        {% endif %}
-                    </div>
-                {% endfor %}
+        <div id="npc-inventory" style="display: none; margin-top: 12px;">
+            <div class="selected-item-display">
+                <div class="selected-item-figure empty" id="selected-figure"></div>
+                <div class="selected-item-name" id="selected-name">Selecione um item</div>
+            </div>
+            {% if is_master %}
+            <div class="list-inline" style="margin-bottom: 8px;">
+                <button type="button" id="add-item-btn" class="hud-button ghost" title="Adicionar item" style="padding: 2px 8px; line-height: 1;">+</button>
+            </div>
+            <div id="item-picker" class="panel-card" style="display: none; padding: 8px;">
+                <div class="item-pool" id="item-pool">
+                    {% for item in items %}
+                        <div class="item-chip" data-item-id="{{ item.pk }}" data-item-image="{% if item.image %}{{ item.image.url }}{% endif %}">
+                            <span class="item-thumb{% if not item.image %} empty{% endif %}"
+                                  {% if item.image %}style="background-image: url('{{ item.image.url }}')"{% endif %}></span>
+                            <span class="item-name">{{ item.name }}</span>
+                        </div>
+                    {% empty %}
+                        <div class="muted">Nenhum item disponível.</div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            <div class="inventory-grid-wrap">
+                <div class="inventory-grid" id="inventory-grid" aria-live="polite" style="width: 100%; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));">
+                    {% for slot in slots %}
+                        <button
+                            type="button"
+                            class="inventory-slot"
+                            {% if not is_master %}disabled style="cursor: default;"{% endif %}
+                            data-slot-id="{{ slot.pk }}"
+                            data-assign-url="{% url 'assign_npc_slot' npc.pk slot.pk %}"
+                            data-item-name="{{ slot.item.name|default:'Vazio' }}"
+                            data-item-image="{% if slot.item and slot.item.image %}{{ slot.item.image.url }}{% endif %}">
+                            <div class="slot-figure{% if not slot.item or not slot.item.image %} empty{% endif %}"
+                                 {% if slot.item and slot.item.image %}style="background-image: url('{{ slot.item.image.url }}')"{% endif %}></div>
+                            <span class="slot-label">{{ slot.label }}</span>
+                        </button>
+                    {% endfor %}
+                </div>
             </div>
         </div>
     </section>
 </div>
+
+{% if is_master %}
+    {# O inventory.js é o mesmo do personagem: ele acha a grade pelo id e o
+       endereço de cada slot pelo data-assign-url, então serve para o NPC sem
+       nenhuma cópia de código. #}
+    <script>window.hudConfig = { csrfToken: "{{ csrf_token }}" };</script>
+    <script src="{% static 'hud/inventory.js' %}"></script>
+{% endif %}
 
 <script>
 function getCookie(name) {

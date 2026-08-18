@@ -17,6 +17,11 @@ urlpatterns = [
         views.assign_slot,
         name="assign_slot",
     ),
+    path(
+        "npcs/<int:npc_id>/slots/<int:slot_id>/assign/",
+        views.assign_npc_slot,
+        name="assign_npc_slot",
+    ),
     path("register/", views.register, name="register"),
     path("me/", views.user_page, name="user_page"),
     path("items/<int:pk>/delete/", views.delete_item, name="delete_item"),

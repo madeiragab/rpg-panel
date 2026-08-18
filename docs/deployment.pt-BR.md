@@ -21,6 +21,14 @@ python -c "from django.core.management.utils import get_random_secret_key; print
 
 > **Nota de segurança:** a chave secreta já esteve escrita diretamente em `settings.py` e, portanto, está presente no histórico git deste repositório. Qualquer deploy precisa usar uma chave **recém-gerada** via `DJANGO_SECRET_KEY` — nunca a antiga. Rotacionar a chave invalida as sessões existentes e os tokens de redefinição de senha, que é justamente o resultado desejado aqui.
 
+## Endurecimento de HTTPS
+
+Com `DEBUG` desligado o `settings.py` liga cookie de sessão e de CSRF apenas por HTTPS, redirecionamento para HTTPS e HSTS de um ano. Junto vai o `SECURE_PROXY_SSL_HEADER`: quem termina o TLS é o proxy do host, e sem esse ajuste o Django enxerga a requisição como texto puro e entra em laço de redirecionamento.
+
+Em desenvolvimento nada disso liga — o site roda em `http://127.0.0.1` e um cookie marcado como `secure` simplesmente não chegaria.
+
+O CI roda `manage.py check --deploy --fail-level WARNING`, então esse conjunto não some do `settings.py` sem alguém perceber.
+
 ## Hosts permitidos
 
 `ALLOWED_HOSTS` e `CSRF_TRUSTED_ORIGINS` estão escritos diretamente em `rpg_panel/settings.py`. Adicione seu domínio lá antes de implantar em um host novo, caso contrário o Django rejeita todas as requisições com um 400.
