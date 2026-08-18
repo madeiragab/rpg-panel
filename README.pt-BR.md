@@ -14,6 +14,7 @@ Isto **não é um produto público**, **não é uma engine de jogo** e **não é
 |---|---|
 | [docs/architecture.pt-BR.md](docs/architecture.pt-BR.md) | Layout do app, fluxo de requisição, modelo de permissões, signals |
 | [docs/data-model.pt-BR.md](docs/data-model.pt-BR.md) | Todos os modelos, relacionamentos e invariantes |
+| [docs/api.pt-BR.md](docs/api.pt-BR.md) | API REST: autenticação JWT, endereços, papéis |
 | [docs/deployment.pt-BR.md](docs/deployment.pt-BR.md) | Variáveis de ambiente, deploy, arquivos estáticos/mídia |
 
 ---
@@ -108,6 +109,7 @@ Cada personagem e NPC suporta:
 ### Backend
 - Python 3.11
 - Django 5.2 LTS
+- Django REST Framework + SimpleJWT (a API em `/api/`)
 - SQLite (desenvolvimento)
 - Pillow (tratamento de imagens)
 - Gunicorn + WhiteNoise (produção)

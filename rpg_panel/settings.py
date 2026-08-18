@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 import os
+from datetime import timedelta
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -70,7 +71,12 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "rest_framework",
+    # Guarda os refresh já usados ou revogados. Sem este app, rotacionar o
+    # refresh não impede que o antigo continue valendo até expirar.
+    "rest_framework_simplejwt.token_blacklist",
     "hud",
+    "api",
 ]
 
 MIDDLEWARE = [
@@ -164,6 +170,46 @@ STORAGES = {
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
+}
+
+# A API vive ao lado do painel HTML, não no lugar dele: o painel continua na
+# sessão do Django, a API só entende JWT. Nada de SessionAuthentication aqui —
+# aceitar cookie de sessão numa API que escreve traria o problema de CSRF de
+# volta por uma porta onde ninguém está olhando.
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+    "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
+    "DEFAULT_THROTTLE_RATES": {
+        # O endereço que troca senha por token é o alvo natural de quem chuta
+        # senha em série. O resto da API já exige token válido.
+        "login": "10/min",
+    },
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 50,
+}
+
+if DEBUG:
+    # A interface navegável é ótima para conferir a API na mão e péssima como
+    # coisa exposta em produção.
+    REST_FRAMEWORK["DEFAULT_RENDERER_CLASSES"] = [
+        "rest_framework.renderers.JSONRenderer",
+        "rest_framework.renderers.BrowsableAPIRenderer",
+    ]
+
+SIMPLE_JWT = {
+    # Access curto porque ele não dá para revogar: enquanto vale, vale.
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    # Cada refresh usado devolve um novo e manda o antigo para a blacklist.
+    # Assim um refresh roubado só serve até o dono usar o dele.
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "UPDATE_LAST_LOGIN": True,
 }
 
 LOGIN_REDIRECT_URL = "home"
