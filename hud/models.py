@@ -71,7 +71,46 @@ class UserProfile(models.Model):
         return self.role == self.ROLE_PLAYER
 
 
-class NPC(models.Model):
+class RetratoEnquadrado(models.Model):
+    """O zoom e o pedaço da foto que aparece dentro da moldura da ficha.
+
+    A moldura tem proporção fixa. Guardar só o arquivo obriga a escolher entre
+    mostrar a foto inteira (com tarja em volta) ou cortar pelo centro — e o
+    centro geométrico quase nunca é o rosto. Estes três números dizem qual
+    pedaço o mestre escolheu, e ficam no banco porque o corte tem que ser o
+    mesmo para o jogador que abre a ficha do outro lado da mesa.
+
+    O ponto vai de 0 (borda esquerda/topo) a 1 (direita/base), como fração da
+    sobra que o zoom criou: assim ele continua valendo se a moldura mudar de
+    tamanho na tela do outro.
+    """
+
+    ZOOM_MINIMO = 100
+    ZOOM_MAXIMO = 400
+
+    image_zoom = models.PositiveSmallIntegerField(default=100)
+    image_focus_x = models.FloatField(default=0.5)
+    image_focus_y = models.FloatField(default=0.5)
+
+    class Meta:
+        abstract = True
+
+    def clamp_framing(self) -> None:
+        zoom = self.image_zoom if self.image_zoom is not None else 100
+        self.image_zoom = min(max(int(zoom), self.ZOOM_MINIMO), self.ZOOM_MAXIMO)
+        for campo in ("image_focus_x", "image_focus_y"):
+            ponto = getattr(self, campo)
+            ponto = 0.5 if ponto is None else float(ponto)
+            setattr(self, campo, min(max(ponto, 0.0), 1.0))
+
+    def reset_framing(self) -> None:
+        """Foto nova, enquadramento novo: o corte antigo não vale para outra imagem."""
+        self.image_zoom = 100
+        self.image_focus_x = 0.5
+        self.image_focus_y = 0.5
+
+
+class NPC(RetratoEnquadrado):
     campaign = models.ForeignKey(
         Campaign,
         on_delete=models.CASCADE,
@@ -114,6 +153,7 @@ class NPC(models.Model):
 
     def save(self, *args, **kwargs):  # type: ignore[override]
         self.clamp_stats()
+        self.clamp_framing()
         return super().save(*args, **kwargs)
 
     def ensure_slots(self) -> None:
@@ -128,7 +168,7 @@ class NPC(models.Model):
         self.slots.filter(position__gt=self.inventory_capacity).delete()
 
 
-class Character(models.Model):
+class Character(RetratoEnquadrado):
     campaign = models.ForeignKey(
         Campaign,
         on_delete=models.CASCADE,
@@ -171,6 +211,7 @@ class Character(models.Model):
 
     def save(self, *args, **kwargs):  # type: ignore[override]
         self.clamp_stats()
+        self.clamp_framing()
         return super().save(*args, **kwargs)
 
     def ensure_slots(self) -> None:

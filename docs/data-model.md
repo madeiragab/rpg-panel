@@ -64,13 +64,24 @@ visibility:
 | `visible` default | `True` | `False` |
 | Extra link | — | `assigned_to_character` (companion of a character) |
 
-Shared fields: `name`, `image`, `hp_max`/`hp_current`, `sp_max`/`sp_current`,
-`inventory_capacity` (default 16), `created_by`, timestamps.
+Shared fields: `name`, `image`, `image_zoom`/`image_focus_x`/`image_focus_y`,
+`hp_max`/`hp_current`, `sp_max`/`sp_current`, `inventory_capacity` (default 16),
+`created_by`, timestamps.
 
-Two invariants are enforced in `save()`:
+The three image fields come from the abstract `RetratoEnquadrado` class and hold
+the portrait **framing**: the zoom (100 to 400) and the point of the photo that
+sits at the centre of the frame (0 to 1 on each axis). Without them the frame
+would have to crop through the middle, and the geometric middle is rarely the
+face. The crop lives in the database rather than in the uploader's browser
+because the player has to see the sheet framed the way the master chose.
+Replacing the photo resets all three: the crop belonged to the old image.
+
+Three invariants are enforced in `save()`:
 
 - **`clamp_stats()`** — `hp_current` and `sp_current` can never exceed their
   maximum, no matter what a form or endpoint sends.
+- **`clamp_framing()`** — the zoom stays between 100 and 400 and the focus
+  point between 0 and 1.
 - **`ensure_slots()`** — the inventory always has exactly
   `inventory_capacity` slots (see below).
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 from datetime import timedelta
+from math import isfinite
 
 from django.contrib import messages
 from django.contrib.auth import update_session_auth_hash
@@ -11,6 +12,7 @@ from django.core.cache import cache
 from django.core.mail import send_mail
 from django.http import HttpRequest, HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 from django.db.models import Q
@@ -462,6 +464,86 @@ def register(request: HttpRequest) -> HttpResponse:
     return render(request, "registration/register.html", {"form": form})
 
 
+def _enquadramento(ficha, rota: str, chave: str, pode_editar: bool) -> dict[str, Any]:
+    """O que o portrait.js precisa saber para montar o retrato.
+
+    Vai como JSON (json_script) e não como atributo formatado: com
+    LANGUAGE_CODE pt-br o template escreveria "0,5" no lugar de "0.5", e o
+    parseFloat do outro lado leria 0.
+    """
+    return {
+        "zoom": ficha.image_zoom,
+        "x": ficha.image_focus_x,
+        "y": ficha.image_focus_y,
+        "saveUrl": reverse(rota, kwargs={chave: ficha.pk}) if pode_editar else None,
+    }
+
+
+def _ler_enquadramento(request: HttpRequest) -> tuple[int, float, float] | None:
+    """Lê zoom e ponto do POST, já aparados na faixa que a moldura aceita."""
+    try:
+        zoom = int(float(request.POST.get("zoom", "")))
+        x = float(request.POST.get("focus_x", ""))
+        y = float(request.POST.get("focus_y", ""))
+    except (TypeError, ValueError, OverflowError):
+        return None
+    # NaN atravessa o float() e depois passa por qualquer min/max sem ser
+    # aparado: iria para o banco e deixaria o retrato sem posição.
+    if not (isfinite(x) and isfinite(y)):
+        return None
+    return (
+        min(max(zoom, 100), 400),
+        min(max(x, 0.0), 1.0),
+        min(max(y, 0.0), 1.0),
+    )
+
+
+CAMPOS_DO_ENQUADRAMENTO = ["image_zoom", "image_focus_x", "image_focus_y", "updated_at"]
+
+
+@login_required
+@require_POST
+def update_character_framing(request: HttpRequest, character_id: int) -> JsonResponse:
+    """Guarda o corte do retrato. Quem enquadra é quem edita a ficha."""
+    character = get_object_or_404(Character, pk=character_id)
+    if character.campaign:
+        if character.campaign.master != request.user:
+            return JsonResponse({"error": "Sem permissão"}, status=403)
+    elif character.created_by != request.user:
+        return JsonResponse({"error": "Sem permissão"}, status=403)
+
+    dados = _ler_enquadramento(request)
+    if dados is None:
+        return JsonResponse({"error": "Enquadramento inválido"}, status=400)
+
+    character.image_zoom, character.image_focus_x, character.image_focus_y = dados
+    character.save(update_fields=CAMPOS_DO_ENQUADRAMENTO)
+    return JsonResponse(
+        {"success": True, "zoom": character.image_zoom,
+         "x": character.image_focus_x, "y": character.image_focus_y}
+    )
+
+
+@login_required
+@require_POST
+def update_npc_framing(request: HttpRequest, npc_id: int) -> JsonResponse:
+    """Mesmo corte, do lado do NPC: só o mestre da campanha mexe."""
+    npc = get_object_or_404(NPC, pk=npc_id)
+    if not npc.campaign or npc.campaign.master != request.user:
+        return JsonResponse({"error": "Sem permissão"}, status=403)
+
+    dados = _ler_enquadramento(request)
+    if dados is None:
+        return JsonResponse({"error": "Enquadramento inválido"}, status=400)
+
+    npc.image_zoom, npc.image_focus_x, npc.image_focus_y = dados
+    npc.save(update_fields=CAMPOS_DO_ENQUADRAMENTO)
+    return JsonResponse(
+        {"success": True, "zoom": npc.image_zoom,
+         "x": npc.image_focus_x, "y": npc.image_focus_y}
+    )
+
+
 @login_required
 def character_detail(request: HttpRequest, pk: int) -> HttpResponse:
     character = get_object_or_404(Character, pk=pk)
@@ -574,6 +656,9 @@ def character_detail(request: HttpRequest, pk: int) -> HttpResponse:
             "campaign": character.campaign,
             "campaign_characters": campaign_characters,
             "visible_npcs": visible_npcs,
+            "enquadramento": _enquadramento(
+                character, "update_character_framing", "character_id", is_master
+            ),
         },
     )
 
@@ -901,6 +986,9 @@ def npc_detail(request: HttpRequest, pk: int) -> HttpResponse:
             "ability_form": ability_form,
             "items": items,
             "campaign": campaign,
+            "enquadramento": _enquadramento(
+                npc, "update_npc_framing", "npc_id", is_master
+            ),
         },
     )
 

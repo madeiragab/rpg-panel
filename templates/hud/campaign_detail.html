@@ -65,7 +65,7 @@
                 {% for character in characters %}
                     <div class="character-card">
                         {% if character.image %}
-                            <div class="character-card-image" style="background-image: url('{{ character.image.url }}')"></div>
+                            <div class="character-card-image" style="background-image: url('{{ character.image.url }}'); background-position: {% widthratio character.image_focus_x 1 100 %}% {% widthratio character.image_focus_y 1 100 %}%;"></div>
                         {% else %}
                             <div class="character-card-image empty"></div>
                         {% endif %}
@@ -171,7 +171,7 @@
                 {% for npc in npcs %}
                     <div class="character-card">
                         {% if npc.image %}
-                            <div class="character-card-image" style="background-image: url('{{ npc.image.url }}')"></div>
+                            <div class="character-card-image" style="background-image: url('{{ npc.image.url }}'); background-position: {% widthratio npc.image_focus_x 1 100 %}% {% widthratio npc.image_focus_y 1 100 %}%;"></div>
                         {% else %}
                             <div class="character-card-image empty"></div>
                         {% endif %}
@@ -268,7 +268,7 @@
                     {% for character in characters %}
                         <div class="character-card">
                             {% if character.image %}
-                                <div class="character-card-image" style="background-image: url('{{ character.image.url }}')"></div>
+                                <div class="character-card-image" style="background-image: url('{{ character.image.url }}'); background-position: {% widthratio character.image_focus_x 1 100 %}% {% widthratio character.image_focus_y 1 100 %}%;"></div>
                             {% else %}
                                 <div class="character-card-image empty"></div>
                             {% endif %}

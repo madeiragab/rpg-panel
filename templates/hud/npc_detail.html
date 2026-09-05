@@ -68,9 +68,24 @@
         </div>
 
         <div class="portrait-wrap">
-            <div class="portrait-thumb{% if not npc.image %} empty{% endif %}"
-                 {% if npc.image %}style="background-image: url('{{ npc.image.url }}')"{% endif %}></div>
-            <div class="portrait-hint muted">Retrato do NPC (opcional)</div>
+            <div class="portrait-thumb{% if not npc.image %} empty{% endif %}" id="portrait-frame">
+                {% if npc.image %}
+                    <img id="portrait-image" src="{{ npc.image.url }}" alt="Retrato de {{ npc.name }}">
+                {% endif %}
+            </div>
+            {% if npc.image and is_master %}
+                <div class="portrait-controls">
+                    <input type="range" id="portrait-zoom" min="100" max="400" step="1"
+                           value="{{ npc.image_zoom }}" aria-label="Zoom do retrato"
+                           title="Aproximar a foto dentro da moldura">
+                    <button type="button" id="portrait-center" class="hud-button ghost"
+                            title="Voltar ao enquadramento inicial">centrar</button>
+                </div>
+                <div class="portrait-hint muted">Arraste a foto para escolher o pedaço que aparece.</div>
+            {% else %}
+                <div class="portrait-hint muted">Retrato do NPC (opcional)</div>
+            {% endif %}
+            {{ enquadramento|json_script:"portrait-framing" }}
         </div>
 
         <div class="attributes-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px;">
@@ -200,6 +215,12 @@
     <script>window.hudConfig = { csrfToken: "{{ csrf_token }}" };</script>
     <script src="{% static 'hud/inventory.js' %}"></script>
 {% endif %}
+
+{% comment %}
+   Fora do bloco do mestre de propósito: o jogador não enquadra, mas precisa do
+   script para ver o retrato no corte que o mestre escolheu.
+{% endcomment %}
+<script src="{% static 'hud/portrait.js' %}"></script>
 
 <script>
 function getCookie(name) {

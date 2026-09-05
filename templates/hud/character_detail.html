@@ -8,13 +8,13 @@
     <div class="character-navbar-inner">
         {% for char in campaign_characters %}
         <a href="{% url 'character_detail' char.pk %}{% if not is_master %}?mode=player{% endif %}" class="character-nav-item {% if char.id == character.id %}active{% endif %}" title="{{ char.name }}">
-            <span class="character-nav-avatar" style="background:{% if char.image %}url('{{ char.image.url }}'){% else %}#ffffff{% endif %}; background-size: cover; background-position: center;"></span>
+            <span class="character-nav-avatar" style="background:{% if char.image %}url('{{ char.image.url }}'){% else %}#ffffff{% endif %}; background-size: cover; background-position: {% widthratio char.image_focus_x 1 100 %}% {% widthratio char.image_focus_y 1 100 %}%;"></span>
             <span class="character-nav-name">{{ char.name }}</span>
         </a>
         {% endfor %}
         {% for npc in visible_npcs %}
         <a href="{% url 'npc_detail' npc.pk %}{% if not is_master %}?mode=player{% endif %}" class="character-nav-item" title="{{ npc.name }}">
-            <span class="character-nav-avatar" style="background:{% if npc.image %}url('{{ npc.image.url }}'){% else %}#888888{% endif %}; background-size: cover; background-position: center;"></span>
+            <span class="character-nav-avatar" style="background:{% if npc.image %}url('{{ npc.image.url }}'){% else %}#888888{% endif %}; background-size: cover; background-position: {% widthratio npc.image_focus_x 1 100 %}% {% widthratio npc.image_focus_y 1 100 %}%;"></span>
             <span class="character-nav-name">{{ npc.name }}</span>
         </a>
         {% endfor %}
@@ -123,9 +123,24 @@
         </div>
         {% endif %}
         <div class="portrait-wrap">
-            <div class="portrait-thumb{% if not character.image %} empty{% endif %}"
-                 {% if character.image %}style="background-image: url('{{ character.image.url }}')"{% endif %}></div>
-            <div class="portrait-hint muted">Retrato do personagem (opcional)</div>
+            <div class="portrait-thumb{% if not character.image %} empty{% endif %}" id="portrait-frame">
+                {% if character.image %}
+                    <img id="portrait-image" src="{{ character.image.url }}" alt="Retrato de {{ character.name }}">
+                {% endif %}
+            </div>
+            {% if character.image and is_master %}
+                <div class="portrait-controls">
+                    <input type="range" id="portrait-zoom" min="100" max="400" step="1"
+                           value="{{ character.image_zoom }}" aria-label="Zoom do retrato"
+                           title="Aproximar a foto dentro da moldura">
+                    <button type="button" id="portrait-center" class="hud-button ghost"
+                            title="Voltar ao enquadramento inicial">centrar</button>
+                </div>
+                <div class="portrait-hint muted">Arraste a foto para escolher o pedaço que aparece.</div>
+            {% else %}
+                <div class="portrait-hint muted">Retrato do personagem (opcional)</div>
+            {% endif %}
+            {{ enquadramento|json_script:"portrait-framing" }}
         </div>
         
         <div class="attributes-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px;">
@@ -236,6 +251,11 @@
     {% if is_master %}
         <script src="{% static 'hud/inventory.js' %}"></script>
     {% endif %}
+    {% comment %}
+       Fora do bloco do mestre de propósito: o jogador não enquadra, mas precisa
+       do script para ver o retrato no corte que o mestre escolheu.
+    {% endcomment %}
+    <script src="{% static 'hud/portrait.js' %}"></script>
     <script>
     // Toggle player select panel
     const toggleBtn = document.getElementById('toggle-player-select');

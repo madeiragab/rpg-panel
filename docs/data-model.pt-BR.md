@@ -60,11 +60,14 @@ Criado automaticamente por um signal `post_save` em `User`.
 | `visible` padrão | `True` | `False` |
 | Vínculo extra | — | `assigned_to_character` (companheiro de um personagem) |
 
-Campos compartilhados: `name`, `image`, `hp_max`/`hp_current`, `sp_max`/`sp_current`, `inventory_capacity` (padrão 16), `created_by`, timestamps.
+Campos compartilhados: `name`, `image`, `image_zoom`/`image_focus_x`/`image_focus_y`, `hp_max`/`hp_current`, `sp_max`/`sp_current`, `inventory_capacity` (padrão 16), `created_by`, timestamps.
 
-Dois invariantes são garantidos no `save()`:
+Os três campos de imagem vêm da classe abstrata `RetratoEnquadrado` e guardam o **enquadramento** do retrato: o zoom (100 a 400) e o ponto da foto que fica no centro da moldura (0 a 1 em cada eixo). Sem eles a moldura teria que cortar pelo meio, e o meio geométrico quase nunca é o rosto. O corte fica no banco, e não no navegador de quem enviou, porque o jogador precisa ver a ficha no mesmo enquadramento que o mestre escolheu. Trocar a foto devolve os três ao padrão: o corte é da imagem antiga.
+
+Três invariantes são garantidos no `save()`:
 
 - **`clamp_stats()`** — `hp_current` e `sp_current` nunca podem exceder seus máximos, não importa o que um formulário ou endpoint envie.
+- **`clamp_framing()`** — o zoom fica entre 100 e 400 e o ponto entre 0 e 1.
 - **`ensure_slots()`** — o inventário sempre tem exatamente `inventory_capacity` slots (veja abaixo).
 
 > Os campos `hp_*` / `sp_*` são o sistema original de atributos. A migração `0010_migrate_hp_sp_to_bars` os moveu para o sistema genérico de **barras**; as colunas são mantidas por compatibilidade com os dados existentes e com os endpoints `modify_hp` / `modify_sp`.

@@ -44,6 +44,43 @@ class UserSelectWithAvatarWidget(forms.Select):
         return super().optgroups(name, value, attrs)
 
 
+# O navegador manda o content_type que quiser; quem diz o formato de verdade é
+# o Pillow, que o forms.ImageField já roda para validar. Por isso a conferência
+# olha image.format, e não o cabeçalho do upload. O GIF entra na lista inteiro:
+# nada aqui reabre nem regrava o arquivo, então a animação chega intacta.
+FORMATOS_DE_RETRATO = {"JPEG", "PNG", "WEBP", "GIF", "AVIF"}
+ACCEPT_DE_RETRATO = "image/jpeg,image/png,image/webp,image/gif,image/avif"
+LIMITE_DO_RETRATO = 15 * 1024 * 1024
+
+
+class RetratoMixin:
+    """Regras da imagem de ficha, iguais para personagem e NPC."""
+
+    def clean_image(self):
+        imagem = self.cleaned_data.get("image")
+        # Sem upload novo o campo devolve o arquivo que já estava salvo, e esse
+        # não tem .image — não há o que reconferir.
+        formato = getattr(getattr(imagem, "image", None), "format", None)
+        if formato is None:
+            return imagem
+        if formato.upper() not in FORMATOS_DE_RETRATO:
+            raise forms.ValidationError(
+                "Escolha uma imagem JPG, PNG, WEBP, GIF ou AVIF."
+            )
+        if imagem.size > LIMITE_DO_RETRATO:
+            raise forms.ValidationError("A imagem pode ter no máximo 15 MB.")
+        return imagem
+
+    def save(self, commit=True):
+        ficha = super().save(commit=False)
+        if "image" in self.changed_data:
+            ficha.reset_framing()
+        if commit:
+            ficha.save()
+            self.save_m2m()
+        return ficha
+
+
 class CampaignForm(forms.ModelForm):
     class Meta:
         model = Campaign
@@ -55,12 +92,13 @@ class CampaignForm(forms.ModelForm):
         }
 
 
-class CharacterForm(forms.ModelForm):
+class CharacterForm(RetratoMixin, forms.ModelForm):
     class Meta:
         model = Character
         fields = ["name", "image", "inventory_capacity", "assigned_to"]
         widgets = {
             "assigned_to": forms.Select(attrs={"class": "hud-select"}),
+            "image": forms.ClearableFileInput(attrs={"accept": ACCEPT_DE_RETRATO}),
         }
         labels = {
             "name": "Nome",
@@ -88,12 +126,13 @@ class ItemForm(forms.ModelForm):
         }
 
 
-class NPCForm(forms.ModelForm):
+class NPCForm(RetratoMixin, forms.ModelForm):
     class Meta:
         model = NPC
         fields = ["name", "image", "inventory_capacity", "assigned_to_character"]
         widgets = {
             "assigned_to_character": forms.Select(attrs={"class": "hud-select"}),
+            "image": forms.ClearableFileInput(attrs={"accept": ACCEPT_DE_RETRATO}),
         }
         labels = {
             "name": "Nome do NPC",

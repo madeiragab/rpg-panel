@@ -11,14 +11,22 @@ sem `collectstatic` o manifesto não existe, e o `{% static %}` derrubaria o tes
 por um motivo que não tem nada a ver com a regra sendo testada.
 """
 
+import base64
+
 from django.contrib.auth import get_user_model
 from django.core import mail
 from django.core.cache import cache
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError, transaction
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from hud.forms import ProfileEditForm, RegistrationForm, ResetPasswordForm
+from hud.forms import (
+    CharacterForm,
+    ProfileEditForm,
+    RegistrationForm,
+    ResetPasswordForm,
+)
 from hud.models import (
     Campaign,
     Character,
@@ -776,3 +784,200 @@ class EdicaoDeFichaTests(TestCase):
         resposta = self.client.get(reverse('add_npc_bar', args=[self.npc.pk]))
 
         self.assertEqual(resposta.status_code, 405)
+
+
+@SEM_REDIRECT_HTTPS
+class EnquadramentoDoRetratoTests(TestCase):
+    """O zoom e o ponto do retrato: quem salva, o que e aparado, quem nao mexe."""
+
+    def setUp(self):
+        self.mestre = make_user('mestre')
+        self.jogador = make_user('jogador')
+        self.campanha = Campaign.objects.create(name='Ossos', master=self.mestre)
+        self.campanha.players.add(self.jogador)
+        self.personagem = Character.objects.create(
+            name='Kai', created_by=self.mestre, campaign=self.campanha,
+            assigned_to=self.jogador,
+        )
+        self.npc = NPC.objects.create(
+            name='Vulto', created_by=self.mestre, campaign=self.campanha
+        )
+
+    def test_personagem_nasce_centrado_e_sem_zoom(self):
+        self.assertEqual(self.personagem.image_zoom, 100)
+        self.assertEqual(self.personagem.image_focus_x, 0.5)
+        self.assertEqual(self.personagem.image_focus_y, 0.5)
+
+    def test_mestre_guarda_o_enquadramento_do_personagem(self):
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.post(
+            reverse('update_character_framing', args=[self.personagem.pk]),
+            {'zoom': '250', 'focus_x': '0.2', 'focus_y': '0.8'},
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        self.personagem.refresh_from_db()
+        self.assertEqual(self.personagem.image_zoom, 250)
+        self.assertAlmostEqual(self.personagem.image_focus_x, 0.2)
+        self.assertAlmostEqual(self.personagem.image_focus_y, 0.8)
+
+    def test_mestre_guarda_o_enquadramento_do_npc(self):
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.post(
+            reverse('update_npc_framing', args=[self.npc.pk]),
+            {'zoom': '180', 'focus_x': '0', 'focus_y': '1'},
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        self.npc.refresh_from_db()
+        self.assertEqual(self.npc.image_zoom, 180)
+        self.assertAlmostEqual(self.npc.image_focus_x, 0.0)
+        self.assertAlmostEqual(self.npc.image_focus_y, 1.0)
+
+    def test_valor_fora_da_faixa_e_aparado_em_vez_de_entrar_no_banco(self):
+        self.client.force_login(self.mestre)
+
+        self.client.post(
+            reverse('update_character_framing', args=[self.personagem.pk]),
+            {'zoom': '9000', 'focus_x': '-3', 'focus_y': '7'},
+        )
+
+        self.personagem.refresh_from_db()
+        self.assertEqual(self.personagem.image_zoom, 400)
+        self.assertAlmostEqual(self.personagem.image_focus_x, 0.0)
+        self.assertAlmostEqual(self.personagem.image_focus_y, 1.0)
+
+    def test_nan_e_recusado(self):
+        """Um NaN atravessa o float() e escapa de qualquer min/max depois."""
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.post(
+            reverse('update_character_framing', args=[self.personagem.pk]),
+            {'zoom': '100', 'focus_x': 'nan', 'focus_y': '0.5'},
+        )
+
+        self.assertEqual(resposta.status_code, 400)
+        self.personagem.refresh_from_db()
+        self.assertAlmostEqual(self.personagem.image_focus_x, 0.5)
+
+    def test_texto_no_lugar_do_numero_e_400(self):
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.post(
+            reverse('update_character_framing', args=[self.personagem.pk]),
+            {'zoom': 'muito', 'focus_x': '0.5', 'focus_y': '0.5'},
+        )
+
+        self.assertEqual(resposta.status_code, 400)
+
+    def test_jogador_dono_da_ficha_nao_enquadra(self):
+        self.client.force_login(self.jogador)
+
+        resposta = self.client.post(
+            reverse('update_character_framing', args=[self.personagem.pk]),
+            {'zoom': '400', 'focus_x': '0.1', 'focus_y': '0.1'},
+        )
+
+        self.assertEqual(resposta.status_code, 403)
+        self.personagem.refresh_from_db()
+        self.assertEqual(self.personagem.image_zoom, 100)
+
+    def test_jogador_nao_enquadra_o_npc(self):
+        self.client.force_login(self.jogador)
+
+        resposta = self.client.post(
+            reverse('update_npc_framing', args=[self.npc.pk]),
+            {'zoom': '400', 'focus_x': '0.1', 'focus_y': '0.1'},
+        )
+
+        self.assertEqual(resposta.status_code, 403)
+
+    def test_get_e_recusado(self):
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.get(
+            reverse('update_character_framing', args=[self.personagem.pk])
+        )
+
+        self.assertEqual(resposta.status_code, 405)
+
+
+class RetratoDaFichaTests(TestCase):
+    """O upload: quais formatos entram e o que acontece com o corte antigo."""
+
+    # 1x1 transparente, o menor GIF89a valido que existe.
+    GIF = base64.b64decode(
+        'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
+    )
+
+    def setUp(self):
+        self.mestre = make_user('mestre')
+        self.jogador = make_user('jogador')
+        self.campanha = Campaign.objects.create(name='Ossos', master=self.mestre)
+        self.campanha.players.add(self.jogador)
+        self.personagem = Character.objects.create(
+            name='Kai', created_by=self.mestre, campaign=self.campanha,
+            assigned_to=self.jogador,
+        )
+
+    def _form(self, arquivo=None):
+        arquivos = {}
+        if arquivo is not None:
+            arquivos['character-image'] = arquivo
+        return CharacterForm(
+            {
+                'character-name': 'Kai',
+                'character-inventory_capacity': '16',
+                'character-assigned_to': str(self.jogador.pk),
+            },
+            arquivos,
+            instance=self.personagem,
+            prefix='character',
+        )
+
+    def test_gif_e_aceito(self):
+        gif = SimpleUploadedFile('bicho.gif', self.GIF, content_type='image/gif')
+
+        form = self._form(gif)
+
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_arquivo_que_nao_e_imagem_e_recusado(self):
+        falso = SimpleUploadedFile(
+            'bicho.gif', b'nao sou um gif', content_type='image/gif'
+        )
+
+        form = self._form(falso)
+
+        self.assertFalse(form.is_valid())
+        self.assertIn('image', form.errors)
+
+    def test_foto_nova_devolve_o_enquadramento_ao_centro(self):
+        """O corte e da foto antiga: mante-lo cortaria a nova em outro lugar."""
+        self.personagem.image_zoom = 300
+        self.personagem.image_focus_x = 0.1
+        self.personagem.image_focus_y = 0.9
+        self.personagem.save()
+        gif = SimpleUploadedFile('outro.gif', self.GIF, content_type='image/gif')
+
+        form = self._form(gif)
+        self.assertTrue(form.is_valid(), form.errors)
+        ficha = form.save(commit=False)   # commit=False nao escreve em MEDIA_ROOT
+
+        self.assertEqual(ficha.image_zoom, 100)
+        self.assertEqual(ficha.image_focus_x, 0.5)
+        self.assertEqual(ficha.image_focus_y, 0.5)
+
+    def test_salvar_a_ficha_sem_trocar_a_foto_preserva_o_corte(self):
+        self.personagem.image_zoom = 300
+        self.personagem.image_focus_x = 0.1
+        self.personagem.save()
+
+        form = self._form()
+        self.assertTrue(form.is_valid(), form.errors)
+        ficha = form.save(commit=False)
+
+        self.assertEqual(ficha.image_zoom, 300)
+        self.assertAlmostEqual(ficha.image_focus_x, 0.1)
