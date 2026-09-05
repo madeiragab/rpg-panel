@@ -1,12 +1,14 @@
 {% load static %}
-{# Player de áudio da campanha.
+{% comment %}
+   Player de áudio da campanha.
 
    A miniatura do YouTube fica visível de propósito. Os Termos da API do YouTube
    não permitem esconder o player nem separar o áudio do vídeo, e uma conta
    cortada custaria mais caro do que os 200 pixels que ela ocupa aqui.
 
    Quem controla é só o mestre. O jogador recebe o estado e toca o mesmo vídeo
-   no próprio navegador — não há áudio trafegando pelo servidor. #}
+   no próprio navegador — não há áudio trafegando pelo servidor.
+{% endcomment %}
 
 <style>
   #player-audio {

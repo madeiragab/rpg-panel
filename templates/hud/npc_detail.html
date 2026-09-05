@@ -192,9 +192,11 @@
 </div>
 
 {% if is_master %}
-    {# O inventory.js é o mesmo do personagem: ele acha a grade pelo id e o
+    {% comment %}
+       O inventory.js é o mesmo do personagem: ele acha a grade pelo id e o
        endereço de cada slot pelo data-assign-url, então serve para o NPC sem
-       nenhuma cópia de código. #}
+       nenhuma cópia de código.
+    {% endcomment %}
     <script>window.hudConfig = { csrfToken: "{{ csrf_token }}" };</script>
     <script src="{% static 'hud/inventory.js' %}"></script>
 {% endif %}
