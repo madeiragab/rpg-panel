@@ -35,7 +35,6 @@
 
   const INTERVALO_POLLING = 10000;   // rede de segurança, não o caminho normal
   const INTERVALO_BATIMENTO = 15000; // o mestre dizendo "ainda estou aqui"
-  const INTERVALO_PRESENCA = 15000;  // o ouvinte dizendo a mesma coisa
   const INTERVALO_CONFERIDA = 1000;  // de quanto em quanto o cliente se compara
   const DESVIO_TOLERADO = 1.5;       // segundos antes de valer um seek
   const ESPERA_ENTRE_SEEKS = 2500;   // um seek por vez; ver `conferirDesvio`
@@ -467,8 +466,16 @@
     }).then(aplicar);
   }
 
+  /* A volta do polling.
+   *
+   * Quem está no áudio busca pelo endereço da presença, e não pelo do estado.
+   * Os dois devolvem o mesmo corpo — o de presença só carimba o `last_seen` de
+   * quebra. Com isso o batimento e o polling viram **uma requisição só** em vez
+   * de duas: numa mesa de seis pessoas é a diferença entre 60 e 36 pedidos por
+   * minuto, e num host de plano grátis essa conta é a que decide se o painel
+   * fica de pé no meio da sessão. */
   function buscar() {
-    comErro(() => api('/audio/').then(aplicar));
+    comErro(() => (ouvindo ? mandarPresenca(true) : api('/audio/').then(aplicar)));
   }
 
   function proxima(automatico = false) {
@@ -543,11 +550,6 @@
 
   botaoEntrar.addEventListener('click', entrar);
   botaoSair.addEventListener('click', sair);
-
-  setInterval(() => {
-    if (!ouvindo) return;
-    comErro(() => mandarPresenca(true));
-  }, INTERVALO_PRESENCA);
 
   /* Aba que fecha some da roda na hora, e não daqui a quarenta e cinco segundos.
      `keepalive` é o que deixa o pedido sair de uma página que está morrendo;

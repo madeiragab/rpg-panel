@@ -883,9 +883,10 @@ class AudioListener(models.Model):
     ter a campanha aberta em duas abas: a linha é da pessoa na mesa, não da aba.
     """
 
-    # Três batimentos de folga. Um a menos e a pessoa piscaria na roda toda vez
-    # que um pedido demorasse; muito mais e um fone tirado no meio da sessão
-    # continuaria ali por minutos.
+    # O batimento é a própria volta do polling, de dez em dez segundos — quem
+    # está no áudio busca o estado pelo endereço da presença. Quatro voltas de
+    # folga: menos que isso e a pessoa piscaria na roda toda vez que um pedido
+    # demorasse; muito mais e um fone tirado no meio da sessão continuaria ali.
     SEGUNDOS_ATE_SUMIR = 45
 
     campaign = models.ForeignKey(
