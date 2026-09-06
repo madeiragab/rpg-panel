@@ -2441,3 +2441,93 @@ class EstruturaDasColunasTests(TestCase):
         maior, sobrou = self._profundidade(html)
         self.assertEqual(sobrou, 0)
         self.assertEqual(maior, 1)
+
+
+@SEM_REDIRECT_HTTPS
+@SEM_MANIFESTO
+class DoisEnquadramentosTests(TestCase):
+    """Ficha e menu sao dois cortes da mesma imagem, e um nao encosta no outro."""
+
+    def setUp(self):
+        self.mestre = make_user('mestre')
+        self.jogador = make_user('jogador')
+        self.campanha = Campaign.objects.create(name='Ossos', master=self.mestre)
+        self.campanha.players.add(self.jogador)
+        self.personagem = Character.objects.create(
+            name='Kai', created_by=self.mestre, campaign=self.campanha,
+            assigned_to=self.jogador,
+        )
+        self.client.force_login(self.mestre)
+
+    def _enquadrar(self, **extra):
+        return self.client.post(
+            reverse('update_character_framing', args=[self.personagem.pk]),
+            {'zoom': '250', 'focus_x': '0.2', 'focus_y': '0.8', **extra},
+        )
+
+    def test_sem_alvo_mexe_no_da_ficha(self):
+        self._enquadrar()
+
+        self.personagem.refresh_from_db()
+        self.assertEqual(self.personagem.image_zoom, 250)
+        self.assertEqual(self.personagem.card_zoom, 100)
+
+    def test_alvo_menu_mexe_so_no_do_card(self):
+        self._enquadrar(alvo='menu')
+
+        self.personagem.refresh_from_db()
+        self.assertEqual(self.personagem.card_zoom, 250)
+        self.assertAlmostEqual(self.personagem.card_focus_x, 0.2)
+        self.assertEqual(self.personagem.image_zoom, 100)
+        self.assertAlmostEqual(self.personagem.image_focus_x, 0.5)
+
+    def test_um_nao_apaga_o_outro(self):
+        self._enquadrar(alvo='menu')
+        self._enquadrar(zoom='140', focus_x='0.9', focus_y='0.1')
+
+        self.personagem.refresh_from_db()
+        self.assertEqual(self.personagem.card_zoom, 250)
+        self.assertAlmostEqual(self.personagem.card_focus_x, 0.2)
+        self.assertEqual(self.personagem.image_zoom, 140)
+        self.assertAlmostEqual(self.personagem.image_focus_x, 0.9)
+
+    def test_alvo_desconhecido_cai_no_da_ficha(self):
+        self._enquadrar(alvo='inventado')
+
+        self.personagem.refresh_from_db()
+        self.assertEqual(self.personagem.image_zoom, 250)
+        self.assertEqual(self.personagem.card_zoom, 100)
+
+    def test_o_corte_do_menu_tambem_e_aparado(self):
+        self._enquadrar(alvo='menu', zoom='9000', focus_x='-2', focus_y='7')
+
+        self.personagem.refresh_from_db()
+        self.assertEqual(self.personagem.card_zoom, 400)
+        self.assertAlmostEqual(self.personagem.card_focus_x, 0.0)
+        self.assertAlmostEqual(self.personagem.card_focus_y, 1.0)
+
+    def test_jogador_nao_enquadra_o_menu(self):
+        self.client.force_login(self.jogador)
+
+        resposta = self._enquadrar(alvo='menu')
+
+        self.assertEqual(resposta.status_code, 403)
+        self.personagem.refresh_from_db()
+        self.assertEqual(self.personagem.card_zoom, 100)
+
+    def test_o_card_da_lista_usa_o_corte_do_menu(self):
+        self.personagem.card_zoom = 320
+        self.personagem.save()
+
+        html = self.client.get(
+            reverse('campaign_detail', args=[self.campanha.pk])
+        ).content.decode()
+
+        self.assertIn('data-zoom="320"', html)
+
+    def test_o_seletor_aparece_na_ficha_do_mestre(self):
+        html = self.client.get(
+            reverse('character_detail', args=[self.personagem.pk])
+        ).content.decode()
+
+        self.assertIn('data-portrait-alvos', html)

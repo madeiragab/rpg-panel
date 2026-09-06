@@ -287,11 +287,16 @@
      estao mexendo agora. */
   const alvos = document.querySelector('[data-portrait-alvos]');
   if (alvos) {
-    const moldura = ficha.querySelector('[data-portrait-frame][data-save-url], .portrait-wrap [data-portrait-frame]');
-    const controle = ficha.querySelector('[data-portrait-zoom]');
+    /* A moldura é a que está logo acima do seletor, e não a primeira da
+       página: um querySelector com vírgula devolve o primeiro elemento na
+       ordem do documento, e o avatar do jogador no cabeçalho vem antes do
+       retrato — era nele que o seletor estava mexendo. */
+    const caixa = alvos.previousElementSibling;
+    const moldura = caixa && caixa.querySelector('[data-portrait-frame]');
+    const controle = caixa && caixa.querySelector('[data-portrait-zoom]');
 
     function trocarAlvo(qual) {
-      if (!moldura) return;
+      if (!moldura) return;   // template mudou de forma; melhor não fazer nada
       // O que estava na tela volta para o seu lugar antes de a outra entrar:
       // senao o corte recem-arrastado se perderia ao alternar.
       const anterior = alvos.dataset.atual || 'ficha';
@@ -305,6 +310,12 @@
       moldura.dataset.saveUrl = alvos.dataset[`${qual}Url`];
       moldura.dataset.alvo = qual;
       alvos.dataset.atual = qual;
+
+      /* A moldura toma o formato de onde o corte vai valer. Sem isto a
+         pessoa acertaria o corte do card olhando uma moldura alta, e o
+         ponto escolhido — que é fração da sobra — sairia diferente na
+         moldura larga e baixa do card. */
+      moldura.classList.toggle('formato-menu', qual === 'menu');
 
       if (controle) controle.value = moldura.dataset.zoom;
       alvos.querySelectorAll('[data-alvo]').forEach((b) => {

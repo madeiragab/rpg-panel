@@ -1804,3 +1804,8 @@ a:hover { color: var(--accent-soft); }
 /* O card mostra a imagem inteira dentro da moldura larga e baixa, com o corte
    que foi escolhido no seletor "menu" da ficha. */
 .character-card-image { height: 180px; }
+
+/* Enquanto o corte do menu está sendo ajustado, a moldura toma o formato do
+   card: o ponto é fração da sobra, então acertar numa moldura alta e aplicar
+   numa larga e baixa dá outro corte. */
+.portrait-thumb.formato-menu { aspect-ratio: 7 / 5; max-width: 280px; }
