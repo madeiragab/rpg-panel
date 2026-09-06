@@ -1771,3 +1771,36 @@ a:hover { color: var(--accent-soft); }
 /* O balão não pode ser cortado pela rolagem da lista de habilidades. */
 .tags-wrap { overflow: visible; max-height: none; }
 .tags-wrap.rolagem { max-height: 46vh; overflow-y: auto; }
+
+/* --------------------------------------- os dois enquadramentos da imagem -- */
+.portrait-alvos {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+.portrait-alvos button {
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+.portrait-alvos button:hover { border-color: var(--accent); color: var(--accent-soft); }
+.portrait-alvos button.ligado {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: #fff5f5;
+}
+
+/* O card mostra a imagem inteira dentro da moldura larga e baixa, com o corte
+   que foi escolhido no seletor "menu" da ficha. */
+.character-card-image { height: 180px; }

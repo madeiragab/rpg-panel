@@ -7,11 +7,16 @@
    acabam divergindo.
 {% endcomment %}
 <div class="character-card" data-card="enemy" data-id="{{ enemy.pk }}">
-    {% if enemy.image %}
-        <div class="character-card-image" style="background-image: url('{{ enemy.image.url }}'); background-position: {% widthratio enemy.image_focus_x 1 100 %}% {% widthratio enemy.image_focus_y 1 100 %}%;"></div>
-    {% else %}
-        <div class="character-card-image empty"></div>
-    {% endif %}
+    {% comment %}
+       O card tem o proprio enquadramento: a moldura da ficha e alta e a
+       daqui e larga e baixa, e um corte so nunca serve para as duas.
+    {% endcomment %}
+    <div class="character-card-image{% if not enemy.image %} empty{% endif %}" data-portrait-frame
+         data-zoom="{{ enemy.card_zoom }}"
+         data-focus-x="{{ enemy.card_focus_x|unlocalize }}"
+         data-focus-y="{{ enemy.card_focus_y|unlocalize }}">
+        {% if enemy.image %}<img src="{{ enemy.image.url }}" alt="{{ enemy.name }}">{% endif %}
+    </div>
     <div class="character-card-info">
         <h3>
             {{ enemy.name }}

@@ -66,6 +66,26 @@
 
         {% include "hud/_retrato.html" with retrato=enemy imagem=enemy.image alt=enemy.name url_salvar=url_enquadrar dica="Retrato do inimigo (opcional)" %}
 
+        {% if is_master and enemy.image %}
+            {% comment %}
+               A mesma imagem, dois cortes. Este seletor diz qual deles o
+               zoom e o arraste estao mexendo agora.
+            {% endcomment %}
+            <div class="portrait-alvos so-editando" data-portrait-alvos
+                 data-ficha-zoom="{{ enemy.image_zoom }}"
+                 data-ficha-x="{{ enemy.image_focus_x|unlocalize }}"
+                 data-ficha-y="{{ enemy.image_focus_y|unlocalize }}"
+                 data-ficha-url="{% url 'update_enemy_framing' enemy.pk %}"
+                 data-menu-zoom="{{ enemy.card_zoom }}"
+                 data-menu-x="{{ enemy.card_focus_x|unlocalize }}"
+                 data-menu-y="{{ enemy.card_focus_y|unlocalize }}"
+                 data-menu-url="{% url 'update_enemy_framing' enemy.pk %}">
+                <span class="muted">enquadrar:</span>
+                <button type="button" data-alvo="ficha" class="ligado">ficha</button>
+                <button type="button" data-alvo="menu">menu</button>
+            </div>
+        {% endif %}
+
 
         {% if is_master %}
             <form method="post" enctype="multipart/form-data" class="panel-form compact so-editando" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">

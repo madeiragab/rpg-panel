@@ -278,4 +278,44 @@
   }
 
   document.querySelectorAll('[data-reordenavel]').forEach(ligarReordenacao);
+
+  /* ------------------------------------------- os dois enquadramentos ----- */
+
+  /* A mesma imagem aparece em duas molduras de formato diferente: a da ficha,
+     alta, e a do card na lista, larga e baixa. Um corte so nunca serve para as
+     duas, entao sao dois — e este seletor diz qual deles o zoom e o arraste
+     estao mexendo agora. */
+  const alvos = document.querySelector('[data-portrait-alvos]');
+  if (alvos) {
+    const moldura = ficha.querySelector('[data-portrait-frame][data-save-url], .portrait-wrap [data-portrait-frame]');
+    const controle = ficha.querySelector('[data-portrait-zoom]');
+
+    function trocarAlvo(qual) {
+      if (!moldura) return;
+      // O que estava na tela volta para o seu lugar antes de a outra entrar:
+      // senao o corte recem-arrastado se perderia ao alternar.
+      const anterior = alvos.dataset.atual || 'ficha';
+      alvos.dataset[`${anterior}Zoom`] = moldura.dataset.zoom;
+      alvos.dataset[`${anterior}X`] = moldura.dataset.focusX;
+      alvos.dataset[`${anterior}Y`] = moldura.dataset.focusY;
+
+      moldura.dataset.zoom = alvos.dataset[`${qual}Zoom`];
+      moldura.dataset.focusX = alvos.dataset[`${qual}X`];
+      moldura.dataset.focusY = alvos.dataset[`${qual}Y`];
+      moldura.dataset.saveUrl = alvos.dataset[`${qual}Url`];
+      moldura.dataset.alvo = qual;
+      alvos.dataset.atual = qual;
+
+      if (controle) controle.value = moldura.dataset.zoom;
+      alvos.querySelectorAll('[data-alvo]').forEach((b) => {
+        b.classList.toggle('ligado', b.dataset.alvo === qual);
+      });
+      if (window.hudPortrait) window.hudPortrait.preparar(moldura);
+    }
+
+    alvos.dataset.atual = 'ficha';
+    alvos.querySelectorAll('[data-alvo]').forEach((botao) => {
+      botao.addEventListener('click', () => trocarAlvo(botao.dataset.alvo));
+    });
+  }
 })();

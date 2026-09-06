@@ -142,6 +142,9 @@ class RetratoMixin:
         ficha = super().save(commit=False)
         if "image" in self.changed_data:
             ficha.reset_framing()
+            # O corte era da imagem antiga nos dois lugares.
+            if hasattr(ficha, "reset_card"):
+                ficha.reset_card()
         if commit:
             ficha.save()
             self.save_m2m()

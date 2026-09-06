@@ -95,6 +95,26 @@
         </div>
         {% if is_master %}{% url 'update_character_framing' character.pk as url_enquadrar %}{% endif %}
         {% include "hud/_retrato.html" with retrato=character imagem=character.image alt=character.name url_salvar=url_enquadrar dica="Retrato do personagem (opcional)" %}
+
+        {% if is_master and character.image %}
+            {% comment %}
+               A mesma imagem, dois cortes. Este seletor diz qual deles o
+               zoom e o arraste estao mexendo agora.
+            {% endcomment %}
+            <div class="portrait-alvos so-editando" data-portrait-alvos
+                 data-ficha-zoom="{{ character.image_zoom }}"
+                 data-ficha-x="{{ character.image_focus_x|unlocalize }}"
+                 data-ficha-y="{{ character.image_focus_y|unlocalize }}"
+                 data-ficha-url="{% url 'update_character_framing' character.pk %}"
+                 data-menu-zoom="{{ character.card_zoom }}"
+                 data-menu-x="{{ character.card_focus_x|unlocalize }}"
+                 data-menu-y="{{ character.card_focus_y|unlocalize }}"
+                 data-menu-url="{% url 'update_character_framing' character.pk %}">
+                <span class="muted">enquadrar:</span>
+                <button type="button" data-alvo="ficha" class="ligado">ficha</button>
+                <button type="button" data-alvo="menu">menu</button>
+            </div>
+        {% endif %}
         <div id="bars-container" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px;">
             {% for bar in character.bars.all %}
                 {% include "hud/_barra_da_ficha.html" with bar=bar fn_mod="modifyBar" fn_del="deleteBar" pode_editar=True pode_apagar=is_master %}

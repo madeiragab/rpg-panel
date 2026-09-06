@@ -80,6 +80,8 @@
       corpo.append('zoom', String(zoom));
       corpo.append('focus_x', x.toFixed(4));
       corpo.append('focus_y', y.toFixed(4));
+      // Qual dos dois cortes esta sendo mexido: o da ficha ou o do card.
+      corpo.append('alvo', moldura.dataset.alvo || 'ficha');
       fetch(url, {
         method: 'POST',
         headers: { 'X-CSRFToken': token, 'X-Requested-With': 'XMLHttpRequest' },

@@ -630,6 +630,21 @@ def _ler_enquadramento(request: HttpRequest) -> tuple[int, float, float] | None:
 
 
 CAMPOS_DO_ENQUADRAMENTO = ["image_zoom", "image_focus_x", "image_focus_y", "updated_at"]
+CAMPOS_DO_CARD = ["card_zoom", "card_focus_x", "card_focus_y", "updated_at"]
+
+
+def _guardar_enquadramento(request: HttpRequest, ficha, dados) -> None:
+    """Grava no enquadramento que o pedido escolheu.
+
+    A mesma imagem tem dois cortes: o da ficha, numa moldura alta, e o do card
+    da lista, numa moldura larga e baixa. Um corte so nunca serve para as duas.
+    """
+    if request.POST.get("alvo") == "menu" and hasattr(ficha, "card_zoom"):
+        ficha.card_zoom, ficha.card_focus_x, ficha.card_focus_y = dados
+        ficha.save(update_fields=CAMPOS_DO_CARD)
+        return
+    ficha.image_zoom, ficha.image_focus_x, ficha.image_focus_y = dados
+    ficha.save(update_fields=CAMPOS_DO_ENQUADRAMENTO)
 
 
 @login_required
@@ -647,8 +662,7 @@ def update_character_framing(request: HttpRequest, character_id: int) -> JsonRes
     if dados is None:
         return JsonResponse({"error": "Enquadramento inválido"}, status=400)
 
-    character.image_zoom, character.image_focus_x, character.image_focus_y = dados
-    character.save(update_fields=CAMPOS_DO_ENQUADRAMENTO)
+    _guardar_enquadramento(request, character, dados)
     return JsonResponse(
         {"success": True, "zoom": character.image_zoom,
          "x": character.image_focus_x, "y": character.image_focus_y}
@@ -667,8 +681,7 @@ def update_npc_framing(request: HttpRequest, npc_id: int) -> JsonResponse:
     if dados is None:
         return JsonResponse({"error": "Enquadramento inválido"}, status=400)
 
-    npc.image_zoom, npc.image_focus_x, npc.image_focus_y = dados
-    npc.save(update_fields=CAMPOS_DO_ENQUADRAMENTO)
+    _guardar_enquadramento(request, npc, dados)
     return JsonResponse(
         {"success": True, "zoom": npc.image_zoom,
          "x": npc.image_focus_x, "y": npc.image_focus_y}
@@ -1623,8 +1636,7 @@ def update_enemy_framing(request: HttpRequest, enemy_id: int) -> JsonResponse:
     if dados is None:
         return JsonResponse({"error": "Enquadramento inválido"}, status=400)
 
-    enemy.image_zoom, enemy.image_focus_x, enemy.image_focus_y = dados
-    enemy.save(update_fields=CAMPOS_DO_ENQUADRAMENTO)
+    _guardar_enquadramento(request, enemy, dados)
     return JsonResponse(
         {"success": True, "zoom": enemy.image_zoom,
          "x": enemy.image_focus_x, "y": enemy.image_focus_y}

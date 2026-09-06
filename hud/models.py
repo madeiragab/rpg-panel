@@ -114,6 +114,36 @@ class UserProfile(RetratoEnquadrado):
         return self.role == self.ROLE_PLAYER
 
 
+class RetratoNoMenu(models.Model):
+    """O segundo enquadramento da mesma imagem: o do card na lista.
+
+    A moldura da ficha é alta e a do card é larga e baixa. Um corte só nunca
+    serve para as duas — o que enquadra bem um corpo inteiro na ficha vira uma
+    tarja no card, e o que fica bom no card decepa a ficha. São os mesmos três
+    números de `RetratoEnquadrado`, guardados em outro lugar.
+    """
+
+    card_zoom = models.PositiveSmallIntegerField(default=100)
+    card_focus_x = models.FloatField(default=0.5)
+    card_focus_y = models.FloatField(default=0.5)
+
+    class Meta:
+        abstract = True
+
+    def clamp_card(self) -> None:
+        zoom = self.card_zoom if self.card_zoom is not None else 100
+        self.card_zoom = min(max(int(zoom), 100), 400)
+        for campo in ("card_focus_x", "card_focus_y"):
+            ponto = getattr(self, campo)
+            ponto = 0.5 if ponto is None else float(ponto)
+            setattr(self, campo, min(max(ponto, 0.0), 1.0))
+
+    def reset_card(self) -> None:
+        self.card_zoom = 100
+        self.card_focus_x = 0.5
+        self.card_focus_y = 0.5
+
+
 class PecaDoQuadro(models.Model):
     """Onde a peça está no quadro da campanha.
 
@@ -138,7 +168,7 @@ class PecaDoQuadro(models.Model):
                 setattr(self, campo, min(max(float(valor), 0.0), 1.0))
 
 
-class NPC(RetratoEnquadrado, PecaDoQuadro):
+class NPC(RetratoEnquadrado, RetratoNoMenu, PecaDoQuadro):
     campaign = models.ForeignKey(
         Campaign,
         on_delete=models.CASCADE,
@@ -182,6 +212,7 @@ class NPC(RetratoEnquadrado, PecaDoQuadro):
     def save(self, *args, **kwargs):  # type: ignore[override]
         self.clamp_stats()
         self.clamp_framing()
+        self.clamp_card()
         self.clamp_board()
         return super().save(*args, **kwargs)
 
@@ -197,7 +228,7 @@ class NPC(RetratoEnquadrado, PecaDoQuadro):
         self.slots.filter(position__gt=self.inventory_capacity).delete()
 
 
-class Character(RetratoEnquadrado, PecaDoQuadro):
+class Character(RetratoEnquadrado, RetratoNoMenu, PecaDoQuadro):
     campaign = models.ForeignKey(
         Campaign,
         on_delete=models.CASCADE,
@@ -241,6 +272,7 @@ class Character(RetratoEnquadrado, PecaDoQuadro):
     def save(self, *args, **kwargs):  # type: ignore[override]
         self.clamp_stats()
         self.clamp_framing()
+        self.clamp_card()
         self.clamp_board()
         return super().save(*args, **kwargs)
 
@@ -399,7 +431,7 @@ class NPCAttribute(models.Model):
         return f"{self.npc.name}: {self.name} = {self.value}"
 
 
-class Enemy(RetratoEnquadrado, PecaDoQuadro):
+class Enemy(RetratoEnquadrado, RetratoNoMenu, PecaDoQuadro):
     """A ficha do inimigo: a mesma do personagem, sem inventário.
 
     Inimigo não carrega mochila. O que ele deixa cair vira item da campanha
@@ -438,6 +470,7 @@ class Enemy(RetratoEnquadrado, PecaDoQuadro):
 
     def save(self, *args, **kwargs):  # type: ignore[override]
         self.clamp_framing()
+        self.clamp_card()
         self.clamp_board()
         return super().save(*args, **kwargs)
 
