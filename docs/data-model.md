@@ -149,10 +149,11 @@ click. The text saves itself (700 ms debounce, plus on `blur`); it keeps a
 random, because two identical ones in a row read as a bug) and a `tilt` between
 −6 and 6.
 
-The board belongs to the master and shows everything on the table, hidden
-pieces included: filtering by `visible` there would hide from him what he
-himself has not revealed yet. Each piece carries a badge saying whether the
-table can see it.
+The board is the master's alone: the whole tab lives inside the
+`{% if is_master %}` branch, so a player's HTML never even contains the pieces,
+and `?mode=player` does not build them either. And only what is already revealed
+(`visible=True`) gets onto it — while the table cannot see something, it is not
+in play, and the master handles what is still a secret from that type's own tab.
 
 The bar buttons send `amount` alongside `action`, and all three endpoints
 (`modify_bar`, `modify_npc_bar`, `modify_enemy_bar`) step by that much — with a

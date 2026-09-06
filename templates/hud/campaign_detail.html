@@ -293,7 +293,8 @@
             </div>
             <p class="muted" style="margin: 0 0 10px;">
                 Arraste as peças para arrumar a sessão. A posição fica salva.
-                O quadro mostra tudo da mesa — o que a mesa ainda não vê leva o selo 🚫.
+                Só entra no quadro o que já está revelado — o que ainda está oculto
+                fica na aba do seu tipo até você mostrar para a mesa.
             </p>
 
             <div id="create-polaroid" class="panel-card" style="display:none; margin-bottom: 12px;">
@@ -307,14 +308,13 @@
             </div>
 
             <div class="quadro" id="quadro" data-move-url="{% url 'move_board_piece' campaign.pk %}">
-                {% for peca in characters %}
+                {% for peca in board_characters %}
                     <div class="peca" data-kind="character" data-id="{{ peca.pk }}"
                          style="left: {{ peca.quadro_x|porcento }}%; top: {{ peca.quadro_y|porcento }}%;">
                         <div class="peca-topo">
                             {% include "hud/_retrato.html" with retrato=peca imagem=peca.image alt=peca.name classe="redondo pequeno" url_salvar="" dica="" %}
                             <a href="{% url 'character_detail' peca.pk %}" class="peca-nome" title="Abrir a ficha">{{ peca.name }}</a>
                             <span class="peca-selo aliado" title="Personagem de jogador">aliado</span>
-                            {% if not peca.visible %}<span class="peca-selo oculto" title="A mesa não vê">🚫</span>{% endif %}
                         </div>
                         {% for bar in peca.bars.all %}
                             {% url 'modify_bar' bar.id as url_barra %}
@@ -325,14 +325,13 @@
                     </div>
                 {% endfor %}
 
-                {% for peca in npcs %}
+                {% for peca in board_npcs %}
                     <div class="peca" data-kind="npc" data-id="{{ peca.pk }}"
                          style="left: {{ peca.quadro_x|porcento }}%; top: {{ peca.quadro_y|porcento }}%;">
                         <div class="peca-topo">
                             {% include "hud/_retrato.html" with retrato=peca imagem=peca.image alt=peca.name classe="redondo pequeno" url_salvar="" dica="" %}
                             <a href="{% url 'npc_detail' peca.pk %}" class="peca-nome" title="Abrir a ficha">{{ peca.name }}</a>
                             <span class="peca-selo npc" title="NPC">npc</span>
-                            {% if not peca.visible %}<span class="peca-selo oculto" title="A mesa não vê">🚫</span>{% endif %}
                         </div>
                         {% for bar in peca.bars.all %}
                             {% url 'modify_npc_bar' peca.pk bar.id as url_barra %}
@@ -343,14 +342,13 @@
                     </div>
                 {% endfor %}
 
-                {% for peca in enemies %}
+                {% for peca in board_enemies %}
                     <div class="peca inimigo" data-kind="enemy" data-id="{{ peca.pk }}"
                          style="left: {{ peca.quadro_x|porcento }}%; top: {{ peca.quadro_y|porcento }}%;">
                         <div class="peca-topo">
                             {% include "hud/_retrato.html" with retrato=peca imagem=peca.image alt=peca.name classe="redondo pequeno" url_salvar="" dica="" %}
                             <a href="{% url 'enemy_detail' peca.pk %}" class="peca-nome" title="Abrir a ficha">{{ peca.name }}</a>
                             <span class="peca-selo inimigo" title="Inimigo">inimigo</span>
-                            {% if not peca.visible %}<span class="peca-selo oculto" title="A mesa não vê">🚫</span>{% endif %}
                         </div>
                         {% for bar in peca.bars.all %}
                             {% url 'modify_enemy_bar' peca.pk bar.id as url_barra %}
@@ -404,8 +402,8 @@
                 {% empty %}
                 {% endfor %}
 
-                {% if not characters and not npcs and not enemies and not polaroids and not notes %}
-                    <p class="muted quadro-vazio">Quadro vazio. Crie personagens, NPCs ou inimigos — ou pregue uma polaroid.</p>
+                {% if not board_characters and not board_npcs and not board_enemies and not polaroids and not notes %}
+                    <p class="muted quadro-vazio">Quadro vazio. Revele um personagem, NPC ou inimigo para ele virar peça — ou pregue uma polaroid ou post-it.</p>
                 {% endif %}
             </div>
         </div>

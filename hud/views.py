@@ -377,12 +377,23 @@ def campaign_detail(request: HttpRequest, pk: int) -> HttpResponse:
     enemies = campaign.enemies.all() if is_master else campaign.enemies.filter(visible=True)
     polaroids = campaign.polaroids.all() if is_master else Polaroid.objects.none()
     notes = campaign.notes.all() if is_master else StickyNote.objects.none()
+    # O quadro só monta peça do que já está revelado. O que ainda está oculto
+    # não entra: enquanto a mesa não pode ver, aquilo não está em jogo, e a
+    # aba de cada tipo continua sendo onde o mestre mexe no que ainda é
+    # segredo.
+    board_characters = campaign.characters.filter(visible=True) if is_master else []
+    board_npcs = campaign.npcs.filter(visible=True) if is_master else []
+    board_enemies = campaign.enemies.filter(visible=True) if is_master else []
     if is_master:
         # Uma peça que nunca foi arrastada entra na grade, e a grade é uma só
         # para todas: arrumar cada lista por conta empilharia as três no mesmo
         # canto do quadro.
         _arrumar_no_quadro(
-            list(characters) + list(npcs) + list(enemies) + list(polaroids) + list(notes)
+            list(board_characters)
+            + list(board_npcs)
+            + list(board_enemies)
+            + list(polaroids)
+            + list(notes)
         )
 
     return render(
@@ -400,6 +411,9 @@ def campaign_detail(request: HttpRequest, pk: int) -> HttpResponse:
             "items": items,
             "npcs": npcs,
             "enemies": enemies,
+            "board_characters": board_characters,
+            "board_npcs": board_npcs,
+            "board_enemies": board_enemies,
             "polaroids": polaroids,
             "notes": notes,
             "is_master": is_master,

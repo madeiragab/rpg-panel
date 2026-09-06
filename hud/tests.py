@@ -1494,14 +1494,52 @@ class QuadroDaCampanhaTests(TestCase):
 
         self.assertNotContains(resposta, 'id="board-tab"')
 
-    def test_quadro_do_mestre_mostra_ate_o_que_a_mesa_nao_ve(self):
-        """O inimigo nasce escondido, e o mestre precisa ve-lo para arrumar."""
+    def test_o_que_esta_oculto_nao_vira_peca(self):
+        """O inimigo nasce escondido: enquanto a mesa nao pode ver, nao entra."""
         self.client.force_login(self.mestre)
 
         resposta = self.client.get(reverse('campaign_detail', args=[self.campanha.pk]))
 
         self.assertContains(resposta, 'id="board-tab"')
-        self.assertContains(resposta, 'Cerbero')
+        self.assertEqual(list(resposta.context['board_enemies']), [])
+
+    def test_revelar_poe_a_peca_no_quadro(self):
+        self.inimigo.visible = True
+        self.inimigo.save()
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.get(reverse('campaign_detail', args=[self.campanha.pk]))
+
+        self.assertEqual(list(resposta.context['board_enemies']), [self.inimigo])
+
+    def test_personagem_escondido_tambem_sai_do_quadro(self):
+        self.personagem.visible = False
+        self.personagem.save()
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.get(reverse('campaign_detail', args=[self.campanha.pk]))
+
+        self.assertEqual(list(resposta.context['board_characters']), [])
+
+    def test_o_jogador_nao_recebe_o_quadro(self):
+        """A mesa nao ve o quadro de forma alguma, nem no HTML."""
+        self.personagem.visible = True
+        self.personagem.save()
+        self.client.force_login(self.jogador)
+
+        resposta = self.client.get(reverse('campaign_detail', args=[self.campanha.pk]))
+
+        self.assertNotContains(resposta, 'id="quadro"')
+        self.assertNotContains(resposta, 'data-kind="character"')
+
+    def test_mestre_em_mode_player_tambem_nao_recebe_o_quadro(self):
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.get(
+            reverse('campaign_detail', args=[self.campanha.pk]) + '?mode=player'
+        )
+
+        self.assertNotContains(resposta, 'id="quadro"')
 
     def test_mestre_prega_polaroid(self):
         self.client.force_login(self.mestre)
