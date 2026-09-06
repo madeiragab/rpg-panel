@@ -218,56 +218,21 @@
                 </form>
             </div>
 
-            <div class="quadro" id="quadro" data-move-url="{% url 'move_board_piece' campaign.pk %}">
+            <div class="quadro" id="quadro" data-move-url="{% url 'move_board_piece' campaign.pk %}"
+                 data-barras-url="{% url 'bar_state' %}?scope=campaign&amp;pk={{ campaign.pk }}">
                 {% for peca in board_characters %}
-                    <div class="peca" data-kind="character" data-id="{{ peca.pk }}"
-                         style="left: {{ peca.quadro_x|porcento }}%; top: {{ peca.quadro_y|porcento }}%;">
-                        <div class="peca-topo">
-                            {% include "hud/_retrato.html" with retrato=peca imagem=peca.image alt=peca.name classe="redondo pequeno" url_salvar="" dica="" %}
-                            <a href="{% url 'character_detail' peca.pk %}" class="peca-nome" title="Abrir a ficha">{{ peca.name }}</a>
-                            <span class="peca-selo aliado" title="Personagem de jogador">aliado</span>
-                        </div>
-                        {% for bar in peca.bars.all %}
-                            {% url 'modify_bar' bar.id as url_barra %}
-                            {% include "hud/_barra_do_quadro.html" with bar=bar url_barra=url_barra %}
-                        {% empty %}
-                            <div class="peca-vazia muted">Sem barras</div>
-                        {% endfor %}
-                    </div>
+                    {% url 'character_detail' peca.pk as url_ficha %}
+                    {% include "hud/_peca_ficha.html" with tipo="character" url_ficha=url_ficha selo="aliado" selo_classe="aliado" selo_dica="Personagem de jogador" %}
                 {% endfor %}
 
                 {% for peca in board_npcs %}
-                    <div class="peca" data-kind="npc" data-id="{{ peca.pk }}"
-                         style="left: {{ peca.quadro_x|porcento }}%; top: {{ peca.quadro_y|porcento }}%;">
-                        <div class="peca-topo">
-                            {% include "hud/_retrato.html" with retrato=peca imagem=peca.image alt=peca.name classe="redondo pequeno" url_salvar="" dica="" %}
-                            <a href="{% url 'npc_detail' peca.pk %}" class="peca-nome" title="Abrir a ficha">{{ peca.name }}</a>
-                            <span class="peca-selo npc" title="NPC">npc</span>
-                        </div>
-                        {% for bar in peca.bars.all %}
-                            {% url 'modify_npc_bar' peca.pk bar.id as url_barra %}
-                            {% include "hud/_barra_do_quadro.html" with bar=bar url_barra=url_barra %}
-                        {% empty %}
-                            <div class="peca-vazia muted">Sem barras</div>
-                        {% endfor %}
-                    </div>
+                    {% url 'npc_detail' peca.pk as url_ficha %}
+                    {% include "hud/_peca_ficha.html" with tipo="npc" url_ficha=url_ficha selo="npc" selo_classe="npc" selo_dica="NPC" %}
                 {% endfor %}
 
                 {% for peca in board_enemies %}
-                    <div class="peca inimigo" data-kind="enemy" data-id="{{ peca.pk }}"
-                         style="left: {{ peca.quadro_x|porcento }}%; top: {{ peca.quadro_y|porcento }}%;">
-                        <div class="peca-topo">
-                            {% include "hud/_retrato.html" with retrato=peca imagem=peca.image alt=peca.name classe="redondo pequeno" url_salvar="" dica="" %}
-                            <a href="{% url 'enemy_detail' peca.pk %}" class="peca-nome" title="Abrir a ficha">{{ peca.name }}</a>
-                            <span class="peca-selo inimigo" title="Inimigo">inimigo</span>
-                        </div>
-                        {% for bar in peca.bars.all %}
-                            {% url 'modify_enemy_bar' peca.pk bar.id as url_barra %}
-                            {% include "hud/_barra_do_quadro.html" with bar=bar url_barra=url_barra %}
-                        {% empty %}
-                            <div class="peca-vazia muted">Sem barras</div>
-                        {% endfor %}
-                    </div>
+                    {% url 'enemy_detail' peca.pk as url_ficha %}
+                    {% include "hud/_peca_ficha.html" with tipo="enemy" url_ficha=url_ficha selo="inimigo" selo_classe="inimigo" selo_dica="Inimigo" %}
                 {% endfor %}
 
                 {% for peca in polaroids %}

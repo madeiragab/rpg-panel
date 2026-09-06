@@ -67,9 +67,10 @@
         </div>
         
         {% if is_master %}{% url 'update_npc_framing' npc.pk as url_enquadrar %}{% endif %}
-        <div id="bars-container" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px;">
+        <div id="bars-container" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px;"
+             data-barras-url="{% url 'bar_state' %}?scope=npc&amp;pk={{ npc.pk }}">
             {% for bar in npc.bars.all %}
-                {% include "hud/_barra_da_ficha.html" with bar=bar fn_mod="modifyNPCBar" fn_del="deleteNPCBar" pode_editar=is_master pode_apagar=is_master %}
+                {% include "hud/_barra_da_ficha.html" with bar=bar tipo="npc" fn_mod="modifyNPCBar" fn_del="deleteNPCBar" pode_editar=is_master pode_apagar=is_master %}
             {% endfor %}
         </div>
 
@@ -260,17 +261,7 @@ async function modifyNPCBar(barId, action) {
     })
     .then(response => response.json())
     .then(data => {
-        if (data.success) {
-            const barElement = document.querySelector(`[data-bar-id="${barId}"]`);
-            if (barElement) {
-                const display = barElement.querySelector('.bar-display');
-                const fill = barElement.querySelector('.bar-fill');
-                const maxValue = parseInt(display.getAttribute('data-max')) || 100;
-                display.textContent = `${data.current} / ${maxValue}`;
-                const percentage = (data.current / maxValue) * 100;
-                fill.style.width = `${percentage}%`;
-            }
-        }
+        if (data.success) window.hudBarras.aplicarUm('npc', barId, data.current);
     })
     .catch(error => console.error('Erro:', error));
 }

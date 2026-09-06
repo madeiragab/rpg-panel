@@ -50,6 +50,7 @@ urlpatterns = [
     path("characters/<int:character_id>/toggle-visibility/", views.toggle_character_visibility, name="toggle_character_visibility"),
     path("npcs/<int:npc_id>/toggle-visibility/", views.toggle_npc_visibility, name="toggle_npc_visibility"),
     path("characters/<int:character_id>/add-bar/", views.add_character_bar, name="add_character_bar"),
+    path("bars/state/", views.bar_state, name="bar_state"),
     path("bars/<int:bar_id>/modify/", views.modify_bar, name="modify_bar"),
     path("bars/<int:bar_id>/delete/", views.delete_bar, name="delete_bar"),
     path("npcs/<int:pk>/add-bar/", views.add_npc_bar, name="add_npc_bar"),

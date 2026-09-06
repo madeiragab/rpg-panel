@@ -39,6 +39,7 @@ from hud.models import (
     CharacterAbility,
     CharacterAttack,
     CharacterAttribute,
+    CharacterBar,
     CharacterSkill,
     Enemy,
     EnemyAttribute,
@@ -46,6 +47,7 @@ from hud.models import (
     InventorySlot,
     Item,
     NPC,
+    NPCBar,
     NPCSkill,
     PasswordResetToken,
     Polaroid,
@@ -2919,3 +2921,193 @@ class AtaquesTests(TestCase):
 
         self.assertIn('Espada longa', html)
         self.assertIn('1d8+2', html)
+
+
+@SEM_REDIRECT_HTTPS
+@SEM_MANIFESTO
+class BarrasEmTodoLugarTests(TestCase):
+    """A mesma vida na ficha e no quadro, e so para quem pode ver aquela ficha.
+
+    O valor mora no banco e cada pagina pergunta pelo que ela mesma mostra: e
+    isso que faz o mestre tirar cinco no quadro e o jogador ver doze na ficha
+    sem apertar F5.
+    """
+
+    def setUp(self):
+        self.mestre = make_user('mestre')
+        self.jogador = make_user('jogador')
+        self.outro = make_user('outro')
+        self.campanha = Campaign.objects.create(name='Ossos', master=self.mestre)
+        self.campanha.players.add(self.jogador, self.outro)
+        self.personagem = Character.objects.create(
+            name='Kai', created_by=self.mestre, campaign=self.campanha,
+            assigned_to=self.jogador,
+        )
+        self.barra = CharacterBar.objects.create(
+            character=self.personagem, name='Vida', current=17, max_value=17
+        )
+        self.inimigo = Enemy.objects.create(
+            name='Cerbero', created_by=self.mestre, campaign=self.campanha, visible=True
+        )
+        self.barra_do_inimigo = EnemyBar.objects.create(
+            enemy=self.inimigo, name='Vida', current=30, max_value=30
+        )
+
+    def _estado(self, escopo, pk):
+        return self.client.get(reverse('bar_state'), {'scope': escopo, 'pk': pk})
+
+    def _mexer(self, quanto='5'):
+        return self.client.post(
+            reverse('modify_bar', args=[self.barra.pk]),
+            {'action': 'decrease', 'amount': quanto},
+        )
+
+    def test_o_dono_le_o_valor_da_propria_ficha(self):
+        self.client.force_login(self.jogador)
+
+        dados = self._estado('character', self.personagem.pk).json()
+
+        self.assertEqual(
+            dados['bars'][f'character:{self.barra.pk}'],
+            {'current': 17, 'max': 17},
+        )
+
+    def test_o_que_o_mestre_tira_o_jogador_le(self):
+        self.client.force_login(self.mestre)
+        self._mexer('5')
+
+        self.client.force_login(self.jogador)
+        dados = self._estado('character', self.personagem.pk).json()
+
+        self.assertEqual(dados['bars'][f'character:{self.barra.pk}']['current'], 12)
+
+    def test_o_que_o_jogador_gasta_o_mestre_le_no_quadro(self):
+        self.client.force_login(self.jogador)
+        self._mexer('3')
+
+        self.client.force_login(self.mestre)
+        dados = self._estado('campaign', self.campanha.pk).json()
+
+        self.assertEqual(dados['bars'][f'character:{self.barra.pk}']['current'], 14)
+
+    def test_o_quadro_traz_os_tres_tipos_de_peca(self):
+        npc = NPC.objects.create(
+            name='Velho', created_by=self.mestre, campaign=self.campanha, visible=True
+        )
+        barra_do_npc = NPCBar.objects.create(
+            npc=npc, name='Animo', current=4, max_value=4
+        )
+        self.client.force_login(self.mestre)
+
+        barras = self._estado('campaign', self.campanha.pk).json()['bars']
+
+        self.assertIn(f'character:{self.barra.pk}', barras)
+        self.assertIn(f'npc:{barra_do_npc.pk}', barras)
+        self.assertIn(f'enemy:{self.barra_do_inimigo.pk}', barras)
+
+    def test_a_chave_leva_o_tipo_junto(self):
+        """No quadro convivem barras dos tres, e o id sozinho nao distingue."""
+        self.client.force_login(self.mestre)
+
+        barras = self._estado('campaign', self.campanha.pk).json()['bars']
+
+        self.assertTrue(all(':' in chave for chave in barras))
+
+    def test_ficha_alheia_nao_entrega_valor(self):
+        self.client.force_login(self.outro)
+
+        self.assertEqual(
+            self._estado('character', self.personagem.pk).status_code, 403
+        )
+
+    def test_o_jogador_nao_le_o_quadro_do_mestre(self):
+        self.client.force_login(self.jogador)
+
+        self.assertEqual(self._estado('campaign', self.campanha.pk).status_code, 403)
+
+    def test_o_jogador_nao_le_a_vida_do_inimigo(self):
+        self.client.force_login(self.jogador)
+
+        self.assertEqual(self._estado('enemy', self.inimigo.pk).status_code, 403)
+
+    def test_ficha_escondida_nao_entrega_valor_nem_ao_dono(self):
+        self.personagem.visible = False
+        self.personagem.save()
+        self.client.force_login(self.jogador)
+
+        self.assertEqual(
+            self._estado('character', self.personagem.pk).status_code, 403
+        )
+
+    def test_ficha_escondida_tambem_nao_deixa_o_dono_mexer(self):
+        """A barra segue a ficha: se ela nao abre, a vida dela nao muda."""
+        self.personagem.visible = False
+        self.personagem.save()
+        self.client.force_login(self.jogador)
+
+        self._mexer('5')
+
+        self.barra.refresh_from_db()
+        self.assertEqual(self.barra.current, 17)
+
+    def test_escopo_sem_pk_e_recusado(self):
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.get(reverse('bar_state'), {'scope': 'character'})
+
+        self.assertEqual(resposta.status_code, 400)
+
+
+@SEM_REDIRECT_HTTPS
+@SEM_MANIFESTO
+class PecaDoQuadroTests(TestCase):
+    """A peca mostra o que o card mostra, e as barras nascem recolhidas."""
+
+    def setUp(self):
+        self.mestre = make_user('mestre')
+        self.jogador = make_user('jogador')
+        self.campanha = Campaign.objects.create(name='Ossos', master=self.mestre)
+        self.campanha.players.add(self.jogador)
+        # O nome do arquivo basta: o template so precisa da .url, e assim o
+        # teste nao escreve nada no MEDIA_ROOT.
+        self.personagem = Character.objects.create(
+            name='Kai', created_by=self.mestre, campaign=self.campanha,
+            assigned_to=self.jogador, image='kai.gif',
+        )
+        CharacterBar.objects.create(
+            character=self.personagem, name='Vida', current=17, max_value=17
+        )
+        self.client.force_login(self.mestre)
+
+    def _quadro(self):
+        return self.client.get(
+            reverse('campaign_detail', args=[self.campanha.pk])
+        ).content.decode()
+
+    def test_a_peca_usa_o_corte_do_menu(self):
+        """A peca e o card sao a mesma imagem no mesmo corte: dois de 220."""
+        self.personagem.card_zoom = 220
+        self.personagem.save()
+
+        html = self._quadro()
+
+        self.assertIn('peca-retrato', html)
+        self.assertGreaterEqual(html.count('data-zoom="220"'), 2)
+
+    def test_a_peca_nao_usa_o_corte_da_ficha(self):
+        """O corte alto da ficha cortaria o retrato no peito dentro da peca."""
+        self.personagem.image_zoom = 175
+        self.personagem.save()
+
+        self.assertNotIn('data-zoom="175"', self._quadro())
+
+    def test_os_botoes_da_barra_nascem_recolhidos(self):
+        """Tres barras abertas viram doze botoes e empurram o quadro da tela."""
+        html = self._quadro()
+
+        self.assertIsNotNone(
+            re.search(r'class="peca-barra-botoes"\s+hidden', html)
+        )
+
+    def test_a_barra_da_peca_diz_de_que_tipo_e(self):
+        self.assertIn('data-bar-kind="character"', self._quadro())

@@ -694,30 +694,52 @@ def update_npc_framing(request: HttpRequest, npc_id: int) -> JsonResponse:
     )
 
 
+def _quem_ve_a_ficha(request: HttpRequest, character: Character) -> tuple[bool, bool]:
+    """(mestre, jogador) para este personagem.
+
+    A regra mora aqui porque a ficha não é o único lugar que pergunta: o
+    estado das barras responde exatamente o mesmo, e uma segunda cópia da
+    regra de acesso é como um furo nasce — foi assim que a ficha de um jogador
+    já abriu para toda a mesa.
+
+    O jogador é o dono, e só enquanto o mestre deixa a ficha à vista: sem essa
+    segunda metade o `visible` seria cortina e não tranca.
+    """
+    campaign = character.campaign
+    if campaign:
+        return (
+            campaign.master == request.user,
+            character.assigned_to == request.user and character.visible,
+        )
+    # Modo legado, sem campanha: quem criou manda, quem recebeu joga.
+    return (
+        character.created_by == request.user,
+        character.assigned_to == request.user,
+    )
+
+
+def _quem_ve_o_npc(request: HttpRequest, npc: NPC) -> tuple[bool, bool]:
+    """(mestre, jogador) para este NPC.
+
+    O jogador só chega ao NPC pelo personagem dele: NPC solto na campanha é
+    do mestre.
+    """
+    campaign = npc.campaign
+    if not campaign:
+        return (False, False)
+    return (
+        campaign.master == request.user,
+        request.user in campaign.players.all()
+        and npc.assigned_to_character is not None
+        and npc.assigned_to_character.assigned_to == request.user,
+    )
+
+
 @login_required
 def character_detail(request: HttpRequest, pk: int) -> HttpResponse:
     character = get_object_or_404(Character, pk=pk)
-    campaign = character.campaign
 
-    # Verificar acesso e permissões
-    is_master = False
-    is_player = False
-    
-    if campaign:
-        # Se há campanha, só mestre da campanha consegue editar
-        is_master = campaign.master == request.user
-        # O jogador abre a própria ficha, e só ela. Bastar estar na
-        # campanha abria a ficha de todo mundo — nome, vida, perícias e
-        # inventário dos outros — e ficha alheia é do dono e do mestre.
-        #
-        # E só enquanto o mestre a deixa à vista: escondida, ela já sai da
-        # lista da campanha, e continuar abrindo pela URL faria do `visible`
-        # uma cortina em vez de uma tranca.
-        is_player = character.assigned_to == request.user and character.visible
-    else:
-        # Fallback para modo legado (sem campanha)
-        is_master = character.created_by == request.user
-        is_player = character.assigned_to == request.user
+    is_master, is_player = _quem_ve_a_ficha(request, character)
 
     # Se acessar com ?mode=player, força modo leitura mesmo sendo mestre
     if request.GET.get("mode") == "player":
@@ -1344,7 +1366,7 @@ def add_character_bar(request: HttpRequest, character_id: int) -> JsonResponse:
         return _pedaco(
             request,
             "hud/_barra_da_ficha.html",
-            {"bar": bar, "fn_mod": "modifyBar", "fn_del": "deleteBar",
+            {"bar": bar, "tipo": "character", "fn_mod": "modifyBar", "fn_del": "deleteBar",
              "pode_editar": True, "pode_apagar": True},
         )
     return JsonResponse({
@@ -1366,15 +1388,12 @@ def modify_bar(request: HttpRequest, bar_id: int) -> JsonResponse:
     bar = get_object_or_404(CharacterBar, pk=bar_id)
     character = bar.character
     
-    # Verifica permissão: mestre ou dono
-    if character.campaign:
-        is_master = character.campaign.master == request.user
-        is_owner = character.assigned_to == request.user
-        if not (is_master or is_owner):
-            return JsonResponse({"error": "Sem permissão"}, status=403)
-    else:
-        if character.assigned_to != request.user and character.created_by != request.user:
-            return JsonResponse({"error": "Sem permissão"}, status=403)
+    # A mesma regra da ficha: mexer na vida de alguém é coisa de quem
+    # consegue abrir a ficha dele. Uma terceira cópia da regra aqui já era
+    # uma terceira chance de ela ficar mais frouxa do que as outras duas.
+    is_master, is_owner = _quem_ve_a_ficha(request, character)
+    if not (is_master or is_owner):
+        return JsonResponse({"error": "Sem permissão"}, status=403)
     
     action = request.POST.get("action")
     
@@ -1413,16 +1432,8 @@ def npc_detail(request: HttpRequest, pk: int) -> HttpResponse:
     npc = get_object_or_404(NPC, pk=pk)
     campaign = npc.campaign
 
-    # Verificar acesso
-    is_master = False
-    is_player = False
-    
-    if campaign:
-        # Mestre da campanha tem acesso total
-        is_master = campaign.master == request.user
-        # Jogador só vê se o NPC está vinculado a um de seus personagens
-        is_player = request.user in campaign.players.all() and npc.assigned_to_character and npc.assigned_to_character.assigned_to == request.user
-    
+    is_master, is_player = _quem_ve_o_npc(request, npc)
+
     # Se mode=player, força modo leitura mesmo sendo mestre
     if request.GET.get("mode") == "player":
         is_master = False
@@ -1530,7 +1541,7 @@ def add_npc_bar(request: HttpRequest, pk: int) -> JsonResponse:
             return _pedaco(
                 request,
                 "hud/_barra_da_ficha.html",
-                {"bar": bar, "fn_mod": "modifyNPCBar", "fn_del": "deleteNPCBar",
+                {"bar": bar, "tipo": "npc", "fn_mod": "modifyNPCBar", "fn_del": "deleteNPCBar",
                  "pode_editar": True, "pode_apagar": True},
             )
         return JsonResponse(
@@ -1791,7 +1802,7 @@ def add_enemy_bar(request: HttpRequest, pk: int) -> JsonResponse:
         return _pedaco(
             request,
             "hud/_barra_da_ficha.html",
-            {"bar": bar, "fn_mod": "modifyEnemyBar", "fn_del": "deleteEnemyBar",
+            {"bar": bar, "tipo": "enemy", "fn_mod": "modifyEnemyBar", "fn_del": "deleteEnemyBar",
              "pode_editar": True, "pode_apagar": True},
         )
     return JsonResponse(
@@ -1858,3 +1869,76 @@ def token_do_player(request: HttpRequest) -> JsonResponse:
     from rest_framework_simplejwt.tokens import AccessToken
 
     return JsonResponse({"access": str(AccessToken.for_user(request.user))})
+
+
+def _estado_das_barras(kind: str, barras) -> dict[str, dict[str, int]]:
+    """As barras em {"tipo:id": {current, max}}.
+
+    A chave leva o tipo junto porque no quadro convivem barras de personagem,
+    NPC e inimigo, e o id sozinho não distingue a barra 3 de um da barra 3 do
+    outro.
+    """
+    return {
+        f"{kind}:{barra.id}": {"current": barra.current, "max": barra.max_value}
+        for barra in barras
+    }
+
+
+@login_required
+@require_GET
+def bar_state(request: HttpRequest) -> JsonResponse:
+    """O valor de cada barra que a página que perguntou tem direito de ver.
+
+    A mesma vida aparece na ficha do jogador, na ficha aberta pelo mestre e na
+    peça do quadro. Sem isto, cada página só sabia do próprio clique: o mestre
+    tirava cinco de vida no quadro e o jogador seguia a sessão inteira olhando
+    o número velho.
+
+    O escopo é a página, e não uma lista de barras que o navegador escolhe:
+    quem pergunta diz "sou a ficha do personagem 12" e o servidor confere esse
+    acesso com a mesma regra da ficha. Aceitar uma lista de ids seria entregar
+    a vida de qualquer inimigo a quem soubesse contar de 1 a 100.
+    """
+    escopo = request.GET.get("scope")
+    pk = request.GET.get("pk", "")
+    if not pk.isdigit():
+        return JsonResponse({"error": "Escopo inválido"}, status=400)
+
+    if escopo == "character":
+        character = get_object_or_404(Character, pk=pk)
+        is_master, is_player = _quem_ve_a_ficha(request, character)
+        if not (is_master or is_player):
+            return JsonResponse({"error": "Sem permissão"}, status=403)
+        return JsonResponse({"bars": _estado_das_barras("character", character.bars.all())})
+
+    if escopo == "npc":
+        npc = get_object_or_404(NPC, pk=pk)
+        is_master, is_player = _quem_ve_o_npc(request, npc)
+        if not (is_master or is_player):
+            return JsonResponse({"error": "Sem permissão"}, status=403)
+        return JsonResponse({"bars": _estado_das_barras("npc", npc.bars.all())})
+
+    if escopo == "enemy":
+        enemy = _inimigo_do_mestre(request, int(pk))
+        if enemy is None:
+            return JsonResponse({"error": "Sem permissão"}, status=403)
+        return JsonResponse({"bars": _estado_das_barras("enemy", enemy.bars.all())})
+
+    if escopo == "campaign":
+        campaign = get_object_or_404(Campaign, pk=pk)
+        # O quadro é só do mestre, e o que ele mostra também.
+        if campaign.master != request.user:
+            return JsonResponse({"error": "Sem permissão"}, status=403)
+        barras: dict[str, dict[str, int]] = {}
+        barras.update(_estado_das_barras(
+            "character", CharacterBar.objects.filter(character__campaign=campaign)
+        ))
+        barras.update(_estado_das_barras(
+            "npc", NPCBar.objects.filter(npc__campaign=campaign)
+        ))
+        barras.update(_estado_das_barras(
+            "enemy", EnemyBar.objects.filter(enemy__campaign=campaign)
+        ))
+        return JsonResponse({"bars": barras})
+
+    return JsonResponse({"error": "Escopo inválido"}, status=400)

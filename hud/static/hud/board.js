@@ -97,13 +97,61 @@
         .then((r) => r.json())
         .then((data) => {
           if (!data.success || !barra) return;
-          const valor = barra.querySelector('.peca-barra-valor');
-          const cheia = barra.querySelector('.peca-barra-cheia');
-          const maximo = Number(valor.dataset.max) || 1;
-          valor.textContent = `${data.current} / ${maximo}`;
-          cheia.style.width = `${entre((data.current / maximo) * 100, 0, 100)}%`;
+          // Quem pinta é o bars.js, e é ele que sabe de todas as cópias desta
+          // barra na página. O quadro só repassa o valor que voltou.
+          if (window.hudBarras) {
+            window.hudBarras.aplicarUm(barra.dataset.barKind, barra.dataset.barId, data.current);
+          }
         })
         .catch(() => {});
+    });
+  }
+
+  /* Os botões da barra nascem recolhidos. Uma peça com três barras abertas é
+     uma coluna de doze botões, e na maior parte da sessão só se olha o valor —
+     mas quem abriu uma barra para o combate não quer que ela feche sozinha no
+     F5 seguinte, então o que está aberto fica guardado no navegador. */
+  const CHAVE_ABERTAS = 'hud:barras-abertas';
+
+  function abertas() {
+    try {
+      const guardado = JSON.parse(localStorage.getItem(CHAVE_ABERTAS) || '[]');
+      return new Set(Array.isArray(guardado) ? guardado : []);
+    } catch (e) {
+      return new Set();
+    }
+  }
+
+  function guardarAbertas(conjunto) {
+    try {
+      localStorage.setItem(CHAVE_ABERTAS, JSON.stringify([...conjunto]));
+    } catch (e) {
+      /* Navegador sem armazenamento: a barra abre e fecha do mesmo jeito. */
+    }
+  }
+
+  function ligarAbrirBarra(cabeca) {
+    const barra = cabeca.closest('.peca-barra');
+    const botoes = barra && barra.querySelector('.peca-barra-botoes');
+    if (!botoes) return;
+
+    const nome = `${barra.dataset.barKind}:${barra.dataset.barId}`;
+    const mostrar = (aberta) => {
+      botoes.hidden = !aberta;
+      cabeca.setAttribute('aria-expanded', aberta ? 'true' : 'false');
+      barra.classList.toggle('aberta', aberta);
+      cabeca.title = aberta ? 'Recolher os botões desta barra' : 'Abrir os botões desta barra';
+    };
+
+    mostrar(abertas().has(nome));
+
+    cabeca.addEventListener('click', () => {
+      const abrindo = botoes.hidden;
+      mostrar(abrindo);
+      const guardadas = abertas();
+      if (abrindo) guardadas.add(nome);
+      else guardadas.delete(nome);
+      guardarAbertas(guardadas);
     });
   }
 
@@ -169,6 +217,7 @@
     if (!peca || !peca.classList || !peca.classList.contains('peca')) return;
     ligarArraste(peca);
     peca.querySelectorAll('[data-barra-url]').forEach(ligarBotaoDeBarra);
+    peca.querySelectorAll('[data-abrir-barra]').forEach(ligarAbrirBarra);
     peca.querySelectorAll('.post-it-texto').forEach(ligarPostIt);
     peca.querySelectorAll('[data-enquadrar]').forEach(ligarEnquadrar);
     const vazio = quadro.querySelector('.quadro-vazio');
@@ -177,6 +226,7 @@
 
   quadro.querySelectorAll('.peca').forEach(ligarArraste);
   quadro.querySelectorAll('[data-barra-url]').forEach(ligarBotaoDeBarra);
+  quadro.querySelectorAll('[data-abrir-barra]').forEach(ligarAbrirBarra);
   quadro.querySelectorAll('.post-it-texto').forEach(ligarPostIt);
   quadro.querySelectorAll('[data-enquadrar]').forEach(ligarEnquadrar);
 

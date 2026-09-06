@@ -1,0 +1,36 @@
+{% load hud_filters %}
+{% comment %}
+   Uma peça do quadro: personagem, NPC ou inimigo. Os três eram três blocos
+   iguais no campaign_detail, e a única diferença real está no selo e no
+   formato da rota da barra — copiar o bloco três vezes só garantia que um dia
+   os três iam divergir.
+
+   A imagem é a mesma do card da aba do tipo, com o mesmo corte: quem enquadra
+   o personagem uma vez enquadra para os dois lugares. Sem imagem a peça não
+   abre buraco nenhum — vai direto para o nome.
+
+   Parâmetros: peca, tipo ("character", "npc" ou "enemy"), url_ficha, selo,
+   selo_classe, selo_dica.
+{% endcomment %}
+<div class="peca{% if tipo == 'enemy' %} inimigo{% endif %}" data-kind="{{ tipo }}" data-id="{{ peca.pk }}"
+     style="left: {{ peca.quadro_x|porcento }}%; top: {{ peca.quadro_y|porcento }}%;">
+    {% if peca.image %}
+        {% include "hud/_retrato_do_card.html" with retrato=peca imagem=peca.image alt=peca.name classe="peca-retrato" %}
+    {% endif %}
+    <div class="peca-topo">
+        <a href="{{ url_ficha }}" class="peca-nome" title="Abrir a ficha">{{ peca.name }}</a>
+        <span class="peca-selo {{ selo_classe }}" title="{{ selo_dica }}">{{ selo }}</span>
+    </div>
+    {% for bar in peca.bars.all %}
+        {% if tipo == 'character' %}
+            {% url 'modify_bar' bar.id as url_barra %}
+        {% elif tipo == 'npc' %}
+            {% url 'modify_npc_bar' peca.pk bar.id as url_barra %}
+        {% else %}
+            {% url 'modify_enemy_bar' peca.pk bar.id as url_barra %}
+        {% endif %}
+        {% include "hud/_barra_do_quadro.html" with bar=bar url_barra=url_barra tipo=tipo %}
+    {% empty %}
+        <div class="peca-vazia muted">Sem barras</div>
+    {% endfor %}
+</div>

@@ -132,9 +132,10 @@
                 <button type="button" data-alvo="menu">menu</button>
             </div>
         {% endif %}
-        <div id="bars-container" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px;">
+        <div id="bars-container" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px;"
+             data-barras-url="{% url 'bar_state' %}?scope=character&amp;pk={{ character.pk }}">
             {% for bar in character.bars.all %}
-                {% include "hud/_barra_da_ficha.html" with bar=bar fn_mod="modifyBar" fn_del="deleteBar" pode_editar=True pode_apagar=is_master %}
+                {% include "hud/_barra_da_ficha.html" with bar=bar tipo="character" fn_mod="modifyBar" fn_del="deleteBar" pode_editar=True pode_apagar=is_master %}
             {% endfor %}
         </div>
         
@@ -400,15 +401,10 @@
         })
         .then(response => response.json())
         .then(data => {
+            // Quem pinta e o bars.js: a mesma barra pode estar em mais de um
+            // lugar da pagina, e o valor que manda e o que o servidor gravou.
             if (data.success) {
-                const barEl = document.querySelector(`[data-bar-id="${barId}"]`);
-                const display = barEl.querySelector('.bar-display');
-                const fill = barEl.querySelector('.bar-fill');
-                const maxValue = parseInt(display.textContent.split(' / ')[1]);
-                const percentage = (data.current / maxValue) * 100;
-                
-                display.textContent = `${data.current} / ${maxValue}`;
-                fill.style.width = `${percentage}%`;
+                window.hudBarras.aplicarUm('character', barId, data.current);
             } else {
                 alert(data.error || 'Erro ao modificar');
             }

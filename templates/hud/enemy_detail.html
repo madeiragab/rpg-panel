@@ -74,9 +74,10 @@
         </div>
 
         {% if is_master %}{% url 'update_enemy_framing' enemy.pk as url_enquadrar %}{% endif %}
-        <div id="bars-container" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px;">
+        <div id="bars-container" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px;"
+             data-barras-url="{% url 'bar_state' %}?scope=enemy&amp;pk={{ enemy.pk }}">
             {% for bar in enemy.bars.all %}
-                {% include "hud/_barra_da_ficha.html" with bar=bar fn_mod="modifyEnemyBar" fn_del="deleteEnemyBar" pode_editar=is_master pode_apagar=is_master %}
+                {% include "hud/_barra_da_ficha.html" with bar=bar tipo="enemy" fn_mod="modifyEnemyBar" fn_del="deleteEnemyBar" pode_editar=is_master pode_apagar=is_master %}
             {% empty %}
                 <span class="muted" data-vazio>Sem barras cadastradas.</span>
             {% endfor %}
@@ -202,16 +203,7 @@ function modifyEnemyBar(barId, action) {
     })
     .then(response => response.json())
     .then(data => {
-        if (data.success) {
-            const barElement = document.querySelector(`[data-bar-id="${barId}"]`);
-            if (barElement) {
-                const display = barElement.querySelector('.bar-display');
-                const fill = barElement.querySelector('.bar-fill');
-                const maxValue = parseInt(display.getAttribute('data-max')) || 100;
-                display.textContent = `${data.current} / ${maxValue}`;
-                fill.style.width = `${(data.current / maxValue) * 100}%`;
-            }
-        }
+        if (data.success) window.hudBarras.aplicarUm('enemy', barId, data.current);
     })
     .catch(error => console.error('Erro:', error));
 }

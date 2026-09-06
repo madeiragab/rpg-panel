@@ -11,12 +11,7 @@
        O card tem o proprio enquadramento: a moldura da ficha e alta e a
        daqui e larga e baixa, e um corte so nunca serve para as duas.
     {% endcomment %}
-    <div class="character-card-image{% if not npc.image %} empty{% endif %}" data-portrait-frame
-         data-zoom="{{ npc.card_zoom }}"
-         data-focus-x="{{ npc.card_focus_x|unlocalize }}"
-         data-focus-y="{{ npc.card_focus_y|unlocalize }}">
-        {% if npc.image %}<img src="{{ npc.image.url }}" alt="{{ npc.name }}">{% endif %}
-    </div>
+    {% include "hud/_retrato_do_card.html" with retrato=npc imagem=npc.image alt=npc.name classe="character-card-image" %}
     <div class="character-card-info">
         <h3>
             {{ npc.name }}

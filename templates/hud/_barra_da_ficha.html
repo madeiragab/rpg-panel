@@ -3,9 +3,13 @@
    personagem, NPC e inimigo têm três conjuntos de rotas, e é só nisso que as
    três barras diferem.
 
-   Parâmetros: bar, fn_mod, fn_del, pode_editar, pode_apagar.
+   O `tipo` é o que deixa o valor viajar: a mesma barra aparece na ficha e
+   na peça do quadro, e o id sozinho não distingue a barra 3 de um
+   personagem da barra 3 de um inimigo.
+
+   Parâmetros: bar, tipo, fn_mod, fn_del, pode_editar, pode_apagar.
 {% endcomment %}
-<div class="character-bar" data-bar-id="{{ bar.id }}" style="display: flex; align-items: center; gap: 12px;">
+<div class="character-bar" data-bar-kind="{{ tipo }}" data-bar-id="{{ bar.id }}" style="display: flex; align-items: center; gap: 12px;">
     <span style="font-weight: 600; min-width: 80px; color: var(--text);">{{ bar.name }}</span>
     {% if pode_editar %}
         <button class="hud-button ghost" onclick="{{ fn_mod }}({{ bar.id }}, 'decrease')" style="padding: 4px 8px; font-size: 16px;">−</button>
