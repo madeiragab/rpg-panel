@@ -106,4 +106,60 @@
         .catch(() => {});
     });
   });
+
+  /* -------------------------------------------------------------- post-it -- */
+
+  /* O texto salva sozinho: post-it com botão "salvar" não é post-it. A espera
+     evita um POST por tecla, e o blur fecha a conta na hora de sair — quem
+     escreve e troca de aba não pode perder o que digitou. */
+  quadro.querySelectorAll('.post-it-texto').forEach((campo) => {
+    let agendado = null;
+
+    function guardar() {
+      clearTimeout(agendado);
+      const corpo = new URLSearchParams();
+      corpo.append('text', campo.value);
+      fetch(campo.dataset.salvarUrl, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrf(), 'X-Requested-With': 'XMLHttpRequest' },
+        body: corpo,
+      })
+        .then(() => campo.classList.remove('sujo'))
+        .catch(() => {});
+    }
+
+    campo.addEventListener('input', () => {
+      campo.classList.add('sujo');
+      clearTimeout(agendado);
+      agendado = setTimeout(guardar, 700);
+    });
+    campo.addEventListener('blur', () => {
+      if (campo.classList.contains('sujo')) guardar();
+    });
+  });
+
+  /* ------------------------------------------------- enquadrar a polaroid -- */
+
+  /* A foto ocupa quase toda a polaroid. Se a moldura fosse sempre arrastável
+     não sobraria onde pegar para mover a peça, então o enquadramento entra e
+     sai por botão: ligado, a moldura ganha o data-save-url e o portrait.js
+     passa a tratá-la como editor. */
+  quadro.querySelectorAll('[data-enquadrar]').forEach((botao) => {
+    const peca = botao.closest('.peca');
+    const moldura = peca && peca.querySelector('[data-portrait-frame]');
+    if (!moldura) return;
+
+    botao.addEventListener('click', () => {
+      const ligando = !moldura.dataset.saveUrl;
+      if (ligando) {
+        moldura.dataset.saveUrl = botao.dataset.enquadrar;
+      } else {
+        delete moldura.dataset.saveUrl;
+      }
+      peca.classList.toggle('enquadrando', ligando);
+      botao.classList.toggle('ligado', ligando);
+      botao.title = ligando ? 'Terminar o enquadramento' : 'Ajustar o pedaço da foto que aparece';
+      if (window.hudPortrait) window.hudPortrait.preparar(moldura);
+    });
+  });
 })();

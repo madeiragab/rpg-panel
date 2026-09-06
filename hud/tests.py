@@ -37,6 +37,7 @@ from hud.models import (
     NPC,
     PasswordResetToken,
     Polaroid,
+    StickyNote,
     UserProfile,
 )
 
@@ -1616,3 +1617,148 @@ class PassoDaBarraTests(TestCase):
 
         self.barra.refresh_from_db()
         self.assertEqual(self.barra.current, 19)
+
+
+@SEM_REDIRECT_HTTPS
+@SEM_MANIFESTO
+class PostItDoQuadroTests(TestCase):
+    """O post-it nasce vazio e e escrito no lugar."""
+
+    def setUp(self):
+        self.mestre = make_user('mestre')
+        self.jogador = make_user('jogador')
+        self.campanha = Campaign.objects.create(name='Ossos', master=self.mestre)
+        self.campanha.players.add(self.jogador)
+
+    def test_mestre_prega_post_it_vazio(self):
+        """Sem formulario: o caminho entre lembrar e escrever e um clique."""
+        self.client.force_login(self.mestre)
+
+        self.client.post(reverse('create_sticky_note', args=[self.campanha.pk]))
+
+        recado = self.campanha.notes.get()
+        self.assertEqual(recado.text, '')
+        self.assertIn(recado.color, StickyNote.CORES)
+
+    def test_a_cor_gira_em_vez_de_sortear(self):
+        self.client.force_login(self.mestre)
+
+        for _ in range(3):
+            self.client.post(reverse('create_sticky_note', args=[self.campanha.pk]))
+
+        cores = list(self.campanha.notes.values_list('color', flat=True))
+        self.assertEqual(cores, StickyNote.CORES[:3])
+
+    def test_jogador_nao_prega_post_it(self):
+        self.client.force_login(self.jogador)
+
+        resposta = self.client.post(
+            reverse('create_sticky_note', args=[self.campanha.pk])
+        )
+
+        self.assertEqual(resposta.status_code, 403)
+        self.assertEqual(self.campanha.notes.count(), 0)
+
+    def test_mestre_escreve_no_post_it(self):
+        recado = StickyNote.objects.create(campaign=self.campanha)
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.post(
+            reverse('update_sticky_note', args=[recado.pk]),
+            {'text': 'A senha do portao e "cinza"'},
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        recado.refresh_from_db()
+        self.assertEqual(recado.text, 'A senha do portao e "cinza"')
+
+    def test_apagar_o_texto_deixa_o_post_it_vazio(self):
+        recado = StickyNote.objects.create(campaign=self.campanha, text='algo')
+        self.client.force_login(self.mestre)
+
+        self.client.post(reverse('update_sticky_note', args=[recado.pk]), {'text': ''})
+
+        recado.refresh_from_db()
+        self.assertEqual(recado.text, '')
+
+    def test_jogador_nao_escreve_no_post_it(self):
+        recado = StickyNote.objects.create(campaign=self.campanha, text='segredo')
+        self.client.force_login(self.jogador)
+
+        resposta = self.client.post(
+            reverse('update_sticky_note', args=[recado.pk]), {'text': 'invadido'}
+        )
+
+        self.assertEqual(resposta.status_code, 403)
+        recado.refresh_from_db()
+        self.assertEqual(recado.text, 'segredo')
+
+    def test_texto_gigante_e_cortado_no_limite(self):
+        recado = StickyNote.objects.create(
+            campaign=self.campanha, text='x' * (StickyNote.LIMITE_DO_TEXTO + 200)
+        )
+
+        self.assertEqual(len(recado.text), StickyNote.LIMITE_DO_TEXTO)
+
+    def test_cor_de_fora_da_lista_volta_para_a_primeira(self):
+        recado = StickyNote.objects.create(campaign=self.campanha, color='#000000')
+
+        self.assertEqual(recado.color, StickyNote.CORES[0])
+
+    def test_inclinacao_fica_na_faixa(self):
+        recado = StickyNote.objects.create(campaign=self.campanha, tilt=-90)
+
+        self.assertEqual(recado.tilt, -StickyNote.INCLINACAO_MAXIMA)
+
+    def test_post_it_tambem_se_arrasta(self):
+        recado = StickyNote.objects.create(campaign=self.campanha)
+        self.client.force_login(self.mestre)
+
+        self.client.post(
+            reverse('move_board_piece', args=[self.campanha.pk]),
+            {'kind': 'note', 'id': recado.pk, 'x': '0.3', 'y': '0.7'},
+        )
+
+        recado.refresh_from_db()
+        self.assertAlmostEqual(recado.board_x, 0.3)
+
+    def test_mestre_tira_o_post_it_do_quadro(self):
+        recado = StickyNote.objects.create(campaign=self.campanha)
+        self.client.force_login(self.mestre)
+
+        self.client.post(reverse('delete_sticky_note', args=[recado.pk]))
+
+        self.assertEqual(self.campanha.notes.count(), 0)
+
+    def test_jogador_nao_tira_o_post_it(self):
+        recado = StickyNote.objects.create(campaign=self.campanha)
+        self.client.force_login(self.jogador)
+
+        resposta = self.client.post(reverse('delete_sticky_note', args=[recado.pk]))
+
+        self.assertEqual(resposta.status_code, 403)
+        self.assertEqual(self.campanha.notes.count(), 1)
+
+    def test_get_e_recusado(self):
+        recado = StickyNote.objects.create(campaign=self.campanha)
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.get(reverse('update_sticky_note', args=[recado.pk]))
+
+        self.assertEqual(resposta.status_code, 405)
+
+    def test_o_post_it_aparece_no_quadro_do_mestre(self):
+        StickyNote.objects.create(campaign=self.campanha, text='O ladrao mentiu')
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.get(reverse('campaign_detail', args=[self.campanha.pk]))
+
+        self.assertContains(resposta, 'O ladrao mentiu')
+
+    def test_o_jogador_nao_recebe_os_post_its(self):
+        StickyNote.objects.create(campaign=self.campanha, text='O ladrao mentiu')
+        self.client.force_login(self.jogador)
+
+        resposta = self.client.get(reverse('campaign_detail', args=[self.campanha.pk]))
+
+        self.assertNotContains(resposta, 'O ladrao mentiu')

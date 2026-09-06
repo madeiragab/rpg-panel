@@ -141,6 +141,14 @@ thief left behind. It has an image (framed like the sheets), a caption, and
 rather than in a CSS `random` because a board that reshuffles its angles on
 every reload is tiring to look at.
 
+`StickyNote` is the post-it: text only, written in place. It is born empty, with
+no form — a post-it exists for whatever the master remembered mid-session and
+does not want to lose, and the path from remembering to writing has to be one
+click. The text saves itself (700 ms debounce, plus on `blur`); it keeps a
+`color` (one of four from a list, cycled on creation rather than drawn at
+random, because two identical ones in a row read as a bug) and a `tilt` between
+−6 and 6.
+
 The board belongs to the master and shows everything on the table, hidden
 pieces included: filtering by `visible` there would hide from him what he
 himself has not revealed yet. Each piece carries a badge saying whether the

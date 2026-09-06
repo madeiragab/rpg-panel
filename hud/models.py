@@ -499,6 +499,52 @@ class Polaroid(RetratoEnquadrado, PecaDoQuadro):
         return super().save(*args, **kwargs)
 
 
+class StickyNote(PecaDoQuadro):
+    """Um post-it no quadro: só texto, escrito na hora.
+
+    A polaroid guarda uma imagem; este guarda o que o mestre lembrou no meio da
+    sessão e não quer perder — a senha do portão, quem traiu quem, o que o NPC
+    prometeu. Por isso nasce vazio e é editado no lugar, sem formulário: o
+    caminho entre lembrar e escrever tem que ser um clique.
+
+    A cor e a inclinação ficam no banco pelo mesmo motivo da polaroid: um
+    quadro que embaralha os dois a cada F5 cansa de olhar.
+    """
+
+    INCLINACAO_MAXIMA = 6
+    LIMITE_DO_TEXTO = 500
+    CORES = ["#f2e06a", "#f3a6b8", "#a8dfa0", "#9fd2f0"]
+
+    campaign = models.ForeignKey(
+        Campaign, on_delete=models.CASCADE, related_name="notes"
+    )
+    text = models.TextField(blank=True, max_length=LIMITE_DO_TEXTO)
+    color = models.CharField(max_length=20, default=CORES[0])
+    tilt = models.SmallIntegerField(default=0)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="notes",
+        null=True,
+        blank=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+
+    def __str__(self) -> str:  # pragma: no cover - simple display
+        return (self.text[:40] or f"Post-it {self.pk}")
+
+    def save(self, *args, **kwargs):  # type: ignore[override]
+        self.clamp_board()
+        self.text = (self.text or "")[: self.LIMITE_DO_TEXTO]
+        if self.color not in self.CORES:
+            self.color = self.CORES[0]
+        self.tilt = min(max(int(self.tilt or 0), -self.INCLINACAO_MAXIMA), self.INCLINACAO_MAXIMA)
+        return super().save(*args, **kwargs)
+
+
 class Item(RetratoEnquadrado):
     campaign = models.ForeignKey(
         Campaign,

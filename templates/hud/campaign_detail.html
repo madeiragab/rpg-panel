@@ -279,7 +279,17 @@
         <div class="tab-content" id="board-tab" style="display: none;">
             <div class="panel-header">
                 <h2 class="panel-title">Quadro da Campanha</h2>
-                <button id="toggle-create-polaroid" class="hud-button" title="Pregar uma polaroid">+</button>
+                <div class="seletor-de-peca">
+                    <button id="toggle-pregar" class="hud-button" title="Pregar algo no quadro"
+                            aria-expanded="false" aria-controls="menu-pregar">+</button>
+                    <div class="seletor-menu" id="menu-pregar" hidden>
+                        <button type="button" class="hud-button ghost" data-pregar="polaroid">📷 Polaroid</button>
+                        <form method="post" action="{% url 'create_sticky_note' campaign.pk %}">
+                            {% csrf_token %}
+                            <button type="submit" class="hud-button ghost">🗒️ Post-it</button>
+                        </form>
+                    </div>
+                </div>
             </div>
             <p class="muted" style="margin: 0 0 10px;">
                 Arraste as peças para arrumar a sessão. A posição fica salva.
@@ -354,18 +364,47 @@
                 {% for peca in polaroids %}
                     <div class="peca polaroid" data-kind="polaroid" data-id="{{ peca.pk }}"
                          style="left: {{ peca.quadro_x|porcento }}%; top: {{ peca.quadro_y|porcento }}%; --inclinacao: {{ peca.tilt }}deg;">
+                        {% comment %}
+                           O enquadramento entra por botão: a foto ocupa quase toda a
+                           polaroid, e uma moldura sempre arrastável não deixaria sobrar
+                           onde pegar para mover a peça.
+                        {% endcomment %}
                         {% url 'update_polaroid_framing' peca.pk as url_enquadrar %}
-                        {% include "hud/_retrato.html" with retrato=peca imagem=peca.image alt=peca.caption classe="quadrado largura-cheia" url_salvar=url_enquadrar dica="" %}
+                        {% include "hud/_retrato.html" with retrato=peca imagem=peca.image alt=peca.caption classe="quadrado largura-cheia" url_salvar="" dica="" %}
                         <div class="polaroid-legenda">{{ peca.caption|default:"—" }}</div>
-                        <form method="post" action="{% url 'delete_polaroid' peca.pk %}" onsubmit="return confirm('Tirar esta polaroid do quadro?');">
-                            {% csrf_token %}
-                            <button type="submit" class="hud-button danger" title="Tirar do quadro">×</button>
-                        </form>
+                        <div class="polaroid-acoes">
+                            {% if peca.image %}
+                                <button type="button" class="hud-button ghost" data-enquadrar="{{ url_enquadrar }}"
+                                        title="Ajustar o pedaço da foto que aparece">✥</button>
+                            {% endif %}
+                            <form method="post" action="{% url 'delete_polaroid' peca.pk %}" onsubmit="return confirm('Tirar esta polaroid do quadro?');">
+                                {% csrf_token %}
+                                <button type="submit" class="hud-button danger" title="Tirar do quadro">×</button>
+                            </form>
+                        </div>
+                    </div>
+
+                {% endfor %}
+
+                {% for peca in notes %}
+                    <div class="peca post-it" data-kind="note" data-id="{{ peca.pk }}"
+                         style="left: {{ peca.quadro_x|porcento }}%; top: {{ peca.quadro_y|porcento }}%; --inclinacao: {{ peca.tilt }}deg; --cor-do-papel: {{ peca.color }};">
+                        <div class="post-it-pegador" title="Arraste para mover">
+                            <span>✥</span>
+                            <form method="post" action="{% url 'delete_sticky_note' peca.pk %}" onsubmit="return confirm('Tirar este post-it do quadro?');">
+                                {% csrf_token %}
+                                <button type="submit" title="Tirar do quadro">×</button>
+                            </form>
+                        </div>
+                        <textarea class="post-it-texto" maxlength="500"
+                                  data-salvar-url="{% url 'update_sticky_note' peca.pk %}"
+                                  placeholder="Clique e escreva…"
+                                  aria-label="Texto do post-it">{{ peca.text }}</textarea>
                     </div>
                 {% empty %}
                 {% endfor %}
 
-                {% if not characters and not npcs and not enemies and not polaroids %}
+                {% if not characters and not npcs and not enemies and not polaroids and not notes %}
                     <p class="muted quadro-vazio">Quadro vazio. Crie personagens, NPCs ou inimigos — ou pregue uma polaroid.</p>
                 {% endif %}
             </div>
@@ -479,6 +518,10 @@ document.querySelectorAll('.tab-button').forEach(button => {
         document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
         this.classList.add('active');
         document.getElementById(tabName + '-tab').style.display = 'block';
+        // Moldura em aba escondida tem largura zero, e o portrait.js nao
+        // consegue posicionar nada com isso. Agora que a aba abriu, elas
+        // ganham a medida de verdade e se recolocam.
+        if (window.hudPortrait) window.hudPortrait.prepararTodas();
     });
 });
 
@@ -541,11 +584,27 @@ if (toggleNPC) {
         createNPC.style.display = createNPC.style.display === 'none' ? 'block' : 'none';
     });
 }
-const togglePolaroid = document.getElementById('toggle-create-polaroid');
+const togglePregar = document.getElementById('toggle-pregar');
+const menuPregar = document.getElementById('menu-pregar');
 const createPolaroid = document.getElementById('create-polaroid');
-if (togglePolaroid) {
-    togglePolaroid.addEventListener('click', () => {
-        createPolaroid.style.display = createPolaroid.style.display === 'none' ? 'block' : 'none';
+if (togglePregar && menuPregar) {
+    togglePregar.addEventListener('click', () => {
+        menuPregar.hidden = !menuPregar.hidden;
+        togglePregar.setAttribute('aria-expanded', String(!menuPregar.hidden));
+    });
+    const escolhaPolaroid = menuPregar.querySelector('[data-pregar="polaroid"]');
+    if (escolhaPolaroid) {
+        escolhaPolaroid.addEventListener('click', () => {
+            createPolaroid.style.display = 'block';
+            menuPregar.hidden = true;
+            togglePregar.setAttribute('aria-expanded', 'false');
+        });
+    }
+    document.addEventListener('click', (e) => {
+        if (!menuPregar.hidden && !e.target.closest('.seletor-de-peca')) {
+            menuPregar.hidden = true;
+            togglePregar.setAttribute('aria-expanded', 'false');
+        }
     });
 }
 const toggleEnemy = document.getElementById('toggle-create-enemy');

@@ -1263,3 +1263,84 @@ a:hover { color: var(--accent-soft); }
     .peca { width: 160px; }
     .peca.polaroid { width: 130px; }
 }
+
+/* Seletor do que pregar no quadro: o "+" abre a lista em vez de já assumir
+   que é polaroid. */
+.seletor-de-peca { position: relative; }
+.seletor-menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 6px);
+    z-index: 40;
+    display: grid;
+    gap: 6px;
+    padding: 8px;
+    min-width: 160px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: rgba(16, 11, 12, 0.98);
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.6);
+}
+.seletor-menu .hud-button { width: 100%; text-align: left; }
+.seletor-menu form { margin: 0; }
+
+/* O post-it é escrito no lugar: o textarea É o papel, sem botão de salvar. */
+.peca.post-it {
+    width: 180px;
+    padding: 0;
+    border: none;
+    border-radius: 2px;
+    background: var(--cor-do-papel, #f2e06a);
+    transform: translate(-50%, -50%) rotate(var(--inclinacao, 0deg));
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.5);
+}
+.peca.post-it.arrastando { transform: translate(-50%, -50%) rotate(0deg) scale(1.03); }
+
+.post-it-pegador {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 3px 6px;
+    font-size: 0.72rem;
+    color: rgba(0, 0, 0, 0.45);
+    background: rgba(0, 0, 0, 0.07);
+    cursor: grab;
+}
+.peca.post-it.arrastando .post-it-pegador { cursor: grabbing; }
+.post-it-pegador form { margin: 0; }
+.post-it-pegador button {
+    padding: 0 4px;
+    font-size: 0.85rem;
+    line-height: 1;
+    color: rgba(0, 0, 0, 0.45);
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+.post-it-pegador button:hover { color: #7a0a12; }
+
+.post-it-texto {
+    display: block;
+    width: 100%;
+    min-height: 118px;
+    padding: 8px 10px 10px;
+    box-sizing: border-box;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 0.82rem;
+    line-height: 1.35;
+    color: #2b2422;
+    background: transparent;
+    border: none;
+    outline: none;
+    resize: vertical;
+}
+.post-it-texto::placeholder { color: rgba(0, 0, 0, 0.35); }
+/* Enquanto o texto não chegou no servidor, a beirada avisa. */
+.post-it-texto.sujo { box-shadow: inset 3px 0 0 rgba(0, 0, 0, 0.3); }
+
+.polaroid-acoes { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.polaroid-acoes form { margin: 0; }
+.polaroid-acoes .hud-button { padding: 2px 8px; font-size: 0.7rem; }
+.polaroid-acoes .hud-button.ghost { color: #4a4038; border-color: #cdc3b6; }
+.polaroid-acoes .hud-button.ghost.ligado { color: #fff5f5; background: var(--accent); border-color: var(--accent); }
+.peca.polaroid.enquadrando { outline: 2px dashed var(--accent); outline-offset: 3px; }

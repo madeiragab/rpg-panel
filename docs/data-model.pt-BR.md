@@ -101,6 +101,8 @@ A posição vem da classe abstrata `PecaDoQuadro` (`board_x`, `board_y`), herdad
 
 `Polaroid` é a peça que não é ficha de ninguém: o mapa da masmorra, o bilhete que o ladrão deixou. Tem imagem (com o mesmo enquadramento das fichas), legenda e `tilt` — a inclinação em graus, entre −8 e 8. Ela fica no banco em vez de sair de um `random` no CSS porque um quadro que embaralha os ângulos a cada F5 cansa de olhar.
 
+`StickyNote` é o post-it: só texto, escrito no lugar. Nasce vazio, sem formulário — o post-it existe para o que o mestre lembrou no meio da sessão e não quer perder, e o caminho entre lembrar e escrever tem que ser um clique. O texto salva sozinho (espera de 700 ms, e no `blur`); guarda `color` (uma das quatro da lista, girando na criação em vez de sorteada, porque duas seguidas iguais parecem bug) e `tilt` entre −6 e 6.
+
 O quadro é do mestre e mostra tudo da mesa, escondidos inclusive: filtrar por `visible` ali esconderia dele o que ele mesmo ainda não revelou. Cada peça leva um selo dizendo se a mesa a enxerga.
 
 Os botões de barra mandam `amount` junto de `action`, e os três endpoints (`modify_bar`, `modify_npc_bar`, `modify_enemy_bar`) andam esse tanto — com piso em 1, senão um `amount` negativo inverteria a ação e `decrease` curaria.

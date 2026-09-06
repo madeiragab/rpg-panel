@@ -53,6 +53,7 @@ from .models import (
     NPCInventorySlot,
     NPCSkill,
     Polaroid,
+    StickyNote,
     UserProfile,
 )
 
@@ -375,11 +376,14 @@ def campaign_detail(request: HttpRequest, pk: int) -> HttpResponse:
     # O jogador só enxerga o que o mestre revelou; o mestre vê todos.
     enemies = campaign.enemies.all() if is_master else campaign.enemies.filter(visible=True)
     polaroids = campaign.polaroids.all() if is_master else Polaroid.objects.none()
+    notes = campaign.notes.all() if is_master else StickyNote.objects.none()
     if is_master:
         # Uma peça que nunca foi arrastada entra na grade, e a grade é uma só
         # para todas: arrumar cada lista por conta empilharia as três no mesmo
         # canto do quadro.
-        _arrumar_no_quadro(list(characters) + list(npcs) + list(enemies) + list(polaroids))
+        _arrumar_no_quadro(
+            list(characters) + list(npcs) + list(enemies) + list(polaroids) + list(notes)
+        )
 
     return render(
         request,
@@ -397,6 +401,7 @@ def campaign_detail(request: HttpRequest, pk: int) -> HttpResponse:
             "npcs": npcs,
             "enemies": enemies,
             "polaroids": polaroids,
+            "notes": notes,
             "is_master": is_master,
             "players": players,
             "search_results": search_results,
@@ -774,6 +779,7 @@ TIPOS_DO_QUADRO = {
     "npc": NPC,
     "enemy": Enemy,
     "polaroid": Polaroid,
+    "note": StickyNote,
 }
 
 
@@ -804,6 +810,56 @@ def move_board_piece(request: HttpRequest, pk: int) -> JsonResponse:
     peca.board_y = min(max(y, 0.0), 1.0)
     peca.save(update_fields=["board_x", "board_y"])
     return JsonResponse({"success": True, "x": peca.board_x, "y": peca.board_y})
+
+
+@login_required
+@require_POST
+def create_sticky_note(request: HttpRequest, pk: int) -> HttpResponse:
+    """Prega um post-it vazio no quadro.
+
+    Sem formulário de propósito: o post-it existe para o que o mestre lembrou
+    no meio da sessão e não quer perder, e o caminho entre lembrar e escrever
+    tem que ser um clique. Ele nasce em branco e é escrito no lugar.
+    """
+    campaign = get_object_or_404(Campaign, pk=pk)
+    if campaign.master != request.user:
+        return HttpResponseForbidden("Sem permissão")
+
+    # A cor gira pela lista em vez de sortear: duas seguidas iguais parecem um
+    # bug, e o mestre normalmente prega os post-its em sequência.
+    cor = StickyNote.CORES[campaign.notes.count() % len(StickyNote.CORES)]
+    StickyNote.objects.create(
+        campaign=campaign,
+        created_by=request.user,
+        color=cor,
+        tilt=randint(-StickyNote.INCLINACAO_MAXIMA, StickyNote.INCLINACAO_MAXIMA),
+    )
+    return redirect("campaign_detail", pk=campaign.pk)
+
+
+@login_required
+@require_POST
+def update_sticky_note(request: HttpRequest, pk: int) -> JsonResponse:
+    """Guarda o texto do post-it, do jeito que estava quando pararam de digitar."""
+    note = get_object_or_404(StickyNote, pk=pk)
+    if note.campaign.master != request.user:
+        return JsonResponse({"error": "Sem permissão"}, status=403)
+
+    note.text = request.POST.get("text", "")
+    note.save(update_fields=["text"])
+    return JsonResponse({"success": True, "text": note.text})
+
+
+@login_required
+@require_POST
+def delete_sticky_note(request: HttpRequest, pk: int) -> HttpResponse:
+    note = get_object_or_404(StickyNote, pk=pk)
+    if note.campaign.master != request.user:
+        return HttpResponseForbidden("Sem permissão")
+    campaign_id = note.campaign_id
+    note.delete()
+    messages.success(request, "Post-it tirado do quadro.")
+    return redirect("campaign_detail", pk=campaign_id)
 
 
 @login_required
