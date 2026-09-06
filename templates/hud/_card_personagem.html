@@ -35,7 +35,13 @@
             <p class="muted">Atribuído a: Ninguém</p>
         {% endif %}
         <div class="list-inline">
-            <a href="{% url 'character_detail' character.pk %}{% if not is_master %}?mode=player{% endif %}" class="hud-button">Ver</a>
+            {% comment %}
+               Ficha alheia é do dono e do mestre: sem esta guarda o botão
+               existia para todo mundo e levava a um 403.
+            {% endcomment %}
+            {% if is_master or character.assigned_to == user %}
+                <a href="{% url 'character_detail' character.pk %}{% if not is_master %}?mode=player{% endif %}" class="hud-button">Ver</a>
+            {% endif %}
             {% if is_master %}
             <form method="post" action="{% url 'delete_character' character.pk %}" data-ajax data-remover="[data-card]"
                   data-confirmar="Tem certeza que deseja deletar este personagem?">

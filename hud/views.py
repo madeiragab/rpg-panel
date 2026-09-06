@@ -700,8 +700,10 @@ def character_detail(request: HttpRequest, pk: int) -> HttpResponse:
     if campaign:
         # Se há campanha, só mestre da campanha consegue editar
         is_master = campaign.master == request.user
-        # Jogador vê se está vinculado ao personagem OU na campanha
-        is_player = request.user in campaign.players.all() or character.assigned_to == request.user
+        # O jogador abre a própria ficha, e só ela. Bastar estar na
+        # campanha abria a ficha de todo mundo — nome, vida, perícias e
+        # inventário dos outros — e ficha alheia é do dono e do mestre.
+        is_player = character.assigned_to == request.user
     else:
         # Fallback para modo legado (sem campanha)
         is_master = character.created_by == request.user
@@ -709,6 +711,9 @@ def character_detail(request: HttpRequest, pk: int) -> HttpResponse:
 
     # Se acessar com ?mode=player, força modo leitura mesmo sendo mestre
     if request.GET.get("mode") == "player":
+        # O mestre continua entrando: ele já vê tudo, e é assim que confere
+        # como a ficha chega para a mesa.
+        is_player = is_player or is_master
         is_master = False
 
     if not is_master and not is_player:
@@ -775,7 +780,16 @@ def character_detail(request: HttpRequest, pk: int) -> HttpResponse:
     character.ensure_slots()
     slots_list = list(InventorySlot.objects.filter(character=character).order_by("position"))
     items = Item.objects.filter(campaign=character.campaign) if character.campaign else Item.objects.none()
-    campaign_characters = character.campaign.characters.all() if character.campaign else []
+    # A barra do topo só oferece o que a pessoa consegue abrir: um link que
+    # leva a 403 é pior do que link nenhum.
+    if not character.campaign:
+        campaign_characters = []
+    elif is_master:
+        campaign_characters = character.campaign.characters.all()
+    else:
+        campaign_characters = character.campaign.characters.filter(
+            assigned_to=request.user
+        )
     
     # Buscar NPCs visíveis vinculados ao personagem do jogador
     visible_npcs = NPC.objects.none()

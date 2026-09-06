@@ -2600,3 +2600,131 @@ class DescricaoDoSlotTests(TestCase):
         ).content.decode()
 
         self.assertIn('data-item-description="Corta e envenena."', html)
+
+
+@SEM_REDIRECT_HTTPS
+@SEM_MANIFESTO
+class FichaEhDoDonoTests(TestCase):
+    """Ficha alheia e do dono e do mestre, e de mais ninguem.
+
+    Estar na campanha abria a ficha de todo mundo: nome, vida, pericias e
+    inventario dos outros jogadores.
+    """
+
+    def setUp(self):
+        self.mestre = make_user('mestre')
+        self.dono = make_user('dono')
+        self.outro = make_user('outro')
+        self.estranho = make_user('estranho')
+        self.campanha = Campaign.objects.create(name='Ossos', master=self.mestre)
+        self.campanha.players.add(self.mestre, self.dono, self.outro)
+        self.ficha = Character.objects.create(
+            name='Kai', created_by=self.mestre, campaign=self.campanha,
+            assigned_to=self.dono,
+        )
+
+    def _abrir(self, sufixo=''):
+        return self.client.get(
+            reverse('character_detail', args=[self.ficha.pk]) + sufixo
+        )
+
+    def test_o_dono_abre_a_propria_ficha(self):
+        self.client.force_login(self.dono)
+
+        resposta = self._abrir()
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertFalse(resposta.context['is_master'])
+
+    def test_outro_jogador_da_mesma_campanha_leva_403(self):
+        self.client.force_login(self.outro)
+
+        self.assertEqual(self._abrir().status_code, 403)
+
+    def test_quem_nem_e_da_campanha_leva_403(self):
+        self.client.force_login(self.estranho)
+
+        self.assertEqual(self._abrir().status_code, 403)
+
+    def test_o_mestre_abre_qualquer_ficha(self):
+        self.client.force_login(self.mestre)
+
+        resposta = self._abrir()
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertTrue(resposta.context['is_master'])
+
+    def test_o_mestre_espia_em_modo_leitura(self):
+        """E assim que ele confere como a ficha chega para a mesa."""
+        self.client.force_login(self.mestre)
+
+        resposta = self._abrir('?mode=player')
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertFalse(resposta.context['is_master'])
+
+    def test_mode_player_nao_abre_porta_para_outro_jogador(self):
+        """O sufixo nao pode virar a chave que faltava."""
+        self.client.force_login(self.outro)
+
+        self.assertEqual(self._abrir('?mode=player').status_code, 403)
+
+    def test_a_barra_do_topo_so_oferece_a_ficha_do_proprio_jogador(self):
+        Character.objects.create(
+            name='Alheia', created_by=self.mestre, campaign=self.campanha,
+            assigned_to=self.outro,
+        )
+        self.client.force_login(self.dono)
+
+        resposta = self._abrir()
+
+        nomes = [c.name for c in resposta.context['campaign_characters']]
+        self.assertEqual(nomes, ['Kai'])
+
+    def test_o_mestre_ve_todas_na_barra_do_topo(self):
+        Character.objects.create(
+            name='Alheia', created_by=self.mestre, campaign=self.campanha,
+            assigned_to=self.outro,
+        )
+        self.client.force_login(self.mestre)
+
+        nomes = [c.name for c in self._abrir().context['campaign_characters']]
+
+        self.assertIn('Kai', nomes)
+        self.assertIn('Alheia', nomes)
+
+    def test_a_lista_da_campanha_nao_oferece_o_botao_de_ficha_alheia(self):
+        """Um botao que leva a 403 e pior do que botao nenhum."""
+        self.client.force_login(self.outro)
+
+        html = self.client.get(
+            reverse('campaign_detail', args=[self.campanha.pk])
+        ).content.decode()
+
+        self.assertNotIn(f"/characters/{self.ficha.pk}/?mode=player", html)
+
+    def test_o_npc_vinculado_a_ficha_do_jogador_continua_abrindo(self):
+        npc = NPC.objects.create(
+            name='Vulto', created_by=self.mestre, campaign=self.campanha,
+            assigned_to_character=self.ficha, visible=True,
+        )
+        self.client.force_login(self.dono)
+
+        resposta = self.client.get(reverse('npc_detail', args=[npc.pk]))
+
+        self.assertEqual(resposta.status_code, 200)
+
+    def test_o_npc_do_personagem_alheio_nao_abre(self):
+        alheia = Character.objects.create(
+            name='Alheia', created_by=self.mestre, campaign=self.campanha,
+            assigned_to=self.outro,
+        )
+        npc = NPC.objects.create(
+            name='Sombra', created_by=self.mestre, campaign=self.campanha,
+            assigned_to_character=alheia, visible=True,
+        )
+        self.client.force_login(self.dono)
+
+        resposta = self.client.get(reverse('npc_detail', args=[npc.pk]))
+
+        self.assertEqual(resposta.status_code, 403)
