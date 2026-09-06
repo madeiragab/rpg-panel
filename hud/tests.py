@@ -12,6 +12,10 @@ por um motivo que não tem nada a ver com a regra sendo testada.
 """
 
 import base64
+import json
+from io import BytesIO
+
+from PIL import Image
 
 from django.contrib.auth import get_user_model
 from django.core import mail
@@ -23,6 +27,7 @@ from django.urls import reverse
 
 from hud.forms import (
     CharacterForm,
+    encolher_imagem,
     ProfileEditForm,
     RegistrationForm,
     ResetPasswordForm,
@@ -2126,3 +2131,232 @@ class LinhasDaFichaTests(TestCase):
 
         self.assertContains(do_mestre, 'id="alternar-edicao"')
         self.assertNotContains(do_jogador, 'id="alternar-edicao"')
+
+
+class ImagemQueEncolheTests(TestCase):
+    """A resolucao se resolve encolhendo, nao recusando — e sem achatar o alfa."""
+
+    def _png(self, largura, altura, com_alfa=True):
+        imagem = Image.new(
+            'RGBA' if com_alfa else 'RGB',
+            (largura, altura),
+            (10, 20, 30, 0) if com_alfa else (10, 20, 30),
+        )
+        memoria = BytesIO()
+        imagem.save(memoria, format='PNG')
+        return SimpleUploadedFile('arte.png', memoria.getvalue(), content_type='image/png')
+
+    def _abrir(self, arquivo):
+        arquivo.seek(0)
+        return Image.open(BytesIO(arquivo.read()))
+
+    def test_imagem_grande_encolhe_ate_o_teto(self):
+        grande = self._png(4000, 2000)
+
+        menor = encolher_imagem(grande, 1600)
+
+        self.assertIsNotNone(menor)
+        self.assertEqual(max(self._abrir(menor).size), 1600)
+
+    def test_imagem_que_ja_cabia_nao_e_reescrita(self):
+        """Sem reescrever, o arquivo original chega intacto do outro lado."""
+        pequena = self._png(300, 400)
+
+        self.assertIsNone(encolher_imagem(pequena, 1600))
+
+    def test_fundo_transparente_continua_transparente(self):
+        """Converter para RGB encheria de preto todo desenho recortado."""
+        recortada = self._png(3000, 3000, com_alfa=True)
+
+        menor = encolher_imagem(recortada, 800)
+
+        aberta = self._abrir(menor)
+        self.assertEqual(aberta.format, 'PNG')
+        self.assertIn('A', aberta.getbands())
+        self.assertEqual(aberta.getpixel((0, 0))[3], 0)
+
+    def test_gif_nao_e_mexido(self):
+        """Um resize ingenuo reabriria so o primeiro quadro e mataria a animacao."""
+        gif = SimpleUploadedFile('bicho.gif', RetratoDaFichaTests.GIF, content_type='image/gif')
+
+        self.assertIsNone(encolher_imagem(gif, 8))
+
+    def test_o_formulario_encolhe_no_caminho(self):
+        mestre = make_user('mestre')
+        jogador = make_user('jogador')
+        campanha = Campaign.objects.create(name='Ossos', master=mestre)
+        campanha.players.add(jogador)
+        personagem = Character.objects.create(
+            name='Kai', created_by=mestre, campaign=campanha, assigned_to=jogador
+        )
+
+        form = CharacterForm(
+            {
+                'character-name': 'Kai',
+                'character-inventory_capacity': '16',
+                'character-assigned_to': str(jogador.pk),
+            },
+            {'character-image': self._png(3000, 3000)},
+            instance=personagem,
+            prefix='character',
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(max(self._abrir(form.cleaned_data['image']).size), 1600)
+
+
+@SEM_REDIRECT_HTTPS
+class HabilidadeComCamposTests(TestCase):
+    """Dano e campo proprio; o resto e uma lista de pares na ordem da pessoa."""
+
+    def setUp(self):
+        self.mestre = make_user('mestre')
+        self.jogador = make_user('jogador')
+        self.campanha = Campaign.objects.create(name='Ossos', master=self.mestre)
+        self.campanha.players.add(self.jogador)
+        self.personagem = Character.objects.create(
+            name='Kai', created_by=self.mestre, campaign=self.campanha,
+            assigned_to=self.jogador,
+        )
+        self.habilidade = CharacterAbility.objects.create(
+            character=self.personagem, name='Golpe duplo'
+        )
+        self.client.force_login(self.mestre)
+
+    def _salvar(self, **extra):
+        return self.client.post(
+            reverse('update_sheet_line', args=['character-ability', self.habilidade.pk]),
+            {'name': 'Golpe duplo', **extra},
+        )
+
+    def test_dano_e_guardado(self):
+        self._salvar(damage='2d6+3')
+
+        self.habilidade.refresh_from_db()
+        self.assertEqual(self.habilidade.damage, '2d6+3')
+
+    def test_campos_extras_guardam_a_ordem(self):
+        self._salvar(
+            damage='2d6',
+            extras=json.dumps([['alcance', '9m'], ['custo', '2 PM']]),
+        )
+
+        self.habilidade.refresh_from_db()
+        self.assertEqual(
+            self.habilidade.extras, [['alcance', '9m'], ['custo', '2 PM']]
+        )
+
+    def test_par_torto_e_descartado_em_vez_de_derrubar(self):
+        self._salvar(extras=json.dumps([['ok', '1'], 'lixo', ['', 'sem rotulo'], [1, 2]]))
+
+        self.habilidade.refresh_from_db()
+        self.assertEqual(self.habilidade.extras, [['ok', '1'], ['1', '2']])
+
+    def test_ha_um_teto_de_campos(self):
+        muitos = [[f'c{i}', str(i)] for i in range(40)]
+        self._salvar(extras=json.dumps(muitos))
+
+        self.habilidade.refresh_from_db()
+        self.assertEqual(
+            len(self.habilidade.extras), CharacterAbility.LIMITE_DE_CAMPOS
+        )
+
+    def test_json_quebrado_e_400(self):
+        resposta = self._salvar(extras='{isso nao e json')
+
+        self.assertEqual(resposta.status_code, 400)
+
+    def test_a_resposta_devolve_o_que_ficou(self):
+        dados = self._salvar(damage='1d8', extras=json.dumps([['tipo', 'fogo']])).json()
+
+        self.assertEqual(dados['damage'], '1d8')
+        self.assertEqual(dados['extras'], [['tipo', 'fogo']])
+
+
+@SEM_REDIRECT_HTTPS
+class OrdemDosAtributosTests(TestCase):
+    """Vai a lista inteira na ordem em que ficou, e nao 'essa subiu uma'."""
+
+    def setUp(self):
+        self.mestre = make_user('mestre')
+        self.jogador = make_user('jogador')
+        self.campanha = Campaign.objects.create(name='Ossos', master=self.mestre)
+        self.campanha.players.add(self.jogador)
+        self.personagem = Character.objects.create(
+            name='Kai', created_by=self.mestre, campaign=self.campanha,
+            assigned_to=self.jogador,
+        )
+        self.a = CharacterAttribute.objects.create(
+            character=self.personagem, name='Forca', value='1', order=0
+        )
+        self.b = CharacterAttribute.objects.create(
+            character=self.personagem, name='Destreza', value='2', order=1
+        )
+        self.c = CharacterAttribute.objects.create(
+            character=self.personagem, name='Vigor', value='3', order=2
+        )
+
+    def _reordenar(self, ids):
+        return self.client.post(
+            reverse('reorder_sheet_lines', args=['character-attribute']),
+            {'ids': json.dumps(ids)},
+        )
+
+    def test_mestre_reordena(self):
+        self.client.force_login(self.mestre)
+
+        resposta = self._reordenar([self.c.pk, self.a.pk, self.b.pk])
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(
+            list(self.personagem.attributes.values_list('name', flat=True)),
+            ['Vigor', 'Forca', 'Destreza'],
+        )
+
+    def test_jogador_nao_reordena(self):
+        self.client.force_login(self.jogador)
+
+        resposta = self._reordenar([self.c.pk, self.a.pk, self.b.pk])
+
+        self.assertEqual(resposta.status_code, 403)
+        self.assertEqual(
+            list(self.personagem.attributes.values_list('name', flat=True)),
+            ['Forca', 'Destreza', 'Vigor'],
+        )
+
+    def test_id_de_outra_mesa_derruba_a_reordenacao_inteira(self):
+        """Nada e gravado pela metade: ou a ordem toda vale, ou nenhuma."""
+        outro = make_user('outro')
+        outra = Campaign.objects.create(name='Cinzas', master=outro)
+        alheio = Character.objects.create(
+            name='Nix', created_by=outro, campaign=outra, assigned_to=outro
+        )
+        de_fora = CharacterAttribute.objects.create(
+            character=alheio, name='Sorte', value='9'
+        )
+        self.client.force_login(self.mestre)
+
+        resposta = self._reordenar([self.c.pk, de_fora.pk])
+
+        self.assertEqual(resposta.status_code, 403)
+        self.c.refresh_from_db()
+        self.assertEqual(self.c.order, 2)
+
+    def test_ordem_invalida_e_400(self):
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.post(
+            reverse('reorder_sheet_lines', args=['character-attribute']),
+            {'ids': 'nao e json'},
+        )
+
+        self.assertEqual(resposta.status_code, 400)
+
+    def test_get_e_recusado(self):
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.get(
+            reverse('reorder_sheet_lines', args=['character-attribute'])
+        )
+
+        self.assertEqual(resposta.status_code, 405)
