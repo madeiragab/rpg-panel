@@ -115,6 +115,13 @@
   }
   #player-audio li[draggable="true"] { cursor: grab; }
   #player-audio .pa-aviso { color: #ff8a3d; margin-top: 6px; }
+  /* Player quebrado com a gaveta fechada: a barra do topo é o único pedaço
+     sempre à vista, então é ela que muda de cor. */
+  #player-audio.com-erro .pa-topo {
+    background: rgba(255, 138, 61, 0.2);
+    border-bottom: 1px solid rgba(255, 138, 61, 0.4);
+  }
+  #player-audio.com-erro .pa-topo #pa-estado-curto { color: #ff8a3d; }
   #player-audio .pa-volume { width: 100%; margin-top: 8px; }
 </style>
 
