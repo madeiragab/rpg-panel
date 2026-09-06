@@ -59,6 +59,7 @@
         {% include "hud/_retrato.html" with retrato=npc imagem=npc.image alt=npc.name url_salvar=url_enquadrar dica="Retrato do NPC (opcional)" %}
 
 
+        {% if is_master %}
             <form method="post" enctype="multipart/form-data" class="panel-form compact so-editando" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">
                 {% csrf_token %}
                 <input type="hidden" name="form_type" value="npc">
@@ -116,6 +117,7 @@
                 </div>
                 <button type="submit" class="hud-button ghost" style="margin-top: 8px;">+ Atributo</button>
             </form>
+        {% endif %}
 
         <h2 class="panel-title">Habilidades</h2>
         <div class="tags-wrap">
