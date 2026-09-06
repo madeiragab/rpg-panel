@@ -2543,6 +2543,7 @@ class DoisEnquadramentosTests(TestCase):
 
 
 @SEM_REDIRECT_HTTPS
+@SEM_MANIFESTO
 class DescricaoDoSlotTests(TestCase):
     """A descricao viaja com o item, senao o slot fica mudo ate recarregar."""
 
