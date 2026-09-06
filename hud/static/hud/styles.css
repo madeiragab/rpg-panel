@@ -1344,3 +1344,17 @@ a:hover { color: var(--accent-soft); }
 .polaroid-acoes .hud-button.ghost { color: #4a4038; border-color: #cdc3b6; }
 .polaroid-acoes .hud-button.ghost.ligado { color: #fff5f5; background: var(--accent); border-color: var(--accent); }
 .peca.polaroid.enquadrando { outline: 2px dashed var(--accent); outline-offset: 3px; }
+
+/* O [hidden] do navegador é `display: none`, mas ele perde para qualquer
+   regra de classe com display próprio — foi por isso que o menu do "+" nunca
+   recolhia. */
+.seletor-menu[hidden] { display: none; }
+
+/* Um piscar de leve para dizer o que acabou de chegar, já que a página não
+   recarrega mais e nada mais avisa. */
+@keyframes recem-chegado {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: none; }
+}
+.recem-chegado { animation: recem-chegado 0.28s ease-out; }
+.peca.recem-chegado { animation: none; outline: 2px solid var(--accent); outline-offset: 3px; }

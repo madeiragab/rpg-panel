@@ -1,0 +1,21 @@
+{% load static %}
+{% load hud_filters %}
+{% comment %}
+   Uma peça do quadro. Em arquivo separado porque o servidor devolve este mesmo
+   pedaço quando a peça é pregada sem recarregar a página.
+{% endcomment %}
+<div class="peca post-it" data-kind="note" data-id="{{ peca.pk }}"
+     style="left: {{ peca.quadro_x|porcento }}%; top: {{ peca.quadro_y|porcento }}%; --inclinacao: {{ peca.tilt }}deg; --cor-do-papel: {{ peca.color }};">
+    <div class="post-it-pegador" title="Arraste para mover">
+        <span>✥</span>
+        <form method="post" action="{% url 'delete_sticky_note' peca.pk %}" data-ajax data-remover=".peca"
+              data-confirmar="Tirar este post-it do quadro?">
+            {% csrf_token %}
+            <button type="submit" title="Tirar do quadro">×</button>
+        </form>
+    </div>
+    <textarea class="post-it-texto" maxlength="500"
+              data-salvar-url="{% url 'update_sticky_note' peca.pk %}"
+              placeholder="Clique e escreva…"
+              aria-label="Texto do post-it">{{ peca.text }}</textarea>
+</div>

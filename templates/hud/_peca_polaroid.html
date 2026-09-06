@@ -1,0 +1,27 @@
+{% load static %}
+{% load hud_filters %}
+{% comment %}
+   Uma peça do quadro. Em arquivo separado porque o servidor devolve este mesmo
+   pedaço quando a peça é pregada sem recarregar a página.
+{% endcomment %}
+<div class="peca polaroid" data-kind="polaroid" data-id="{{ peca.pk }}"
+     style="left: {{ peca.quadro_x|porcento }}%; top: {{ peca.quadro_y|porcento }}%; --inclinacao: {{ peca.tilt }}deg;">
+    {% comment %}
+       O enquadramento entra por botão: a foto ocupa quase toda a polaroid, e uma
+       moldura sempre arrastável não deixaria sobrar onde pegar para mover a peça.
+    {% endcomment %}
+    {% url 'update_polaroid_framing' peca.pk as url_enquadrar %}
+    {% include "hud/_retrato.html" with retrato=peca imagem=peca.image alt=peca.caption classe="quadrado largura-cheia" url_salvar="" dica="" %}
+    <div class="polaroid-legenda">{{ peca.caption|default:"—" }}</div>
+    <div class="polaroid-acoes">
+        {% if peca.image %}
+            <button type="button" class="hud-button ghost" data-enquadrar="{{ url_enquadrar }}"
+                    title="Ajustar o pedaço da foto que aparece">✥</button>
+        {% endif %}
+        <form method="post" action="{% url 'delete_polaroid' peca.pk %}" data-ajax data-remover=".peca"
+              data-confirmar="Tirar esta polaroid do quadro?">
+            {% csrf_token %}
+            <button type="submit" class="hud-button danger" title="Tirar do quadro">×</button>
+        </form>
+    </div>
+</div>

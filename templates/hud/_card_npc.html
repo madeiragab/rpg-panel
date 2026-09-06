@@ -1,0 +1,40 @@
+{% load static %}
+{% load l10n %}
+{% comment %}
+   Um card da grade. Vive em arquivo separado porque o servidor devolve este
+   mesmo pedaço quando o card é criado sem recarregar a página: o HTML de quem
+   nasce agora tem que ser o mesmo de quem já estava lá, e duas cópias sempre
+   acabam divergindo.
+{% endcomment %}
+<div class="character-card" data-card="npc" data-id="{{ npc.pk }}">
+    {% if npc.image %}
+        <div class="character-card-image" style="background-image: url('{{ npc.image.url }}'); background-position: {% widthratio npc.image_focus_x 1 100 %}% {% widthratio npc.image_focus_y 1 100 %}%;"></div>
+    {% else %}
+        <div class="character-card-image empty"></div>
+    {% endif %}
+    <div class="character-card-info">
+        <h3>
+            {{ npc.name }}
+            <button onclick="toggleNPCVisibility({{ npc.id }}, this)" class="hud-button ghost" style="font-size: 18px; padding: 4px 8px;" title="{% if npc.visible %}Ocultar NPC{% else %}Mostrar NPC{% endif %}">
+                {% if npc.visible %}👁️{% else %}🚫{% endif %}
+            </button>
+        </h3>
+        {% if npc.assigned_to_character %}
+            <div class="list-inline" style="gap:6px; align-items:center; margin-bottom:8px;">
+                <span class="muted" style="font-size:0.85rem;">Vinculado: {{ npc.assigned_to_character.name }}</span>
+            </div>
+        {% else %}
+            <p class="muted">Não vinculado a nenhum personagem</p>
+        {% endif %}
+        <div class="list-inline">
+            {% if is_master %}
+            <a href="{% url 'npc_detail' npc.pk %}" class="hud-button">Editar</a>
+            <form method="post" action="{% url 'delete_npc' npc.pk %}" data-ajax data-remover="[data-card]"
+                  data-confirmar="Tem certeza que deseja deletar este NPC?">
+                {% csrf_token %}
+                <button type="submit" class="hud-button danger">Deletar</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</div>

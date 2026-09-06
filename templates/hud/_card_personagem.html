@@ -1,0 +1,43 @@
+{% load static %}
+{% load l10n %}
+{% comment %}
+   Um card da grade. Vive em arquivo separado porque o servidor devolve este
+   mesmo pedaço quando o card é criado sem recarregar a página: o HTML de quem
+   nasce agora tem que ser o mesmo de quem já estava lá, e duas cópias sempre
+   acabam divergindo.
+{% endcomment %}
+<div class="character-card" data-card="character" data-id="{{ character.pk }}">
+    {% if character.image %}
+        <div class="character-card-image" style="background-image: url('{{ character.image.url }}'); background-position: {% widthratio character.image_focus_x 1 100 %}% {% widthratio character.image_focus_y 1 100 %}%;"></div>
+    {% else %}
+        <div class="character-card-image empty"></div>
+    {% endif %}
+    <div class="character-card-info">
+        <h3>
+            {{ character.name }}
+            {% if is_master %}
+            <button onclick="toggleVisibility({{ character.id }}, this)" class="hud-button ghost" style="font-size: 18px; padding: 4px 8px;" title="{% if character.visible %}Ocultar personagem{% else %}Mostrar personagem{% endif %}">
+                {% if character.visible %}👁️{% else %}🚫{% endif %}
+            </button>
+            {% endif %}
+        </h3>
+        {% if character.assigned_to %}
+            <div class="list-inline" style="gap:6px; align-items:center; margin-bottom:8px;">
+                {% include "hud/_retrato.html" with retrato=character.assigned_to.profile imagem=character.assigned_to.profile.avatar alt=character.assigned_to.username classe="redondo minusculo" url_salvar="" dica="" %}
+                <span class="muted" style="font-size:0.85rem;">{{ character.assigned_to.username }}</span>
+            </div>
+        {% else %}
+            <p class="muted">Atribuído a: Ninguém</p>
+        {% endif %}
+        <div class="list-inline">
+            <a href="{% url 'character_detail' character.pk %}{% if not is_master %}?mode=player{% endif %}" class="hud-button">Ver</a>
+            {% if is_master %}
+            <form method="post" action="{% url 'delete_character' character.pk %}" data-ajax data-remover="[data-card]"
+                  data-confirmar="Tem certeza que deseja deletar este personagem?">
+                {% csrf_token %}
+                <button type="submit" class="hud-button danger">Deletar</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</div>

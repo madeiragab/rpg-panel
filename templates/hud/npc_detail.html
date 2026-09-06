@@ -49,22 +49,7 @@
         
         <div id="bars-container" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px;">
             {% for bar in npc.bars.all %}
-            <div class="character-bar" data-bar-id="{{ bar.id }}" style="display: flex; align-items: center; gap: 12px;">
-                <span style="font-weight: 600; min-width: 80px; color: var(--text);">{{ bar.name }}</span>
-                {% if is_master %}
-                    <button class="hud-button ghost" onclick="modifyNPCBar({{ bar.id }}, 'decrease')" style="padding: 4px 8px; font-size: 16px;">−</button>
-                {% endif %}
-                <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
-                    <span class="bar-display" style="font-size: 0.9rem; color: var(--muted);" data-current="{{ bar.current }}" data-max="{{ bar.max_value }}">{{ bar.current }} / {{ bar.max_value }}</span>
-                    <div style="width: 100%; height: 10px; background: rgba(255, 255, 255, 0.1); border-radius: 5px; overflow: hidden;">
-                        <div class="bar-fill" style="height: 100%; background: {{ bar.color }}; width: {% widthratio bar.current bar.max_value 100 %}%; transition: width 0.3s ease;"></div>
-                    </div>
-                </div>
-                {% if is_master %}
-                    <button class="hud-button ghost" onclick="modifyNPCBar({{ bar.id }}, 'increase')" style="padding: 4px 8px; font-size: 16px;">+</button>
-                    <button class="hud-button danger" onclick="deleteNPCBar({{ bar.id }})" style="padding: 4px 8px; font-size: 12px;">×</button>
-                {% endif %}
-            </div>
+                {% include "hud/_barra_da_ficha.html" with bar=bar fn_mod="modifyNPCBar" fn_del="deleteNPCBar" pode_editar=is_master pode_apagar=is_master %}
             {% endfor %}
         </div>
 
@@ -250,7 +235,8 @@ async function addNPCBar() {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
-            'X-CSRFToken': getCookie('csrftoken') || ''
+            'X-CSRFToken': getCookie('csrftoken') || '',
+            'X-Requested-With': 'XMLHttpRequest'
         },
         body: new URLSearchParams({
             name: name,
@@ -260,9 +246,15 @@ async function addNPCBar() {
     })
     .then(response => response.json())
     .then(data => {
-        if (data.success) {
-            location.reload();
-        }
+        if (!data.ok && !data.success) return;
+        // O HTML da barra vem pronto do servidor: uma barra que nasce agora
+        // tem que ser igual as que ja estavam, e montar markup aqui seria a
+        // segunda copia do mesmo layout.
+        const container = document.getElementById('bars-container');
+        const vazio = container.querySelector('[data-vazio]');
+        if (vazio) vazio.remove();
+        container.insertAdjacentHTML('beforeend', data.html);
+        document.getElementById('bar-name').value = '';
     })
     .catch(error => console.error('Erro:', error));
 }
@@ -278,9 +270,9 @@ async function deleteNPCBar(barId) {
     })
     .then(response => response.json())
     .then(data => {
-        if (data.success) {
-            location.reload();
-        }
+        if (!data.success) return;
+        const linha = document.querySelector(`[data-bar-id="${barId}"]`);
+        if (linha) linha.remove();
     })
     .catch(error => console.error('Erro:', error));
 }

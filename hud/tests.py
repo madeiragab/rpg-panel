@@ -1803,3 +1803,126 @@ class PostItDoQuadroTests(TestCase):
         resposta = self.client.get(reverse('campaign_detail', args=[self.campanha.pk]))
 
         self.assertNotContains(resposta, 'O ladrao mentiu')
+
+
+@SEM_REDIRECT_HTTPS
+@SEM_MANIFESTO
+class SemRecarregarTests(TestCase):
+    """Criar e apagar devolvem o pedaco novo, nao a pagina inteira."""
+
+    AJAX = {'HTTP_X_REQUESTED_WITH': 'XMLHttpRequest'}
+
+    def setUp(self):
+        self.mestre = make_user('mestre')
+        self.jogador = make_user('jogador')
+        self.campanha = Campaign.objects.create(name='Ossos', master=self.mestre)
+        self.campanha.players.add(self.jogador)
+        self.client.force_login(self.mestre)
+
+    def _criar(self, dados):
+        return self.client.post(
+            reverse('campaign_detail', args=[self.campanha.pk]), dados, **self.AJAX
+        )
+
+    def test_personagem_volta_como_card_pronto(self):
+        resposta = self._criar({
+            'form_type': 'character',
+            'character-name': 'Kai',
+            'character-inventory_capacity': '16',
+            'character-assigned_to': str(self.jogador.pk),
+        })
+
+        self.assertEqual(resposta.status_code, 200)
+        dados = resposta.json()
+        self.assertTrue(dados['ok'])
+        self.assertIn('Kai', dados['html'])
+        self.assertIn('character-card', dados['html'])
+
+    def test_item_volta_como_card_pronto(self):
+        resposta = self._criar({'form_type': 'item', 'item-name': 'Adaga'})
+
+        self.assertIn('Adaga', resposta.json()['html'])
+
+    def test_npc_volta_como_card_pronto(self):
+        resposta = self._criar({
+            'form_type': 'npc', 'npc-name': 'Vulto', 'npc-inventory_capacity': '16',
+        })
+
+        self.assertIn('Vulto', resposta.json()['html'])
+
+    def test_inimigo_volta_como_card_pronto(self):
+        resposta = self._criar({'form_type': 'enemy', 'enemy-name': 'Cerbero'})
+
+        self.assertIn('Cerbero', resposta.json()['html'])
+
+    def test_post_it_volta_como_peca_pronta(self):
+        resposta = self.client.post(
+            reverse('create_sticky_note', args=[self.campanha.pk]), **self.AJAX
+        )
+
+        dados = resposta.json()
+        self.assertTrue(dados['ok'])
+        self.assertIn('post-it', dados['html'])
+
+    def test_polaroid_volta_como_peca_pronta(self):
+        resposta = self._criar({'form_type': 'polaroid', 'polaroid-caption': 'O mapa'})
+
+        self.assertIn('O mapa', resposta.json()['html'])
+
+    def test_barra_volta_como_linha_pronta(self):
+        inimigo = Enemy.objects.create(
+            name='Cerbero', created_by=self.mestre, campaign=self.campanha
+        )
+
+        resposta = self.client.post(
+            reverse('add_enemy_bar', args=[inimigo.pk]),
+            {'name': 'Vida', 'max_value': '30'},
+            **self.AJAX,
+        )
+
+        dados = resposta.json()
+        self.assertIn('Vida', dados['html'])
+        self.assertIn('30', dados['html'])
+
+    def test_form_invalido_responde_o_erro_em_vez_da_pagina(self):
+        """Campo em branco e o caso comum, e recarregar para dizer isso e o que
+        estamos tirando."""
+        resposta = self._criar({'form_type': 'item', 'item-name': ''})
+
+        self.assertEqual(resposta.status_code, 400)
+        self.assertFalse(resposta.json()['ok'])
+        self.assertTrue(resposta.json()['erro'])
+
+    def test_apagar_responde_ok_em_vez_de_redirecionar(self):
+        item = Item.objects.create(name='Adaga', campaign=self.campanha)
+
+        resposta = self.client.post(
+            reverse('delete_item', args=[item.pk]), **self.AJAX
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertTrue(resposta.json()['ok'])
+        self.assertFalse(Item.objects.filter(pk=item.pk).exists())
+
+    def test_sem_o_cabecalho_o_caminho_antigo_continua(self):
+        """Sem JavaScript o mesmo endpoint tem que redirecionar como antes."""
+        resposta = self._criar_sem_ajax()
+
+        self.assertEqual(resposta.status_code, 302)
+        self.assertTrue(self.campanha.items.filter(name='Adaga').exists())
+
+    def _criar_sem_ajax(self):
+        return self.client.post(
+            reverse('campaign_detail', args=[self.campanha.pk]),
+            {'form_type': 'item', 'item-name': 'Adaga'},
+        )
+
+    def test_o_card_da_grade_e_o_mesmo_que_volta_na_criacao(self):
+        """Duas copias do mesmo layout divergem na primeira mudanca."""
+        resposta_criacao = self._criar({'form_type': 'item', 'item-name': 'Adaga'})
+        html_novo = resposta_criacao.json()['html']
+
+        pagina = self.client.get(reverse('campaign_detail', args=[self.campanha.pk]))
+
+        self.assertContains(pagina, 'data-card="item"')
+        self.assertIn('data-card="item"', html_novo)

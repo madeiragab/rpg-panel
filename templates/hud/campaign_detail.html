@@ -67,49 +67,17 @@
                 <h2 class="panel-title">Personagens</h2>
                 <button id="toggle-create-character" class="hud-button">+</button>
             </div>
-            <div class="characters-grid">
+            <div class="characters-grid" id="grade-personagens">
                 {% for character in characters %}
-                    <div class="character-card">
-                        {% if character.image %}
-                            <div class="character-card-image" style="background-image: url('{{ character.image.url }}'); background-position: {% widthratio character.image_focus_x 1 100 %}% {% widthratio character.image_focus_y 1 100 %}%;"></div>
-                        {% else %}
-                            <div class="character-card-image empty"></div>
-                        {% endif %}
-                        <div class="character-card-info">
-                            <h3>
-                                {{ character.name }}
-                                {% if is_master %}
-                                <button onclick="toggleVisibility({{ character.id }}, this)" class="hud-button ghost" style="font-size: 18px; padding: 4px 8px;" title="{% if character.visible %}Ocultar personagem{% else %}Mostrar personagem{% endif %}">
-                                    {% if character.visible %}👁️{% else %}🚫{% endif %}
-                                </button>
-                                {% endif %}
-                            </h3>
-                            {% if character.assigned_to %}
-                                <div class="list-inline" style="gap:6px; align-items:center; margin-bottom:8px;">
-                                    {% include "hud/_retrato.html" with retrato=character.assigned_to.profile imagem=character.assigned_to.profile.avatar alt=character.assigned_to.username classe="redondo minusculo" url_salvar="" dica="" %}
-                                    <span class="muted" style="font-size:0.85rem;">{{ character.assigned_to.username }}</span>
-                                </div>
-                            {% else %}
-                                <p class="muted">Atribuído a: Ninguém</p>
-                            {% endif %}
-                            <div class="list-inline">
-                                <a href="{% url 'character_detail' character.pk %}{% if not is_master %}?mode=player{% endif %}" class="hud-button">Ver</a>
-                                {% if is_master %}
-                                <form method="post" action="{% url 'delete_character' character.pk %}" onsubmit="return confirm('Tem certeza que deseja deletar este personagem?');">
-                                    {% csrf_token %}
-                                    <button type="submit" class="hud-button danger">Deletar</button>
-                                </form>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
+                    {% include "hud/_card_personagem.html" %}
                 {% empty %}
-                    <p class="muted">Nenhum personagem criado ainda.</p>
+                    <p class="muted" data-vazio>Nenhum personagem criado ainda.</p>
                 {% endfor %}
             </div>
             <div id="create-character" class="panel-card" style="display:none;">
                 <h3 class="panel-subtitle">Criar Personagem</h3>
-                <form method="post" enctype="multipart/form-data" class="panel-form">
+                <form method="post" enctype="multipart/form-data" class="panel-form"
+                      data-ajax data-alvo="#grade-personagens" data-fechar="#create-character">
                     {% csrf_token %}
                     <input type="hidden" name="form_type" value="character">
                     {{ character_form.as_p }}
@@ -123,20 +91,11 @@
                 <h2 class="panel-title">Itens</h2>
                 <button id="toggle-create-item" class="hud-button">+</button>
             </div>
-            <div class="items-grid">
+            <div class="items-grid" id="grade-itens">
                 {% for item in items %}
-                    <div class="item-card" data-id="{{ item.id }}" data-name="{{ item.name|escape }}" data-description="{{ item.description|default_if_none:''|escape }}" data-image="{% if item.image %}{{ item.image.url }}{% endif %}"
-                         data-zoom="{{ item.image_zoom }}" data-focus-x="{{ item.image_focus_x|unlocalize }}" data-focus-y="{{ item.image_focus_y|unlocalize }}"
-                         data-framing-url="{% url 'update_item_framing' item.pk %}">
-                        {% include "hud/_retrato.html" with retrato=item imagem=item.image alt=item.name classe="quadrado largura-cheia" url_salvar="" dica="" %}
-                        <p>{{ item.name }}</p>
-                        <form method="post" action="{% url 'delete_item' item.pk %}" onsubmit="event.stopPropagation(); return confirm('Tem certeza que deseja deletar este item?');" style="margin-top:8px;">
-                            {% csrf_token %}
-                            <button type="submit" class="hud-button danger">Deletar</button>
-                        </form>
-                    </div>
+                    {% include "hud/_card_item.html" %}
                 {% empty %}
-                    <p class="muted">Nenhum item criado ainda.</p>
+                    <p class="muted" data-vazio>Nenhum item criado ainda.</p>
                 {% endfor %}
             </div>
 
@@ -168,7 +127,8 @@
             </div>
             <div id="create-item" class="panel-card" style="display:none;">
                 <h3 class="panel-subtitle">Criar Item</h3>
-                <form method="post" enctype="multipart/form-data" class="panel-form">
+                <form method="post" enctype="multipart/form-data" class="panel-form"
+                      data-ajax data-alvo="#grade-itens" data-fechar="#create-item">
                     {% csrf_token %}
                     <input type="hidden" name="form_type" value="item">
                     {{ item_form.as_p }}
@@ -182,47 +142,17 @@
                 <h2 class="panel-title">NPCs</h2>
                 <button id="toggle-create-npc" class="hud-button">+</button>
             </div>
-            <div class="characters-grid">
+            <div class="characters-grid" id="grade-npcs">
                 {% for npc in npcs %}
-                    <div class="character-card">
-                        {% if npc.image %}
-                            <div class="character-card-image" style="background-image: url('{{ npc.image.url }}'); background-position: {% widthratio npc.image_focus_x 1 100 %}% {% widthratio npc.image_focus_y 1 100 %}%;"></div>
-                        {% else %}
-                            <div class="character-card-image empty"></div>
-                        {% endif %}
-                        <div class="character-card-info">
-                            <h3>
-                                {{ npc.name }}
-                                <button onclick="toggleNPCVisibility({{ npc.id }}, this)" class="hud-button ghost" style="font-size: 18px; padding: 4px 8px;" title="{% if npc.visible %}Ocultar NPC{% else %}Mostrar NPC{% endif %}">
-                                    {% if npc.visible %}👁️{% else %}🚫{% endif %}
-                                </button>
-                            </h3>
-                            {% if npc.assigned_to_character %}
-                                <div class="list-inline" style="gap:6px; align-items:center; margin-bottom:8px;">
-                                    <span class="muted" style="font-size:0.85rem;">Vinculado: {{ npc.assigned_to_character.name }}</span>
-                                </div>
-                            {% else %}
-                                <p class="muted">Não vinculado a nenhum personagem</p>
-                            {% endif %}
-                        <div class="list-inline">
-                                <a href="{% url 'character_detail' npc.id %}" class="hud-button" style="display:none;">Ver</a>
-                                {% if is_master %}
-                                <a href="{% url 'npc_detail' npc.pk %}" class="hud-button">Editar</a>
-                                <form method="post" action="{% url 'delete_npc' npc.pk %}" onsubmit="return confirm('Tem certeza que deseja deletar este NPC?');">
-                                    {% csrf_token %}
-                                    <button type="submit" class="hud-button danger">Deletar</button>
-                                </form>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
+                    {% include "hud/_card_npc.html" %}
                 {% empty %}
-                    <p class="muted">Nenhum NPC criado ainda.</p>
+                    <p class="muted" data-vazio>Nenhum NPC criado ainda.</p>
                 {% endfor %}
             </div>
             <div id="create-npc" class="panel-card" style="display:none;">
                 <h3 class="panel-subtitle">Criar NPC</h3>
-                <form method="post" enctype="multipart/form-data" class="panel-form">
+                <form method="post" enctype="multipart/form-data" class="panel-form"
+                      data-ajax data-alvo="#grade-npcs" data-fechar="#create-npc">
                     {% csrf_token %}
                     <input type="hidden" name="form_type" value="npc">
                     {{ npc_form.as_p }}
@@ -236,38 +166,17 @@
                 <h2 class="panel-title">Inimigos</h2>
                 <button id="toggle-create-enemy" class="hud-button">+</button>
             </div>
-            <div class="characters-grid">
+            <div class="characters-grid" id="grade-inimigos">
                 {% for enemy in enemies %}
-                    <div class="character-card">
-                        {% if enemy.image %}
-                            <div class="character-card-image" style="background-image: url('{{ enemy.image.url }}'); background-position: {% widthratio enemy.image_focus_x 1 100 %}% {% widthratio enemy.image_focus_y 1 100 %}%;"></div>
-                        {% else %}
-                            <div class="character-card-image empty"></div>
-                        {% endif %}
-                        <div class="character-card-info">
-                            <h3>
-                                {{ enemy.name }}
-                                <button onclick="toggleEnemyVisibility({{ enemy.id }}, this)" class="hud-button ghost" style="font-size: 18px; padding: 4px 8px;" title="{% if enemy.visible %}Esconder da mesa{% else %}Revelar para a mesa{% endif %}">
-                                    {% if enemy.visible %}👁️{% else %}🚫{% endif %}
-                                </button>
-                            </h3>
-                            <p class="muted">{{ enemy.bars.count }} barra{{ enemy.bars.count|pluralize }}, sem inventário</p>
-                            <div class="list-inline">
-                                <a href="{% url 'enemy_detail' enemy.pk %}" class="hud-button">Editar</a>
-                                <form method="post" action="{% url 'delete_enemy' enemy.pk %}" onsubmit="return confirm('Tem certeza que deseja deletar este inimigo?');">
-                                    {% csrf_token %}
-                                    <button type="submit" class="hud-button danger">Deletar</button>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
+                    {% include "hud/_card_inimigo.html" %}
                 {% empty %}
-                    <p class="muted">Nenhum inimigo criado ainda.</p>
+                    <p class="muted" data-vazio>Nenhum inimigo criado ainda.</p>
                 {% endfor %}
             </div>
             <div id="create-enemy" class="panel-card" style="display:none;">
                 <h3 class="panel-subtitle">Criar Inimigo</h3>
-                <form method="post" enctype="multipart/form-data" class="panel-form">
+                <form method="post" enctype="multipart/form-data" class="panel-form"
+                      data-ajax data-alvo="#grade-inimigos" data-fechar="#create-enemy">
                     {% csrf_token %}
                     <input type="hidden" name="form_type" value="enemy">
                     {{ enemy_form.as_p }}
@@ -284,7 +193,8 @@
                             aria-expanded="false" aria-controls="menu-pregar">+</button>
                     <div class="seletor-menu" id="menu-pregar" hidden>
                         <button type="button" class="hud-button ghost" data-pregar="polaroid">📷 Polaroid</button>
-                        <form method="post" action="{% url 'create_sticky_note' campaign.pk %}">
+                        <form method="post" action="{% url 'create_sticky_note' campaign.pk %}"
+                              data-ajax data-alvo="#quadro">
                             {% csrf_token %}
                             <button type="submit" class="hud-button ghost">🗒️ Post-it</button>
                         </form>
@@ -299,7 +209,8 @@
 
             <div id="create-polaroid" class="panel-card" style="display:none; margin-bottom: 12px;">
                 <h3 class="panel-subtitle">Pregar polaroid</h3>
-                <form method="post" enctype="multipart/form-data" class="panel-form">
+                <form method="post" enctype="multipart/form-data" class="panel-form"
+                      data-ajax data-alvo="#quadro" data-fechar="#create-polaroid">
                     {% csrf_token %}
                     <input type="hidden" name="form_type" value="polaroid">
                     {{ polaroid_form.as_p }}
@@ -360,45 +271,12 @@
                 {% endfor %}
 
                 {% for peca in polaroids %}
-                    <div class="peca polaroid" data-kind="polaroid" data-id="{{ peca.pk }}"
-                         style="left: {{ peca.quadro_x|porcento }}%; top: {{ peca.quadro_y|porcento }}%; --inclinacao: {{ peca.tilt }}deg;">
-                        {% comment %}
-                           O enquadramento entra por botão: a foto ocupa quase toda a
-                           polaroid, e uma moldura sempre arrastável não deixaria sobrar
-                           onde pegar para mover a peça.
-                        {% endcomment %}
-                        {% url 'update_polaroid_framing' peca.pk as url_enquadrar %}
-                        {% include "hud/_retrato.html" with retrato=peca imagem=peca.image alt=peca.caption classe="quadrado largura-cheia" url_salvar="" dica="" %}
-                        <div class="polaroid-legenda">{{ peca.caption|default:"—" }}</div>
-                        <div class="polaroid-acoes">
-                            {% if peca.image %}
-                                <button type="button" class="hud-button ghost" data-enquadrar="{{ url_enquadrar }}"
-                                        title="Ajustar o pedaço da foto que aparece">✥</button>
-                            {% endif %}
-                            <form method="post" action="{% url 'delete_polaroid' peca.pk %}" onsubmit="return confirm('Tirar esta polaroid do quadro?');">
-                                {% csrf_token %}
-                                <button type="submit" class="hud-button danger" title="Tirar do quadro">×</button>
-                            </form>
-                        </div>
-                    </div>
+                    {% include "hud/_peca_polaroid.html" %}
 
                 {% endfor %}
 
                 {% for peca in notes %}
-                    <div class="peca post-it" data-kind="note" data-id="{{ peca.pk }}"
-                         style="left: {{ peca.quadro_x|porcento }}%; top: {{ peca.quadro_y|porcento }}%; --inclinacao: {{ peca.tilt }}deg; --cor-do-papel: {{ peca.color }};">
-                        <div class="post-it-pegador" title="Arraste para mover">
-                            <span>✥</span>
-                            <form method="post" action="{% url 'delete_sticky_note' peca.pk %}" onsubmit="return confirm('Tirar este post-it do quadro?');">
-                                {% csrf_token %}
-                                <button type="submit" title="Tirar do quadro">×</button>
-                            </form>
-                        </div>
-                        <textarea class="post-it-texto" maxlength="500"
-                                  data-salvar-url="{% url 'update_sticky_note' peca.pk %}"
-                                  placeholder="Clique e escreva…"
-                                  aria-label="Texto do post-it">{{ peca.text }}</textarea>
-                    </div>
+                    {% include "hud/_peca_post_it.html" %}
                 {% empty %}
                 {% endfor %}
 
@@ -589,6 +467,10 @@ if (togglePregar && menuPregar) {
     togglePregar.addEventListener('click', () => {
         menuPregar.hidden = !menuPregar.hidden;
         togglePregar.setAttribute('aria-expanded', String(!menuPregar.hidden));
+    });
+    menuPregar.querySelector('form').addEventListener('submit', () => {
+        menuPregar.hidden = true;
+        togglePregar.setAttribute('aria-expanded', 'false');
     });
     const escolhaPolaroid = menuPregar.querySelector('[data-pregar="polaroid"]');
     if (escolhaPolaroid) {

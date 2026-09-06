@@ -13,6 +13,7 @@ from django.core.cache import cache
 from django.core.mail import send_mail
 from django.http import HttpRequest, HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.template.loader import render_to_string
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 from django.db.models import Q
@@ -225,6 +226,36 @@ def player_dashboard(request: HttpRequest) -> HttpResponse:
     )
 
 
+def _pediu_sem_recarregar(request: HttpRequest) -> bool:
+    """Se quem chamou espera só o pedaço novo, e não a página inteira."""
+    return request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
+
+def _pedaco(request: HttpRequest, template: str, contexto: dict[str, Any]) -> JsonResponse:
+    """Devolve o card recém-criado já montado.
+
+    O HTML sai do mesmo template que desenha os outros da grade, e não de uma
+    montagem em JavaScript: um card que nasce agora tem que ser idêntico ao que
+    já estava na tela, e duas cópias do mesmo layout divergem na primeira
+    mudança.
+    """
+    return JsonResponse(
+        {"ok": True, "html": render_to_string(template, contexto, request=request)}
+    )
+
+
+def _erro_do_form(form) -> JsonResponse:  # noqa: ANN001
+    primeiro = next(iter(form.errors.values()), ["Confira os campos."])
+    return JsonResponse({"ok": False, "erro": primeiro[0]}, status=400)
+
+
+def _apagado(request: HttpRequest, destino: str, pk: int) -> HttpResponse:
+    """Quem apagou pela página volta para ela; quem apagou pelo card, não."""
+    if _pediu_sem_recarregar(request):
+        return JsonResponse({"ok": True})
+    return redirect(destino, pk=pk)
+
+
 @login_required
 def campaign_detail(request: HttpRequest, pk: int) -> HttpResponse:
     campaign = get_object_or_404(Campaign, pk=pk)
@@ -284,8 +315,16 @@ def campaign_detail(request: HttpRequest, pk: int) -> HttpResponse:
                 character.campaign = campaign
                 character.created_by = request.user
                 character.save()
+                if _pediu_sem_recarregar(request):
+                    return _pedaco(
+                        request,
+                        "hud/_card_personagem.html",
+                        {"character": character, "is_master": True},
+                    )
                 messages.success(request, "Personagem criado.")
                 return redirect("campaign_detail", pk=campaign.pk)
+            elif _pediu_sem_recarregar(request):
+                return _erro_do_form(character_form)
         elif form_type == "item":
             item_form = ItemForm(request.POST, request.FILES, prefix="item")
             if item_form.is_valid():
@@ -293,8 +332,12 @@ def campaign_detail(request: HttpRequest, pk: int) -> HttpResponse:
                 item.campaign = campaign
                 item.created_by = request.user
                 item.save()
+                if _pediu_sem_recarregar(request):
+                    return _pedaco(request, "hud/_card_item.html", {"item": item})
                 messages.success(request, "Item adicionado à campanha.")
                 return redirect("campaign_detail", pk=campaign.pk)
+            elif _pediu_sem_recarregar(request):
+                return _erro_do_form(item_form)
         elif form_type == "npc":
             npc_form = NPCForm(request.POST, request.FILES, prefix="npc")
             if npc_form.is_valid():
@@ -302,8 +345,14 @@ def campaign_detail(request: HttpRequest, pk: int) -> HttpResponse:
                 npc.campaign = campaign
                 npc.created_by = request.user
                 npc.save()
+                if _pediu_sem_recarregar(request):
+                    return _pedaco(
+                        request, "hud/_card_npc.html", {"npc": npc, "is_master": True}
+                    )
                 messages.success(request, "NPC adicionado à campanha.")
                 return redirect("campaign_detail", pk=campaign.pk)
+            elif _pediu_sem_recarregar(request):
+                return _erro_do_form(npc_form)
         elif form_type == "polaroid":
             polaroid_form = PolaroidForm(request.POST, request.FILES, prefix="polaroid")
             if polaroid_form.is_valid():
@@ -314,8 +363,13 @@ def campaign_detail(request: HttpRequest, pk: int) -> HttpResponse:
                 # quadro que reembaralha os ângulos a cada F5 cansa de olhar.
                 polaroid.tilt = randint(-Polaroid.INCLINACAO_MAXIMA, Polaroid.INCLINACAO_MAXIMA)
                 polaroid.save()
+                if _pediu_sem_recarregar(request):
+                    _arrumar_no_quadro([polaroid])
+                    return _pedaco(request, "hud/_peca_polaroid.html", {"peca": polaroid})
                 messages.success(request, "Polaroid pregada no quadro.")
                 return redirect("campaign_detail", pk=campaign.pk)
+            elif _pediu_sem_recarregar(request):
+                return _erro_do_form(polaroid_form)
         elif form_type == "enemy":
             enemy_form = EnemyForm(request.POST, request.FILES, prefix="enemy")
             if enemy_form.is_valid():
@@ -323,8 +377,12 @@ def campaign_detail(request: HttpRequest, pk: int) -> HttpResponse:
                 enemy.campaign = campaign
                 enemy.created_by = request.user
                 enemy.save()
+                if _pediu_sem_recarregar(request):
+                    return _pedaco(request, "hud/_card_inimigo.html", {"enemy": enemy})
                 messages.success(request, "Inimigo adicionado à campanha.")
                 return redirect("campaign_detail", pk=campaign.pk)
+            elif _pediu_sem_recarregar(request):
+                return _erro_do_form(enemy_form)
         elif form_type == "item_update":
             item_id = request.POST.get("item_id")
             description = request.POST.get("description", "")
@@ -462,6 +520,8 @@ def delete_npc(request: HttpRequest, pk: int) -> HttpResponse:
         return HttpResponseForbidden("Sem permissão")
     campaign_id = npc.campaign_id
     npc.delete()
+    if _pediu_sem_recarregar(request):
+        return JsonResponse({"ok": True})
     messages.success(request, "NPC deletado.")
     return redirect("campaign_detail", pk=campaign_id)
 
@@ -496,6 +556,8 @@ def delete_item(request: HttpRequest, pk: int) -> HttpResponse:
         return HttpResponseForbidden("Sem permissão")
     campaign_id = item.campaign_id
     item.delete()
+    if _pediu_sem_recarregar(request):
+        return JsonResponse({"ok": True})
     messages.success(request, "Item deletado.")
     return redirect("campaign_detail", pk=campaign_id)
 
@@ -508,6 +570,8 @@ def delete_character(request: HttpRequest, pk: int) -> HttpResponse:
         return HttpResponseForbidden("Sem permissão")
     campaign_id = character.campaign_id
     character.delete()
+    if _pediu_sem_recarregar(request):
+        return JsonResponse({"ok": True})
     messages.success(request, "Personagem deletado.")
     return redirect("campaign_detail", pk=campaign_id)
 @login_required
@@ -842,12 +906,15 @@ def create_sticky_note(request: HttpRequest, pk: int) -> HttpResponse:
     # A cor gira pela lista em vez de sortear: duas seguidas iguais parecem um
     # bug, e o mestre normalmente prega os post-its em sequência.
     cor = StickyNote.CORES[campaign.notes.count() % len(StickyNote.CORES)]
-    StickyNote.objects.create(
+    recado = StickyNote.objects.create(
         campaign=campaign,
         created_by=request.user,
         color=cor,
         tilt=randint(-StickyNote.INCLINACAO_MAXIMA, StickyNote.INCLINACAO_MAXIMA),
     )
+    if _pediu_sem_recarregar(request):
+        _arrumar_no_quadro([recado])
+        return _pedaco(request, "hud/_peca_post_it.html", {"peca": recado})
     return redirect("campaign_detail", pk=campaign.pk)
 
 
@@ -872,6 +939,8 @@ def delete_sticky_note(request: HttpRequest, pk: int) -> HttpResponse:
         return HttpResponseForbidden("Sem permissão")
     campaign_id = note.campaign_id
     note.delete()
+    if _pediu_sem_recarregar(request):
+        return JsonResponse({"ok": True})
     messages.success(request, "Post-it tirado do quadro.")
     return redirect("campaign_detail", pk=campaign_id)
 
@@ -884,6 +953,8 @@ def delete_polaroid(request: HttpRequest, pk: int) -> HttpResponse:
         return HttpResponseForbidden("Sem permissão")
     campaign_id = polaroid.campaign_id
     polaroid.delete()
+    if _pediu_sem_recarregar(request):
+        return JsonResponse({"ok": True})
     messages.success(request, "Polaroid removida do quadro.")
     return redirect("campaign_detail", pk=campaign_id)
 
@@ -1079,7 +1150,14 @@ def add_character_bar(request: HttpRequest, character_id: int) -> JsonResponse:
         color=color,
         order=character.bars.count()
     )
-    
+
+    if _pediu_sem_recarregar(request):
+        return _pedaco(
+            request,
+            "hud/_barra_da_ficha.html",
+            {"bar": bar, "fn_mod": "modifyBar", "fn_del": "deleteBar",
+             "pode_editar": True, "pode_apagar": True},
+        )
     return JsonResponse({
         "success": True,
         "bar": {
@@ -1250,6 +1328,13 @@ def add_npc_bar(request: HttpRequest, pk: int) -> JsonResponse:
         bar = NPCBar.objects.create(
             npc=npc, name=name, max_value=max_value, current=max_value, color=color
         )
+        if _pediu_sem_recarregar(request):
+            return _pedaco(
+                request,
+                "hud/_barra_da_ficha.html",
+                {"bar": bar, "fn_mod": "modifyNPCBar", "fn_del": "deleteNPCBar",
+                 "pode_editar": True, "pode_apagar": True},
+            )
         return JsonResponse(
             {
                 "success": True,
@@ -1465,6 +1550,8 @@ def delete_enemy(request: HttpRequest, pk: int) -> HttpResponse:
         return HttpResponseForbidden("Sem permissão")
     campaign_id = enemy.campaign_id
     enemy.delete()
+    if _pediu_sem_recarregar(request):
+        return JsonResponse({"ok": True})
     messages.success(request, "Inimigo deletado.")
     return redirect("campaign_detail", pk=campaign_id)
 
@@ -1490,6 +1577,13 @@ def add_enemy_bar(request: HttpRequest, pk: int) -> JsonResponse:
     bar = EnemyBar.objects.create(
         enemy=enemy, name=name, max_value=max_value, current=max_value, color=color
     )
+    if _pediu_sem_recarregar(request):
+        return _pedaco(
+            request,
+            "hud/_barra_da_ficha.html",
+            {"bar": bar, "fn_mod": "modifyEnemyBar", "fn_del": "deleteEnemyBar",
+             "pode_editar": True, "pode_apagar": True},
+        )
     return JsonResponse(
         {
             "success": True,

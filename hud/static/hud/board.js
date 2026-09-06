@@ -38,7 +38,7 @@
     }).catch(() => {});
   }
 
-  quadro.querySelectorAll('.peca').forEach((peca) => {
+  function ligarArraste(peca) {
     peca.addEventListener('pointerdown', (e) => {
       // Botão, link e controle de zoom continuam clicáveis: sem esta saída, o
       // arraste engoliria o clique de todos eles.
@@ -78,11 +78,11 @@
     };
     peca.addEventListener('pointerup', soltar);
     peca.addEventListener('pointercancel', soltar);
-  });
+  }
 
   /* --------------------------------------------------------------- barras -- */
 
-  quadro.querySelectorAll('[data-barra-url]').forEach((botao) => {
+  function ligarBotaoDeBarra(botao) {
     botao.addEventListener('click', () => {
       const barra = botao.closest('.peca-barra');
       const corpo = new URLSearchParams();
@@ -105,14 +105,14 @@
         })
         .catch(() => {});
     });
-  });
+  }
 
   /* -------------------------------------------------------------- post-it -- */
 
   /* O texto salva sozinho: post-it com botão "salvar" não é post-it. A espera
      evita um POST por tecla, e o blur fecha a conta na hora de sair — quem
      escreve e troca de aba não pode perder o que digitou. */
-  quadro.querySelectorAll('.post-it-texto').forEach((campo) => {
+  function ligarPostIt(campo) {
     let agendado = null;
 
     function guardar() {
@@ -136,7 +136,7 @@
     campo.addEventListener('blur', () => {
       if (campo.classList.contains('sujo')) guardar();
     });
-  });
+  }
 
   /* ------------------------------------------------- enquadrar a polaroid -- */
 
@@ -144,7 +144,7 @@
      não sobraria onde pegar para mover a peça, então o enquadramento entra e
      sai por botão: ligado, a moldura ganha o data-save-url e o portrait.js
      passa a tratá-la como editor. */
-  quadro.querySelectorAll('[data-enquadrar]').forEach((botao) => {
+  function ligarEnquadrar(botao) {
     const peca = botao.closest('.peca');
     const moldura = peca && peca.querySelector('[data-portrait-frame]');
     if (!moldura) return;
@@ -161,5 +161,24 @@
       botao.title = ligando ? 'Terminar o enquadramento' : 'Ajustar o pedaço da foto que aparece';
       if (window.hudPortrait) window.hudPortrait.preparar(moldura);
     });
-  });
+  }
+
+  /* Uma peça pregada agora tem que ganhar os mesmos eventos das que vieram no
+     HTML. É por aqui que o ajax.js apresenta a recém-chegada. */
+  function registrar(peca) {
+    if (!peca || !peca.classList || !peca.classList.contains('peca')) return;
+    ligarArraste(peca);
+    peca.querySelectorAll('[data-barra-url]').forEach(ligarBotaoDeBarra);
+    peca.querySelectorAll('.post-it-texto').forEach(ligarPostIt);
+    peca.querySelectorAll('[data-enquadrar]').forEach(ligarEnquadrar);
+    const vazio = quadro.querySelector('.quadro-vazio');
+    if (vazio) vazio.remove();
+  }
+
+  quadro.querySelectorAll('.peca').forEach(ligarArraste);
+  quadro.querySelectorAll('[data-barra-url]').forEach(ligarBotaoDeBarra);
+  quadro.querySelectorAll('.post-it-texto').forEach(ligarPostIt);
+  quadro.querySelectorAll('[data-enquadrar]').forEach(ligarEnquadrar);
+
+  window.hudQuadro = { registrar };
 })();

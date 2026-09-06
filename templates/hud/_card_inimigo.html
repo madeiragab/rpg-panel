@@ -1,0 +1,32 @@
+{% load static %}
+{% load l10n %}
+{% comment %}
+   Um card da grade. Vive em arquivo separado porque o servidor devolve este
+   mesmo pedaço quando o card é criado sem recarregar a página: o HTML de quem
+   nasce agora tem que ser o mesmo de quem já estava lá, e duas cópias sempre
+   acabam divergindo.
+{% endcomment %}
+<div class="character-card" data-card="enemy" data-id="{{ enemy.pk }}">
+    {% if enemy.image %}
+        <div class="character-card-image" style="background-image: url('{{ enemy.image.url }}'); background-position: {% widthratio enemy.image_focus_x 1 100 %}% {% widthratio enemy.image_focus_y 1 100 %}%;"></div>
+    {% else %}
+        <div class="character-card-image empty"></div>
+    {% endif %}
+    <div class="character-card-info">
+        <h3>
+            {{ enemy.name }}
+            <button onclick="toggleEnemyVisibility({{ enemy.id }}, this)" class="hud-button ghost" style="font-size: 18px; padding: 4px 8px;" title="{% if enemy.visible %}Esconder da mesa{% else %}Revelar para a mesa{% endif %}">
+                {% if enemy.visible %}👁️{% else %}🚫{% endif %}
+            </button>
+        </h3>
+        <p class="muted">{{ enemy.bars.count }} barra{{ enemy.bars.count|pluralize }}, sem inventário</p>
+        <div class="list-inline">
+            <a href="{% url 'enemy_detail' enemy.pk %}" class="hud-button">Editar</a>
+            <form method="post" action="{% url 'delete_enemy' enemy.pk %}" data-ajax data-remover="[data-card]"
+                  data-confirmar="Tem certeza que deseja deletar este inimigo?">
+                {% csrf_token %}
+                <button type="submit" class="hud-button danger">Deletar</button>
+            </form>
+        </div>
+    </div>
+</div>

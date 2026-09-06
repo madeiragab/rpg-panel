@@ -1,0 +1,25 @@
+{% comment %}
+   Uma barra da ficha. Os nomes das funções chegam por parâmetro porque
+   personagem, NPC e inimigo têm três conjuntos de rotas, e é só nisso que as
+   três barras diferem.
+
+   Parâmetros: bar, fn_mod, fn_del, pode_editar, pode_apagar.
+{% endcomment %}
+<div class="character-bar" data-bar-id="{{ bar.id }}" style="display: flex; align-items: center; gap: 12px;">
+    <span style="font-weight: 600; min-width: 80px; color: var(--text);">{{ bar.name }}</span>
+    {% if pode_editar %}
+        <button class="hud-button ghost" onclick="{{ fn_mod }}({{ bar.id }}, 'decrease')" style="padding: 4px 8px; font-size: 16px;">−</button>
+    {% endif %}
+    <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
+        <span class="bar-display" style="font-size: 0.9rem; color: var(--muted);" data-current="{{ bar.current }}" data-max="{{ bar.max_value }}">{{ bar.current }} / {{ bar.max_value }}</span>
+        <div style="width: 100%; height: 10px; background: rgba(255, 255, 255, 0.1); border-radius: 5px; overflow: hidden;">
+            <div class="bar-fill" style="height: 100%; background: {{ bar.color }}; width: {% widthratio bar.current bar.max_value 100 %}%; transition: width 0.3s ease;"></div>
+        </div>
+    </div>
+    {% if pode_editar %}
+        <button class="hud-button ghost" onclick="{{ fn_mod }}({{ bar.id }}, 'increase')" style="padding: 4px 8px; font-size: 16px;">+</button>
+    {% endif %}
+    {% if pode_apagar %}
+        <button class="hud-button danger" onclick="{{ fn_del }}({{ bar.id }})" style="padding: 4px 8px; font-size: 12px;">×</button>
+    {% endif %}
+</div>

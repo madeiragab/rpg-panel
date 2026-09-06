@@ -1,0 +1,19 @@
+{% load static %}
+{% load l10n %}
+{% comment %}
+   Um card da grade. Vive em arquivo separado porque o servidor devolve este
+   mesmo pedaço quando o card é criado sem recarregar a página: o HTML de quem
+   nasce agora tem que ser o mesmo de quem já estava lá, e duas cópias sempre
+   acabam divergindo.
+{% endcomment %}
+<div class="item-card" data-card="item" data-id="{{ item.id }}" data-name="{{ item.name|escape }}" data-description="{{ item.description|default_if_none:''|escape }}" data-image="{% if item.image %}{{ item.image.url }}{% endif %}"
+     data-zoom="{{ item.image_zoom }}" data-focus-x="{{ item.image_focus_x|unlocalize }}" data-focus-y="{{ item.image_focus_y|unlocalize }}"
+     data-framing-url="{% url 'update_item_framing' item.pk %}">
+    {% include "hud/_retrato.html" with retrato=item imagem=item.image alt=item.name classe="quadrado largura-cheia" url_salvar="" dica="" %}
+    <p>{{ item.name }}</p>
+    <form method="post" action="{% url 'delete_item' item.pk %}" data-ajax data-remover="[data-card]"
+          data-confirmar="Tem certeza que deseja deletar este item?" style="margin-top:8px;">
+        {% csrf_token %}
+        <button type="submit" class="hud-button danger">Deletar</button>
+    </form>
+</div>
