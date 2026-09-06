@@ -780,16 +780,17 @@ def character_detail(request: HttpRequest, pk: int) -> HttpResponse:
     character.ensure_slots()
     slots_list = list(InventorySlot.objects.filter(character=character).order_by("position"))
     items = Item.objects.filter(campaign=character.campaign) if character.campaign else Item.objects.none()
-    # A barra do topo só oferece o que a pessoa consegue abrir: um link que
-    # leva a 403 é pior do que link nenhum.
+    # A barra do topo é a navegação entre fichas, e para o jogador ela tem
+    # só a ficha aberta: quem não é mestre não circula pelas fichas da mesa,
+    # nem pelas próprias — de personagem para personagem se passa pela
+    # campanha. Ao lado dela ficam os NPCs vinculados a este personagem, que
+    # é a única companhia que a ficha do jogador tem.
     if not character.campaign:
         campaign_characters = []
     elif is_master:
         campaign_characters = character.campaign.characters.all()
     else:
-        campaign_characters = character.campaign.characters.filter(
-            assigned_to=request.user
-        )
+        campaign_characters = character.campaign.characters.filter(pk=character.pk)
     
     # Buscar NPCs visíveis vinculados ao personagem do jogador
     visible_npcs = NPC.objects.none()
@@ -797,7 +798,7 @@ def character_detail(request: HttpRequest, pk: int) -> HttpResponse:
         visible_npcs = NPC.objects.filter(
             campaign=character.campaign,
             assigned_to_character=character,
-            visible=True
+            visible=True,
         )
     
     return render(

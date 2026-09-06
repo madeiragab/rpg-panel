@@ -2669,14 +2669,33 @@ class FichaEhDoDonoTests(TestCase):
 
         self.assertEqual(self._abrir('?mode=player').status_code, 403)
 
-    def test_a_barra_do_topo_so_oferece_a_ficha_do_proprio_jogador(self):
+    def test_a_barra_do_topo_do_jogador_tem_so_a_ficha_aberta(self):
+        """Nem a ficha alheia, nem outra ficha dele: de personagem para
+        personagem se passa pela campanha."""
         Character.objects.create(
             name='Alheia', created_by=self.mestre, campaign=self.campanha,
             assigned_to=self.outro,
         )
+        Character.objects.create(
+            name='Segunda', created_by=self.mestre, campaign=self.campanha,
+            assigned_to=self.dono,
+        )
         self.client.force_login(self.dono)
 
         resposta = self._abrir()
+
+        nomes = [c.name for c in resposta.context['campaign_characters']]
+        self.assertEqual(nomes, ['Kai'])
+
+    def test_o_mestre_em_modo_leitura_ve_a_barra_do_jogador(self):
+        """E para isso que o modo leitura serve: conferir o que a mesa ve."""
+        Character.objects.create(
+            name='Alheia', created_by=self.mestre, campaign=self.campanha,
+            assigned_to=self.outro,
+        )
+        self.client.force_login(self.mestre)
+
+        resposta = self._abrir('?mode=player')
 
         nomes = [c.name for c in resposta.context['campaign_characters']]
         self.assertEqual(nomes, ['Kai'])
