@@ -122,10 +122,27 @@ WSGI_APPLICATION = "rpg_panel.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
+# O SQLite aguenta esta mesa, mas não com a configuração de fábrica.
+#
+# O painel escreve o tempo inteiro durante uma sessão: a posição da trilha, a
+# presença de quem está no áudio, a vida que o jogador acabou de perder. No
+# modo padrão (`journal_mode=DELETE`) uma escrita tranca o banco inteiro, e o
+# leitor que chegar no meio dela leva "database is locked" na cara — que na
+# tela vira um erro vermelho no meio do combate.
+#
+# `WAL` deixa leitura e escrita andarem juntas; o `timeout` manda esperar a vez
+# em vez de desistir na hora; e `IMMEDIATE` pega o cadeado no começo da
+# transação, e não no meio, que é o que evita duas escritas se encontrarem já
+# comprometidas e uma ter que morrer.
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": BASE_DIR / "db.sqlite3",
+        "OPTIONS": {
+            "init_command": "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;",
+            "transaction_mode": "IMMEDIATE",
+            "timeout": 20,
+        },
     }
 }
 
