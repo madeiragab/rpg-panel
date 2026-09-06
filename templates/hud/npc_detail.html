@@ -16,12 +16,12 @@
 </div>
 <div class="hud-layout" data-ficha {% if campaign and campaign.banner %}style="background-image: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.85)), url('{{ campaign.banner.url }}'); background-size: cover; background-attachment: fixed; background-position: center;"{% endif %}>
     {% if not is_master %}
-        <div class="player-view-notice">
+        <div class="player-view-notice largura-total">
             <p>📖 Você está visualizando este NPC em modo leitura</p>
         </div>
     {% endif %}
 
-    <section class="panel-card column">
+    <section class="panel-card column coluna-pericias">
         <h2 class="panel-title">Perícias / Proficiências</h2>
         <div class="tags-wrap">
             {% for skill in npc.skills.all %}
@@ -40,7 +40,7 @@
         {% endif %}
     </section>
 
-    <section class="panel-card column">
+    <section class="panel-card column coluna-ficha">
         <div class="character-header">
             <h1 class="panel-title">{{ npc.name }}</h1>
             {% if is_master %}
@@ -81,7 +81,7 @@
         {% endif %}
     </section>
 
-    <section class="panel-card column">
+    <section class="panel-card column coluna-atributos">
         <h2 class="panel-title">Atributos</h2>
         <div class="attributes-grid" data-reordenavel="npc-attribute" data-reordenar-url="{% url 'reorder_sheet_lines' 'npc-attribute' %}">
             {% for attr in npc.attributes.all %}

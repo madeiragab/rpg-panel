@@ -1658,3 +1658,24 @@ a:hover { color: var(--accent-soft); }
     text-align: center;
     letter-spacing: 0.05em;
 }
+
+/* ------------------------------------- as colunas ficam onde foram postas -- */
+/* Cada seção diz em que coluna mora. Deixar o grid distribuir sozinho parecia
+   funcionar até o aviso de "modo leitura" entrar como primeiro filho na visão
+   do jogador: ele ocupava a primeira célula e empurrava as três uma casa. */
+.hud-layout { align-items: start; }
+.hud-layout > .coluna-pericias { grid-column: 1; grid-row: 2; }
+.hud-layout > .coluna-ficha { grid-column: 2; grid-row: 2; }
+.hud-layout > .coluna-atributos { grid-column: 3; grid-row: 2; }
+.hud-layout > .largura-total { grid-column: 1 / -1; }
+.hud-layout > .player-view-notice { grid-row: 1; }
+
+@media (max-width: 1200px) {
+    /* Numa coluna só, a ordem volta a ser a do HTML. */
+    .hud-layout > .coluna-pericias,
+    .hud-layout > .coluna-ficha,
+    .hud-layout > .coluna-atributos {
+        grid-column: 1;
+        grid-row: auto;
+    }
+}
