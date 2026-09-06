@@ -30,13 +30,48 @@ Volume and mute are local, and stay local on purpose: the master controls *what*
 plays, not *how loud* each person hears it. Someone on headphones and someone on
 speakers should not depend on each other.
 
-## The player's mandatory click
+## The mandatory click — everyone's
 
-No browser lets audio start without a human gesture. That is why players see an
-**"Entrar no áudio"** button — it exists purely so there is a click before the
-first play. After that the master drives everything.
+No browser lets audio start without a human gesture. That is why the
+**"Entrar no áudio"** button exists, and it is for everyone: the master is no
+exception, because their browser asks for the same click.
+
+The master's click on the controls counts as that gesture — hitting ▶ joins the
+audio too, so there are never two buttons to press.
 
 There is no way around it; it is a browser rule, not a project choice.
+
+## Who is listening
+
+Joining the audio puts the person's **character** into a row of portraits inside
+the widget. That is the answer to the click: you click, and you see yourself
+there.
+
+The character sheet comes before the avatar because during a session people
+*are* their characters. Anyone without a sheet at the table — the master first
+among them — shows up as their profile avatar, and so does anyone whose sheet is
+hidden: the soundtrack must not become a side door to a name the master has not
+revealed yet.
+
+### Presence is a timestamp, not a switch
+
+`AudioListener` stores campaign, person and `last_seen`. There is no
+"is listening" field.
+
+The reason is that browsers have no reliable way to say they closed: tabs die,
+laptops sleep, connections drop. A switch written to the database would leave
+people listening forever at a table that ended. So whoever is in the audio
+repeats "still here" every 15 seconds, and anyone past **45 seconds** without
+saying so drops out of the row on their own. The row stays in the database; it
+just stops counting.
+
+A closing tab still tries to say so immediately, with a `keepalive` fetch — that
+is what lets a request leave a page that is dying. When it cannot, the stale
+`last_seen` handles it.
+
+Presence heartbeats do **not** become Pusher events. Six people beating every 15
+seconds would be 1,400 pushes an hour to say nothing changed. Only joins and
+leaves are published; polling brings the rest.
 
 ## Synchronisation
 
@@ -45,9 +80,31 @@ alone would not be enough: it is the position *at that instant*. Whoever opens
 the page mid-song adds the elapsed time and joins where the table is, not where
 the song was when the master hit play.
 
-The client only seeks when the gap exceeds 2.5 seconds. Correcting anything
-smaller would sound like a stutter on every check, and nobody at an RPG table
-notices two seconds of ambient music.
+And the position does not sit still between responses: the client adds the time
+elapsed since it received them, measured with `performance.now()`. The system
+clock will not do — user clocks are off by minutes, and a minute of error here
+would become a jump into the middle of the song every second.
+
+That lets the browser compare itself against the table **every second**, without
+talking to the server. It only seeks when the gap exceeds 1.5 seconds:
+correcting anything smaller would sound like a stutter on every pass, and nobody
+at an RPG table notices a second and a half of ambient music.
+
+### Ads
+
+The ad belongs to the viewer, not to the table: YouTube picks on its own, and
+anyone with Premium sees none. There is no way to even that out through the
+embed — and hiding the player to dodge the Terms would cost the account.
+
+What can be guaranteed is the reunion. During an ad YouTube reports the *ad's*
+time and ignores `seekTo`; unhandled, whoever is watching an ad would get one
+pointless jump per second. So attempts are spaced 2.5 seconds apart: during the
+ad they are rare and harmless, and the moment it ends the first one lands on its
+feet, at the exact second the rest of the table is on.
+
+The same path covers buffering, a hidden tab (where browsers throttle timers)
+and a laptop that slept — returning to the tab triggers an immediate fetch
+instead of waiting for the next tick.
 
 ### When the master disappears
 
@@ -97,9 +154,15 @@ worse than an access token that dies on its own.
 All under the campaign, with the usual rules — reading is for participants,
 writing is for the master.
 
+Presence is the one exception, and a narrow one: a person changes their own
+presence and nothing else. That is why it does not go through the viewset's
+`get_object`, which would demand write permission on the campaign and lock
+players out of their own audio.
+
 | Method | Endpoint | Who may |
 |---|---|---|
 | `GET` | `/api/campaigns/{id}/audio/` | master and players |
+| `POST` | `/api/campaigns/{id}/audio/presence/` | participants — body `{"listening": true\|false}` |
 | `POST` | `/api/campaigns/{id}/audio/tracks/` | master — body `{"url": "..."}` |
 | `DELETE` | `/api/campaigns/{id}/audio/tracks/{track_id}/` | master |
 | `PATCH` | `/api/campaigns/{id}/audio/order/` | master — body `{"order": [ids]}` |

@@ -25,6 +25,7 @@ from rest_framework_simplejwt.views import (
 )
 
 from hud.models import (
+    AudioListener,
     AudioTrack,
     Campaign,
     Character,
@@ -64,8 +65,10 @@ from .serializers import (
     NPCInventorySlotSerializer,
     NPCSerializer,
     NovaFaixaSerializer,
+    OuvinteSerializer,
     PerfilSerializer,
     PlaybackStateSerializer,
+    PresencaSerializer,
     ReordenarFaixasSerializer,
 )
 from .throttles import ThrottleDeToken
@@ -182,11 +185,39 @@ class CampaignViewSet(viewsets.ModelViewSet):
     # e a publicação nunca decide se o pedido deu certo.
     # ------------------------------------------------------------------
 
+    def _ouvintes(self, campanha):
+        """Quem está no áudio, já com o personagem de cada um.
+
+        A ficha vem numa consulta só, não uma por pessoa. E vem filtrada por
+        `visible`: ficha escondida é escondida também aqui — quem tem só uma
+        dessas aparece pelo avatar do perfil, e não pelo nome que o mestre ainda
+        não revelou à mesa.
+        """
+        ativos = list(AudioListener.ativos(campanha))
+        if not ativos:
+            return []
+
+        fichas = {}
+        personagens = Character.objects.filter(
+            campaign=campanha,
+            visible=True,
+            assigned_to_id__in=[ouvinte.user_id for ouvinte in ativos],
+        )
+        for personagem in personagens:
+            fichas.setdefault(personagem.assigned_to_id, personagem)
+
+        return OuvinteSerializer(
+            ativos,
+            many=True,
+            context={"fichas": fichas, "mestre_id": campanha.master_id},
+        ).data
+
     def _payload_do_audio(self, campanha):
         estado, _ = PlaybackState.objects.get_or_create(campaign=campanha)
         return {
             "state": PlaybackStateSerializer(estado).data,
             "tracks": AudioTrackSerializer(campanha.tracks.all(), many=True).data,
+            "listeners": self._ouvintes(campanha),
         }
 
     def _avisar(self, campanha, evento="audio"):
@@ -200,6 +231,46 @@ class CampaignViewSet(viewsets.ModelViewSet):
         # lê a trilha da mesa dele.
         campanha = self.get_object()
         return Response(self._payload_do_audio(campanha))
+
+    @action(detail=True, methods=["post"], url_path="audio/presence")
+    def presenca_no_audio(self, request, pk=None):
+        """Entrar no áudio, continuar nele, ou sair.
+
+        Sem `get_object`: ele cobraria permissão de escrita num POST, e escrever
+        na campanha é do mestre. Entrar no áudio é de quem está na mesa — a
+        pessoa mexe na presença dela, e em nada mais. É a mesma saída que `sair`
+        usa, pelo mesmo motivo.
+
+        Só publicamos quando a roda muda de gente. O batimento chega de cada
+        ouvinte a cada quinze segundos, e transformar cada um deles num evento
+        gastaria a cota do Pusher para dizer o que ninguém precisa ouvir: que
+        continua tudo igual.
+        """
+        campanha = get_object_or_404(self.get_queryset(), pk=pk)
+
+        corpo = PresencaSerializer(data=request.data)
+        corpo.is_valid(raise_exception=True)
+
+        if not corpo.validated_data["listening"]:
+            apagadas, _ = AudioListener.objects.filter(
+                campaign=campanha, user=request.user
+            ).delete()
+            return Response(
+                self._avisar(campanha) if apagadas else self._payload_do_audio(campanha)
+            )
+
+        ouvinte, criado = AudioListener.objects.get_or_create(
+            campaign=campanha, user=request.user
+        )
+        # Uma linha velha é alguém que já tinha sumido da roda: para a mesa isso
+        # é uma entrada, não um batimento, e os outros precisam ver.
+        chegou = criado or not ouvinte.ativo
+        if not criado:
+            ouvinte.save(update_fields=["last_seen"])
+
+        return Response(
+            self._avisar(campanha) if chegou else self._payload_do_audio(campanha)
+        )
 
     @action(detail=True, methods=["post"], url_path="audio/tracks")
     def adicionar_faixa(self, request, pk=None):

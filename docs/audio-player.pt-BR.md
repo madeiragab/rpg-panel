@@ -20,17 +20,45 @@ Então o widget mostra o vídeo em 200×113, com os controles do painel em volta
 
 O volume e o mudo são locais, e continuam locais de propósito: o mestre controla *o que* toca, não *o quanto* cada pessoa ouve. Quem está de fone e quem está na caixa de som não deveriam depender um do outro.
 
-## O clique obrigatório do jogador
+## O clique obrigatório — de todo mundo
 
-Navegador nenhum deixa áudio começar sem gesto humano. Por isso o jogador vê um botão **"Entrar no áudio"** — ele existe só para haver um clique antes do primeiro play. Depois disso o mestre controla tudo.
+Navegador nenhum deixa áudio começar sem gesto humano. Por isso existe o botão **"Entrar no áudio"**, e ele é para todos: o mestre não é exceção, porque o navegador dele cobra o mesmo clique.
+
+O clique do mestre nos controles conta como esse gesto — quem aperta ▶ entra no áudio junto, sem precisar de dois botões.
 
 Não dá para contornar; é regra do navegador, não escolha do projeto.
+
+## Quem está ouvindo
+
+Entrar no áudio põe o **personagem** da pessoa numa roda de retratos dentro do widget. É a resposta ao clique: você clica, e se vê ali.
+
+A ficha vem antes do avatar porque numa sessão as pessoas *são* os personagens. Quem não tem ficha na mesa — o mestre à frente — aparece pelo avatar do perfil, e quem tem ficha escondida também: a trilha não pode virar uma porta lateral para o nome que o mestre ainda não revelou.
+
+### Presença é um horário, não um interruptor
+
+`AudioListener` guarda campanha, pessoa e `last_seen`. Não há campo "está ouvindo".
+
+O motivo é que o navegador não tem como avisar que fechou de um jeito confiável: aba que cai, notebook que dorme, internet que some. Um interruptor gravado no banco deixaria gente ouvindo para sempre numa mesa que acabou. Então quem está no áudio repete "ainda estou aqui" a cada 15 segundos, e quem passa de **45 segundos** sem dizer some da roda sozinho. A linha continua no banco; ela é que para de contar.
+
+Aba que fecha ainda tenta avisar na hora, com um `fetch` de `keepalive` — é o que deixa um pedido sair de uma página que está morrendo. Quando não dá, o `last_seen` velho resolve.
+
+O batimento de presença **não** vira evento de Pusher. Seis pessoas batendo a cada 15 segundos seriam 1.400 empurrões por hora para dizer que nada mudou. Só entrada e saída são publicadas; o resto o polling já traz.
 
 ## Sincronização
 
 `PlaybackState` guarda `position_seconds` **e** `updated_at`. A posição sozinha não bastaria: ela é a posição *naquele instante*. Quem abre a página no meio da música soma o tempo decorrido e entra onde a mesa está, não onde a música estava quando o mestre apertou play.
 
-O cliente só dá `seek` se a diferença passar de 2,5 segundos. Corrigir desvio menor que isso soaria como engasgo a cada verificação, e ninguém numa mesa de RPG percebe dois segundos de trilha ambiente.
+E a posição não fica parada entre uma resposta e outra: o cliente soma o tempo que passou desde que recebeu, medido com `performance.now()`. O relógio do sistema não serve — relógio de usuário erra em minutos, e um minuto de erro aqui viraria um pulo para o meio da música a cada segundo.
+
+Com isso o navegador consegue se comparar com a mesa **de segundo em segundo**, sem falar com o servidor. Ele só dá `seek` se a diferença passar de 1,5 segundo: corrigir menos do que isso soaria como engasgo a cada volta, e um segundo e meio de trilha ambiente ninguém numa mesa de RPG percebe.
+
+### Anúncio
+
+O anúncio é de quem assiste, não da mesa: o YouTube escolhe por conta, e quem tem Premium não vê nenhum. Não há como igualar isso pelo embed — e esconder o player para fugir dos Termos custaria a conta.
+
+O que dá para garantir é o reencontro. Durante um anúncio o YouTube reporta o tempo *do anúncio* e ignora o `seekTo`; sem cuidado, quem está vendo propaganda receberia um pulo por segundo que não vai a lugar nenhum. Por isso as tentativas são espaçadas em 2,5 segundos: durante o anúncio elas ficam raras e inofensivas, e no instante em que ele acaba a primeira delas cai em pé, no segundo exato onde o resto da mesa está.
+
+O mesmo caminho resolve buffer, aba escondida (onde o navegador estrangula os temporizadores) e notebook que dormiu — o retorno da aba dispara uma busca imediata em vez de esperar o próximo tique.
 
 ### Quando o mestre some
 
@@ -60,9 +88,12 @@ Não há aumento de privilégio: o usuário obteria esse mesmo token mandando a 
 
 Todos sob a campanha, com as regras de sempre — ler é de quem participa, escrever é do mestre.
 
+A presença é a única exceção, e é uma exceção estreita: a pessoa mexe na presença dela, e em nada mais. Por isso ela não passa pelo `get_object` do viewset, que cobraria permissão de escrita na campanha e deixaria o jogador de fora do próprio áudio.
+
 | Método | Endereço | Quem pode |
 |---|---|---|
 | `GET` | `/api/campaigns/{id}/audio/` | mestre e jogadores |
+| `POST` | `/api/campaigns/{id}/audio/presence/` | quem participa — corpo `{"listening": true\|false}` |
 | `POST` | `/api/campaigns/{id}/audio/tracks/` | mestre — corpo `{"url": "..."}` |
 | `DELETE` | `/api/campaigns/{id}/audio/tracks/{track_id}/` | mestre |
 | `PATCH` | `/api/campaigns/{id}/audio/order/` | mestre — corpo `{"order": [ids]}` |

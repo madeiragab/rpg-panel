@@ -26,6 +26,7 @@ from rest_framework.test import APIClient
 
 from api.youtube import LinkInvalido, extrair_id
 from hud.models import (
+    AudioListener,
     AudioTrack,
     Campaign,
     Character,
@@ -840,6 +841,127 @@ class PlayerDaCampanhaAPITests(BaseAPITests):
         # Quem abre a página no meio da música entra onde a mesa está, não onde
         # a música estava quando o mestre apertou o play.
         self.assertGreater(resposta.data["state"]["position_seconds"], 35)
+
+
+class PresencaNoAudioTests(BaseAPITests):
+    """Quem está no áudio, e com que cara aparece.
+
+    A presença é um horário, não um liga/desliga: o navegador não avisa que
+    fechou. Metade destes testes é sobre isso — a linha que ficou para trás não
+    pode continuar valendo, e a mesma pessoa em duas abas é uma pessoa só.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.url_audio = reverse("campaign-audio", args=[self.campanha.pk])
+        self.url_presenca = reverse("campaign-presenca-no-audio", args=[self.campanha.pk])
+        self.personagem = Character.objects.create(
+            name="Kai", created_by=self.mestre, campaign=self.campanha,
+            assigned_to=self.jogador,
+        )
+
+    def _entrar(self, corpo=None):
+        return self.client.post(self.url_presenca, corpo or {}, format="json")
+
+    def _envelhecer(self, usuario, segundos):
+        AudioListener.objects.filter(campaign=self.campanha, user=usuario).update(
+            last_seen=timezone.now() - timedelta(seconds=segundos)
+        )
+
+    def test_quem_entra_aparece_com_o_personagem(self):
+        self.como(self.jogador)
+
+        resposta = self._entrar()
+
+        self.assertEqual(resposta.status_code, 200)
+        ouvintes = resposta.data["listeners"]
+        self.assertEqual(len(ouvintes), 1)
+        self.assertEqual(ouvintes[0]["name"], "Kai")
+        self.assertEqual(ouvintes[0]["user_id"], self.jogador.pk)
+        self.assertFalse(ouvintes[0]["is_master"])
+
+    def test_a_mesa_inteira_ve_quem_entrou(self):
+        self.como(self.jogador)
+        self._entrar()
+
+        self.como(self.mestre)
+        resposta = self.client.get(self.url_audio)
+
+        nomes = [ouvinte["name"] for ouvinte in resposta.data["listeners"]]
+        self.assertEqual(nomes, ["Kai"])
+
+    def test_o_mestre_vem_marcado(self):
+        self.como(self.mestre)
+
+        resposta = self._entrar()
+
+        self.assertTrue(resposta.data["listeners"][0]["is_master"])
+
+    def test_sair_tira_da_roda(self):
+        self.como(self.jogador)
+        self._entrar()
+
+        resposta = self._entrar({"listening": False})
+
+        self.assertEqual(resposta.data["listeners"], [])
+        self.assertFalse(AudioListener.objects.exists())
+
+    def test_a_mesma_pessoa_em_duas_abas_e_uma_so(self):
+        self.como(self.jogador)
+
+        self._entrar()
+        resposta = self._entrar()
+
+        self.assertEqual(len(resposta.data["listeners"]), 1)
+        self.assertEqual(AudioListener.objects.count(), 1)
+
+    def test_quem_parou_de_dar_noticia_some(self):
+        self.como(self.jogador)
+        self._entrar()
+        self._envelhecer(self.jogador, AudioListener.SEGUNDOS_ATE_SUMIR + 5)
+
+        self.como(self.mestre)
+        resposta = self.client.get(self.url_audio)
+
+        # A linha continua no banco; o que não continua é a pessoa na roda.
+        self.assertEqual(resposta.data["listeners"], [])
+        self.assertTrue(AudioListener.objects.exists())
+
+    def test_o_batimento_traz_de_volta_quem_tinha_sumido(self):
+        self.como(self.jogador)
+        self._entrar()
+        self._envelhecer(self.jogador, AudioListener.SEGUNDOS_ATE_SUMIR + 5)
+
+        resposta = self._entrar()
+
+        self.assertEqual(len(resposta.data["listeners"]), 1)
+        self.assertEqual(AudioListener.objects.count(), 1)
+
+    def test_ficha_escondida_nao_vaza_o_nome(self):
+        # Ficha que o mestre ainda não revelou não pode aparecer na roda: a
+        # trilha não é uma porta lateral para o que a lista de personagens
+        # esconde. Quem só tem uma dessas entra pelo perfil.
+        self.personagem.visible = False
+        self.personagem.save()
+        self.como(self.jogador)
+
+        resposta = self._entrar()
+
+        nomes = [ouvinte["name"] for ouvinte in resposta.data["listeners"]]
+        self.assertEqual(nomes, ["jogador"])
+
+    def test_estranho_nao_entra_no_audio_da_mesa(self):
+        self.como(self.estranho)
+
+        resposta = self._entrar()
+
+        self.assertEqual(resposta.status_code, 404)
+        self.assertFalse(AudioListener.objects.exists())
+
+    def test_anonimo_nao_entra(self):
+        resposta = self._entrar()
+
+        self.assertEqual(resposta.status_code, 401)
 
 
 class PusherAuthTests(BaseAPITests):

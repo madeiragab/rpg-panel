@@ -4,16 +4,23 @@
  * onde*, e cada navegador toca o vídeo por conta própria. Não há áudio saindo
  * do servidor — o que trafega é uma linha de estado.
  *
- * Três coisas que valem saber antes de mexer aqui:
+ * Quatro coisas que valem saber antes de mexer aqui:
  *
- * 1. Só o mestre escreve. O botão do jogador mexe no volume dele e em nada mais;
- *    a regra de verdade está no servidor, isto aqui é só a tela.
+ * 1. Só o mestre escreve o estado da trilha. O jogador escreve uma coisa só: a
+ *    presença dele. A regra de verdade está no servidor; isto aqui é a tela.
  *
- * 2. O navegador não deixa áudio começar sozinho. Por isso o jogador tem o botão
- *    "Entrar no áudio": ele existe para haver um clique humano antes do play,
- *    senão o YouTube devolve o vídeo mudo ou parado.
+ * 2. O navegador não deixa áudio começar sozinho. Por isso existe o botão
+ *    "Entrar no áudio" — para todo mundo, mestre incluído: ele é o gesto humano
+ *    que o navegador cobra antes do primeiro play, e é também o que põe o
+ *    personagem da pessoa na roda de quem está ouvindo.
  *
- * 3. O Pusher é acelerador, não mecanismo. Sem chave, ou com o Pusher fora do
+ * 3. A posição não vem só do servidor: ela *anda* no cliente. Entre uma
+ *    resposta e outra, o navegador soma o tempo que passou desde que recebeu, e
+ *    compara com o que o vídeo dele está tocando. É isso que faz a mesa se
+ *    juntar de volta sozinha depois de um anúncio, de um buffer ou de um
+ *    notebook que dormiu — sem esperar o próximo `polling`.
+ *
+ * 4. O Pusher é acelerador, não mecanismo. Sem chave, ou com o Pusher fora do
  *    ar, o `polling` lento segura o player. Por isso ele nunca é desligado.
  */
 (() => {
@@ -22,26 +29,43 @@
 
   const CAMPANHA = raiz.dataset.campanha;
   const SOU_MESTRE = raiz.dataset.mestre === '1';
+  const MEU_ID = Number(raiz.dataset.eu);
   const PUSHER_KEY = raiz.dataset.pusherKey || '';
   const PUSHER_CLUSTER = raiz.dataset.pusherCluster || 'mt1';
 
   const INTERVALO_POLLING = 10000;   // rede de segurança, não o caminho normal
   const INTERVALO_BATIMENTO = 15000; // o mestre dizendo "ainda estou aqui"
-  const DESVIO_TOLERADO = 2.5;       // segundos antes de valer um seek
+  const INTERVALO_PRESENCA = 15000;  // o ouvinte dizendo a mesma coisa
+  const INTERVALO_CONFERIDA = 1000;  // de quanto em quanto o cliente se compara
+  const DESVIO_TOLERADO = 1.5;       // segundos antes de valer um seek
+  const ESPERA_ENTRE_SEEKS = 2500;   // um seek por vez; ver `conferirDesvio`
+  const ESPERA_PELO_SOM = 4000;      // até desconfiar que o navegador barrou
 
   const elemento = (id) => document.getElementById(id);
   const agora = elemento('pa-agora');
   const lista = elemento('pa-lista');
   const aviso = elemento('pa-aviso');
   const estadoCurto = elemento('pa-estado-curto');
+  const rodaDeOuvintes = elemento('pa-ouvintes');
+  const botaoEntrar = elemento('pa-entrar');
+  const botaoSair = elemento('pa-sair');
 
   let token = null;
   let tokenExpiraEm = 0;
   let estado = null;
   let faixas = [];
+  let ouvintes = [];
+  let assinaturaDaRoda = null;
   let player = null;
   let playerPronto = false;
-  let liberadoPeloUsuario = SOU_MESTRE; // o mestre clica para tocar, já é o gesto
+
+  // A pessoa está no áudio agora. É o que libera o som — o navegador exige um
+  // clique humano antes do primeiro play — e é o que põe o retrato dela na roda.
+  let ouvindo = false;
+
+  let recebidoEm = 0;     // performance.now() de quando este estado chegou
+  let ultimoSeek = 0;
+  let paradoDesde = 0;    // desde quando devia estar tocando e não está
   let mudo = false;
   let volume = 60;
 
@@ -64,9 +88,13 @@
     return token;
   }
 
+  function endereco(caminho) {
+    return `/api/campaigns/${CAMPANHA}${caminho}`;
+  }
+
   async function api(caminho, opcoes = {}) {
     const acesso = await pegarToken();
-    const resposta = await fetch(`/api/campaigns/${CAMPANHA}${caminho}`, {
+    const resposta = await fetch(endereco(caminho), {
       ...opcoes,
       headers: {
         'Content-Type': 'application/json',
@@ -95,12 +123,44 @@
     return faixa ? (faixa.title || faixa.youtube_id) : 'Nada tocando.';
   }
 
+  function tocandoAgora() {
+    return !!(estado && estado.is_playing && !estado.stale);
+  }
+
+  /* Onde a faixa está *neste instante*, não onde estava quando a resposta saiu
+     do servidor.
+
+     O servidor já manda a posição corrigida pelo tempo que ele mesmo levou; o
+     que falta é o tempo que passou aqui desde que a resposta chegou. Contamos
+     com `performance.now()`, que anda sozinho, e não com o relógio do sistema:
+     relógio de usuário erra em minutos, e um minuto de erro aqui viraria um
+     seek para o meio da música a cada segundo. */
+  function posicaoEsperada() {
+    if (!estado) return 0;
+    if (!tocandoAgora()) return estado.position_seconds;
+    return estado.position_seconds + (performance.now() - recebidoEm) / 1000;
+  }
+
   // ------------------------------------------------------------------ desenho
 
   function desenhar() {
     const atual = faixaAtual();
     agora.textContent = nomeDaFaixa(atual);
-    estadoCurto.textContent = estado && estado.is_playing && !estado.stale ? '▶' : '⏸';
+    const simbolo = tocandoAgora() ? '▶' : '⏸';
+    estadoCurto.textContent = ouvintes.length
+      ? `${simbolo} ${ouvintes.length}👤`
+      : simbolo;
+
+    botaoEntrar.hidden = ouvindo;
+    botaoSair.hidden = !ouvindo;
+    // Quem ainda não entrou precisa saber que está perdendo alguma coisa. O
+    // recado vai no próprio botão, e não no aviso: o aviso é onde os erros
+    // aparecem, e um dos dois apagaria o outro a cada volta do polling.
+    botaoEntrar.textContent = tocandoAgora() ? 'Entrar no áudio ▶' : 'Entrar no áudio';
+    botaoEntrar.classList.toggle('chamando', tocandoAgora());
+    // O widget nasce recolhido, e um botão dentro de uma gaveta fechada não
+    // convida ninguém. Recolhido e com a mesa tocando, a barra chama.
+    raiz.classList.toggle('chamando', tocandoAgora() && !ouvindo);
 
     if (SOU_MESTRE) {
       const tocar = elemento('pa-tocar');
@@ -130,7 +190,9 @@
         const tocarEsta = document.createElement('button');
         tocarEsta.textContent = '▶';
         tocarEsta.title = 'Tocar esta';
-        tocarEsta.onclick = () => mandarEstado({ track: faixa.id, position_seconds: 0, is_playing: true });
+        tocarEsta.onclick = () => comandoDoMestre(
+          () => mandarEstado({ track: faixa.id, position_seconds: 0, is_playing: true }),
+        );
         item.appendChild(tocarEsta);
 
         const remover = document.createElement('button');
@@ -142,6 +204,66 @@
 
       lista.appendChild(item);
     });
+  }
+
+  /* A roda de quem está ouvindo.
+
+     Só é redesenhada quando muda de gente: o `polling` traz a lista a cada dez
+     segundos, e refazer os retratos a cada volta faria as fotos piscarem na
+     tela de todo mundo por nada. */
+  function desenharOuvintes() {
+    const assinatura = JSON.stringify(
+      ouvintes.map((o) => [o.user_id, o.name, o.image, o.is_master]),
+    );
+    if (assinatura === assinaturaDaRoda) return;
+    assinaturaDaRoda = assinatura;
+
+    rodaDeOuvintes.innerHTML = '';
+
+    if (!ouvintes.length) {
+      const vazio = document.createElement('span');
+      vazio.className = 'pa-ninguem';
+      vazio.textContent = 'Ninguém no áudio ainda.';
+      rodaDeOuvintes.appendChild(vazio);
+      return;
+    }
+
+    ouvintes.forEach((pessoa) => {
+      const caixa = document.createElement('div');
+      caixa.className = 'pa-ouvinte';
+      if (pessoa.is_master) caixa.classList.add('mestre');
+      if (pessoa.user_id === MEU_ID) caixa.classList.add('eu');
+      caixa.title = pessoa.is_master ? `${pessoa.name} (mestre)` : pessoa.name;
+
+      // As mesmas classes e os mesmos data-* das outras molduras do painel: o
+      // portrait.js posiciona a foto com o corte que o dono escolheu, e o
+      // retrato aqui fica igual ao da ficha em vez de cortado pelo meio.
+      const moldura = document.createElement('div');
+      moldura.className = 'portrait-thumb redondo minusculo';
+      moldura.setAttribute('data-portrait-frame', '');
+      moldura.dataset.encaixe = 'preencher';
+      moldura.dataset.zoom = pessoa.zoom;
+      moldura.dataset.focusX = pessoa.focus_x;
+      moldura.dataset.focusY = pessoa.focus_y;
+
+      if (pessoa.image) {
+        const foto = document.createElement('img');
+        foto.src = pessoa.image;
+        foto.alt = pessoa.name;
+        moldura.appendChild(foto);
+      } else {
+        moldura.classList.add('empty');
+        const inicial = document.createElement('span');
+        inicial.className = 'pa-inicial';
+        inicial.textContent = (pessoa.name || '?').trim().charAt(0).toUpperCase();
+        caixa.appendChild(inicial);
+      }
+
+      caixa.insertBefore(moldura, caixa.firstChild);
+      rodaDeOuvintes.appendChild(caixa);
+    });
+
+    if (window.hudPortrait) window.hudPortrait.prepararTodas(rodaDeOuvintes);
   }
 
   // ----------------------------------------------------------------- arrastar
@@ -191,6 +313,12 @@
           sincronizar();
         },
         onStateChange: (evento) => {
+          // Voltar a tocar é o fim de alguma interrupção — um anúncio, um
+          // buffer, a faixa que acabou de carregar. É o melhor momento para
+          // conferir onde a mesa está: a API não avisa quando um anúncio
+          // começa ou termina, mas avisa isto.
+          if (evento.data === YT.PlayerState.PLAYING) conferirDesvio();
+
           // Só o mestre decide o que vem depois: se cada navegador escolhesse
           // sozinho, a mesa se espalharia em faixas diferentes.
           if (evento.data === YT.PlayerState.ENDED && SOU_MESTRE) proxima(true);
@@ -205,6 +333,14 @@
     document.head.appendChild(script);
   }
 
+  function videoCarregado() {
+    const dados = playerPronto && player.getVideoData ? player.getVideoData() : null;
+    return dados ? dados.video_id : null;
+  }
+
+  /* Põe o player na faixa certa. Trocar de vídeo é o caso pesado — recarrega o
+     iframe — então ele acontece aqui, e o acerto fino de posição fica com o
+     `conferirDesvio`, que roda de segundo em segundo. */
   function sincronizar() {
     if (!playerPronto || !estado) return;
 
@@ -216,42 +352,104 @@
       return;
     }
 
-    const tocandoAgora = estado.is_playing && !estado.stale;
-    const dados = player.getVideoData ? player.getVideoData() : {};
-    const trocouDeFaixa = !dados || dados.video_id !== atual.youtube_id;
+    const trocouDeFaixa = videoCarregado() !== atual.youtube_id;
 
     if (trocouDeFaixa) {
-      if (!liberadoPeloUsuario) {
+      if (!ouvindo) {
         // Sem gesto do usuário o navegador recusaria o play. Deixamos a faixa
-        // carregada e paramos aqui; o botão "Entrar no áudio" resolve.
-        player.cueVideoById(atual.youtube_id, estado.position_seconds);
-        mostrarAviso('Clique em "Entrar no áudio" para ouvir a trilha.');
+        // engatilhada e paramos aqui; o botão "Entrar no áudio" resolve.
+        player.cueVideoById(atual.youtube_id, posicaoEsperada());
         return;
       }
-      player.loadVideoById(atual.youtube_id, estado.position_seconds);
-      if (!tocandoAgora) player.pauseVideo();
+      ultimoSeek = performance.now();
+      player.loadVideoById(atual.youtube_id, posicaoEsperada());
+      if (!tocandoAgora()) player.pauseVideo();
       return;
     }
 
-    if (!liberadoPeloUsuario) return;
+    if (!ouvindo) return;
+    conferirDesvio();
+  }
 
-    const posicaoLocal = player.getCurrentTime ? player.getCurrentTime() : 0;
-    if (Math.abs(posicaoLocal - estado.position_seconds) > DESVIO_TOLERADO) {
-      player.seekTo(estado.position_seconds, true);
+  /* O acerto fino, uma vez por segundo.
+   *
+   * Este é o pedaço que faz a mesa ouvir a mesma coisa. O navegador compara o
+   * segundo que ele está tocando com o segundo em que a mesa está e, se a
+   * diferença passar do tolerado, pula para lá.
+   *
+   * Anúncio é o caso que ele resolve calado. Durante um, o YouTube reporta o
+   * tempo do anúncio e ignora o `seekTo` — quem estiver vendo propaganda
+   * apareceria como "fora de sincronia" e receberia um pulo por segundo que não
+   * ia a lugar nenhum. Por isso a espera entre seeks: durante o anúncio as
+   * tentativas ficam raras e inofensivas, e no instante em que ele acaba a
+   * primeira delas cai em pé, no segundo onde o resto da mesa está.
+   *
+   * A tolerância existe pelo motivo oposto: corrigir meio segundo soaria como
+   * um engasgo a cada volta, e um segundo e meio de trilha ambiente ninguém
+   * numa mesa de RPG percebe. */
+  function conferirDesvio() {
+    if (!playerPronto || !ouvindo || !estado) return;
+
+    const atual = faixaAtual();
+    if (!atual) return;
+
+    // Faixa errada carregada é assunto do `sincronizar`, que troca o vídeo.
+    if (videoCarregado() !== atual.youtube_id) {
+      sincronizar();
+      return;
     }
 
     const estadoLocal = player.getPlayerState();
-    if (tocandoAgora && estadoLocal !== YT.PlayerState.PLAYING) player.playVideo();
-    if (!tocandoAgora && estadoLocal === YT.PlayerState.PLAYING) player.pauseVideo();
+
+    if (!tocandoAgora()) {
+      if (estadoLocal === YT.PlayerState.PLAYING) player.pauseVideo();
+      paradoDesde = 0;
+      return;
+    }
+
+    const alvo = posicaoEsperada();
+    const local = player.getCurrentTime ? player.getCurrentTime() : 0;
+
+    if (Math.abs(local - alvo) > DESVIO_TOLERADO
+        && performance.now() - ultimoSeek > ESPERA_ENTRE_SEEKS) {
+      ultimoSeek = performance.now();
+      player.seekTo(alvo, true);
+    }
+
+    /* `playVideo()` não devolve erro quando o navegador recusa: ele
+       simplesmente não acontece. A única forma de saber é insistir e olhar o
+       relógio — se a mesa está tocando e este player continua parado depois de
+       alguns segundos, o clique não valeu como gesto.
+
+       O recado é "clique em qualquer lugar", e não "clique aqui de novo",
+       porque é isso que resolve: um clique qualquer na página libera o áudio, e
+       a tentativa do segundo seguinte já entra. Insistir também cobre o caso
+       oposto — vídeo que demora a carregar não é bloqueio, e some sozinho. */
+    if (estadoLocal !== YT.PlayerState.PLAYING
+        && estadoLocal !== YT.PlayerState.BUFFERING) {
+      player.playVideo();
+      if (!paradoDesde) paradoDesde = performance.now();
+      if (performance.now() - paradoDesde > ESPERA_PELO_SOM) {
+        mostrarAviso('O navegador barrou o som. Clique em qualquer lugar da página.');
+      }
+    } else if (paradoDesde) {
+      paradoDesde = 0;
+      mostrarAviso('');
+    }
   }
 
   // ------------------------------------------------------------------- estado
 
   function aplicar(corpo) {
     if (!corpo) return;
+    // A hora de chegada é a âncora de tudo que o `posicaoEsperada` calcula
+    // depois; marcá-la antes de desenhar mantém a conta honesta.
+    recebidoEm = performance.now();
     estado = corpo.state;
     faixas = corpo.tracks;
+    if (corpo.listeners) ouvintes = corpo.listeners;
     desenhar();
+    desenharOuvintes();
     sincronizar();
   }
 
@@ -263,10 +461,10 @@
   }
 
   function mandarEstado(mudancas) {
-    comErro(() => api('/audio/state/', {
+    return api('/audio/state/', {
       method: 'PATCH',
       body: JSON.stringify(mudancas),
-    }).then(aplicar));
+    }).then(aplicar);
   }
 
   function buscar() {
@@ -278,29 +476,92 @@
     const indice = indiceAtual();
 
     if (automatico && estado.loop_mode === 'ONE') {
-      mandarEstado({ track: faixas[indice].id, position_seconds: 0, is_playing: true });
+      comErro(() => mandarEstado({ track: faixas[indice].id, position_seconds: 0, is_playing: true }));
       return;
     }
 
     const seguinte = indice + 1;
     if (seguinte >= faixas.length) {
       if (estado.loop_mode === 'ALL') {
-        mandarEstado({ track: faixas[0].id, position_seconds: 0, is_playing: true });
+        comErro(() => mandarEstado({ track: faixas[0].id, position_seconds: 0, is_playing: true }));
       } else if (automatico) {
-        mandarEstado({ is_playing: false, position_seconds: 0 });
+        comErro(() => mandarEstado({ is_playing: false, position_seconds: 0 }));
       }
       return;
     }
 
-    mandarEstado({ track: faixas[seguinte].id, position_seconds: 0, is_playing: true });
+    comErro(() => mandarEstado({ track: faixas[seguinte].id, position_seconds: 0, is_playing: true }));
   }
 
   function anterior() {
     if (!faixas.length) return;
     const indice = indiceAtual();
     const alvo = indice <= 0 ? faixas.length - 1 : indice - 1;
-    mandarEstado({ track: faixas[alvo].id, position_seconds: 0, is_playing: true });
+    comErro(() => mandarEstado({ track: faixas[alvo].id, position_seconds: 0, is_playing: true }));
   }
+
+  // ----------------------------------------------------------------- presença
+
+  function mandarPresenca(ligado) {
+    return api('/audio/presence/', {
+      method: 'POST',
+      body: JSON.stringify({ listening: ligado }),
+    }).then(aplicar);
+  }
+
+  function entrar() {
+    if (ouvindo) return;
+    ouvindo = true;
+    mostrarAviso('');
+    desenhar();
+    // O play tem que sair de dentro do clique, antes de qualquer `await`: o
+    // navegador só reconhece o gesto enquanto o handler está rodando.
+    sincronizar();
+    comErro(() => mandarPresenca(true));
+  }
+
+  function sair() {
+    ouvindo = false;
+    paradoDesde = 0;
+    // O gesto continua dado: voltar depois não pede clique novo. O que sai é o
+    // som e o retrato da roda.
+    if (playerPronto && player.pauseVideo) player.pauseVideo();
+    desenhar();
+    comErro(() => mandarPresenca(false));
+  }
+
+  /* Mexer nos controles é entrar no áudio.
+   *
+   * O mestre não deveria ter que clicar em dois botões para ouvir a própria
+   * trilha, e o clique dele nos controles serve de gesto tão bem quanto o
+   * outro. Entrar antes de mandar o comando também acerta a ordem: a resposta
+   * do servidor já vem com ele na roda. */
+  function comandoDoMestre(acao) {
+    if (!ouvindo) entrar();
+    comErro(acao);
+  }
+
+  botaoEntrar.addEventListener('click', entrar);
+  botaoSair.addEventListener('click', sair);
+
+  setInterval(() => {
+    if (!ouvindo) return;
+    comErro(() => mandarPresenca(true));
+  }, INTERVALO_PRESENCA);
+
+  /* Aba que fecha some da roda na hora, e não daqui a quarenta e cinco segundos.
+     `keepalive` é o que deixa o pedido sair de uma página que está morrendo;
+     sem ele o navegador cancela a saída no meio. Se falhar, não faz mal: o
+     `last_seen` velho tira a pessoa da roda sozinho. */
+  window.addEventListener('pagehide', () => {
+    if (!ouvindo || !token) return;
+    fetch(endereco('/audio/presence/'), {
+      method: 'POST',
+      keepalive: true,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ listening: false }),
+    }).catch(() => {});
+  });
 
   // ----------------------------------------------------------------- controles
 
@@ -321,19 +582,29 @@
     elemento('pa-tocar').addEventListener('click', () => {
       if (!estado) return;
       if (!estado.track && faixas.length) {
-        mandarEstado({ track: faixas[0].id, position_seconds: 0, is_playing: true });
+        comandoDoMestre(() => mandarEstado({ track: faixas[0].id, position_seconds: 0, is_playing: true }));
         return;
       }
-      const posicao = playerPronto && player.getCurrentTime ? player.getCurrentTime() : 0;
-      mandarEstado({ is_playing: !estado.is_playing, position_seconds: posicao });
+      // A posição que vale é a do player do mestre quando ele tem uma: é o
+      // relógio da mesa. Sem player pronto, a última que o servidor conhece.
+      const posicao = playerPronto && player.getCurrentTime
+        ? player.getCurrentTime()
+        : posicaoEsperada();
+      comandoDoMestre(() => mandarEstado({ is_playing: !estado.is_playing, position_seconds: posicao }));
     });
 
-    elemento('pa-proxima').addEventListener('click', () => proxima(false));
-    elemento('pa-anterior').addEventListener('click', anterior);
+    elemento('pa-proxima').addEventListener('click', () => {
+      if (!ouvindo) entrar();
+      proxima(false);
+    });
+    elemento('pa-anterior').addEventListener('click', () => {
+      if (!ouvindo) entrar();
+      anterior();
+    });
 
     elemento('pa-loop').addEventListener('click', () => {
       const roda = { OFF: 'ONE', ONE: 'ALL', ALL: 'OFF' };
-      mandarEstado({ loop_mode: roda[estado ? estado.loop_mode : 'OFF'] });
+      comErro(() => mandarEstado({ loop_mode: roda[estado ? estado.loop_mode : 'OFF'] }));
     });
 
     elemento('pa-link').addEventListener('keydown', (evento) => {
@@ -349,23 +620,18 @@
       }));
     });
 
-    // O batimento é o que mantém o estado "quente". Sem ele o servidor conclui,
-    // com razão, que a aba do mestre sumiu, e manda todo mundo parar.
+    /* O batimento do mestre é o que mantém o estado "quente" e o que corrige a
+       posição da mesa: o servidor extrapola a partir do último que chegou.
+       Sem ele o servidor conclui, com razão, que a aba do mestre sumiu, e manda
+       todo mundo parar. */
     setInterval(() => {
       if (!estado || !estado.is_playing || !playerPronto) return;
       const posicao = player.getCurrentTime ? player.getCurrentTime() : 0;
       comErro(() => api('/audio/state/', {
         method: 'PATCH',
         body: JSON.stringify({ position_seconds: posicao, is_playing: true }),
-      }).then((corpo) => { estado = corpo.state; faixas = corpo.tracks; }));
+      }).then(aplicar));
     }, INTERVALO_BATIMENTO);
-  } else {
-    elemento('pa-entrar').addEventListener('click', () => {
-      liberadoPeloUsuario = true;
-      mostrarAviso('');
-      elemento('pa-entrar').style.display = 'none';
-      sincronizar();
-    });
   }
 
   // -------------------------------------------------------------- tempo real
@@ -398,4 +664,16 @@
   // O polling continua mesmo com Pusher ligado: é o que salva a mesa se o
   // empurrão se perder, e de dez em dez segundos não pesa na cota do host.
   setInterval(buscar, INTERVALO_POLLING);
+  // A conferida é local e não fala com o servidor: é ela que junta de volta
+  // quem ficou para trás num anúncio, sem esperar a próxima resposta.
+  setInterval(conferirDesvio, INTERVALO_CONFERIDA);
+
+  /* Aba escondida tem `setInterval` estrangulado pelo navegador — vira um
+     disparo por minuto — e o vídeo continua tocando. Quando ela volta, a
+     posição pode estar longe: conferimos na hora, sem esperar o próximo tique.
+     Um notebook que dormiu volta pelo mesmo caminho. */
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    buscar();
+  });
 })();

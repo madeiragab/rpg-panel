@@ -36,6 +36,36 @@
     min-height: 2.4em; margin-bottom: 8px; line-height: 1.2;
     color: #9b8b8d; word-break: break-word;
   }
+  /* A roda de quem está ouvindo. Fica antes dos controles de propósito: é a
+     resposta ao clique de "Entrar no áudio", e a resposta tem que estar à vista
+     de quem acabou de clicar. */
+  #player-audio .pa-ouvintes {
+    display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
+    min-height: 34px; margin-bottom: 8px;
+  }
+  #player-audio .pa-ouvinte { position: relative; line-height: 0; }
+  #player-audio .pa-ouvinte .portrait-thumb {
+    width: 30px; max-width: 30px; border-color: rgba(225, 29, 46, 0.35);
+  }
+  /* O mestre ganha um anel: numa roda de seis retratos redondos, quem manda na
+     trilha tem que ser reconhecível sem passar o mouse. */
+  #player-audio .pa-ouvinte.mestre .portrait-thumb {
+    box-shadow: 0 0 0 2px rgba(225, 29, 46, 0.75);
+  }
+  #player-audio .pa-ouvinte.eu .portrait-thumb {
+    box-shadow: 0 0 0 2px rgba(232, 222, 222, 0.65);
+  }
+  #player-audio .pa-ouvinte.mestre.eu .portrait-thumb {
+    box-shadow: 0 0 0 2px rgba(225, 29, 46, 0.75), 0 0 0 4px rgba(232, 222, 222, 0.4);
+  }
+  /* Sem foto ainda tem que dar para saber quem é: a inicial ocupa o lugar do
+     retrato em vez de deixar um buraco na roda. */
+  #player-audio .pa-ouvinte .pa-inicial {
+    position: absolute; inset: 0; display: flex;
+    align-items: center; justify-content: center;
+    font-size: 0.8rem; line-height: 1; color: #e8dede; pointer-events: none;
+  }
+  #player-audio .pa-ninguem { color: #9b8b8d; font-size: 0.8rem; }
   #player-audio .pa-botoes { display: flex; gap: 6px; flex-wrap: wrap; }
   #player-audio button {
     background: rgba(225, 29, 46, 0.12); color: #e8dede;
@@ -43,6 +73,26 @@
     padding: 4px 9px; cursor: pointer; font-size: 0.85rem;
   }
   #player-audio button:hover { background: rgba(225, 29, 46, 0.24); }
+  /* A mesa já está ouvindo e você não. O botão pisca até você entrar. */
+  #player-audio button.chamando {
+    background: rgba(225, 29, 46, 0.3);
+    animation: pa-chamando 1.8s ease-in-out infinite;
+  }
+  @keyframes pa-chamando {
+    50% { background: rgba(225, 29, 46, 0.08); }
+  }
+  /* Quadro próprio: a barra do topo já nasce no tom mais fraco, e reusar o
+     `pa-chamando` do botão faria uma animação de nada para nada. */
+  #player-audio.recolhido.chamando .pa-topo {
+    animation: pa-chamando-barra 1.8s ease-in-out infinite;
+  }
+  @keyframes pa-chamando-barra {
+    50% { background: rgba(225, 29, 46, 0.34); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #player-audio button.chamando,
+    #player-audio.recolhido.chamando .pa-topo { animation: none; }
+  }
   #player-audio button[disabled] { opacity: 0.4; cursor: default; }
   #player-audio input[type="text"] {
     width: 100%; margin-top: 8px; padding: 5px 7px; border-radius: 6px;
@@ -72,6 +122,7 @@
      class="recolhido"
      data-campanha="{{ campaign.pk }}"
      data-mestre="{{ is_master|yesno:'1,0' }}"
+     data-eu="{{ user.pk }}"
      data-url-token="{% url 'token_do_player' %}"
      data-pusher-key="{{ pusher_key }}"
      data-pusher-cluster="{{ pusher_cluster }}">
@@ -86,15 +137,26 @@
 
     <div class="pa-agora" id="pa-agora">Nada tocando.</div>
 
+    {% comment %}
+       Quem está no áudio, pelo retrato do personagem. É o que o clique em
+       "Entrar no áudio" devolve para quem clicou, e o que diz ao mestre que a
+       mesa inteira está ouvindo antes de ele apertar o play.
+    {% endcomment %}
+    <div class="pa-ouvintes" id="pa-ouvintes"></div>
+
     <div class="pa-botoes">
       {% if is_master %}
         <button type="button" id="pa-anterior" title="Anterior">⏮</button>
         <button type="button" id="pa-tocar" title="Tocar ou pausar">▶</button>
         <button type="button" id="pa-proxima" title="Próxima">⏭</button>
         <button type="button" id="pa-loop" title="Repetição">↻ off</button>
-      {% else %}
-        <button type="button" id="pa-entrar">Entrar no áudio</button>
       {% endif %}
+      {% comment %}
+         O botão existe para o mestre também. Ele é quem toca primeiro, e o
+         navegador dele cobra o mesmo gesto humano que cobra o dos outros.
+      {% endcomment %}
+      <button type="button" id="pa-entrar">Entrar no áudio</button>
+      <button type="button" id="pa-sair" hidden>Sair do áudio</button>
       <button type="button" id="pa-mudo" title="Mudo só para você">🔊</button>
     </div>
 

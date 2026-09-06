@@ -18,6 +18,7 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from hud.models import (
+    AudioListener,
     AudioTrack,
     Campaign,
     Character,
@@ -291,6 +292,85 @@ class PlaybackStateSerializer(serializers.ModelSerializer):
         # O cliente compara o relógio dele com o nosso antes de decidir que
         # está fora de sincronia. Relógio de usuário erra com frequência.
         return timezone.now().isoformat()
+
+
+class OuvinteSerializer(serializers.ModelSerializer):
+    """Quem está no áudio, com a cara que a mesa reconhece.
+
+    Numa sessão as pessoas são os personagens, então é a ficha que aparece — o
+    avatar do perfil só entra para quem não tem uma, o mestre à frente. As duas
+    fontes têm os mesmos três números de enquadramento (`RetratoEnquadrado`), e
+    é por isso que o widget desenha as duas com o mesmo código.
+
+    A ficha vem pronta no contexto, em `fichas`. Buscar aqui dentro custaria uma
+    consulta por ouvinte, e esta lista é redesenhada a cada dez segundos.
+    """
+
+    user_id = serializers.IntegerField(read_only=True)
+    name = serializers.SerializerMethodField()
+    image = serializers.SerializerMethodField()
+    zoom = serializers.SerializerMethodField()
+    focus_x = serializers.SerializerMethodField()
+    focus_y = serializers.SerializerMethodField()
+    is_master = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AudioListener
+        fields = ["user_id", "name", "image", "zoom", "focus_x", "focus_y", "is_master"]
+
+    def _ficha(self, ouvinte):
+        return (self.context.get("fichas") or {}).get(ouvinte.user_id)
+
+    def _perfil(self, ouvinte):
+        return getattr(ouvinte.user, "profile", None)
+
+    def _retrato(self, ouvinte):
+        """De onde sai a imagem e o corte dela: a ficha, ou o perfil."""
+        ficha = self._ficha(ouvinte)
+        if ficha is not None and ficha.image:
+            return ficha, ficha.image
+        perfil = self._perfil(ouvinte)
+        if perfil is not None and perfil.avatar:
+            return perfil, perfil.avatar
+        return None, None
+
+    def get_name(self, ouvinte) -> str:
+        ficha = self._ficha(ouvinte)
+        if ficha is not None:
+            return ficha.name
+        perfil = self._perfil(ouvinte)
+        if perfil is not None:
+            return perfil.display_name or perfil.nickname or ouvinte.user.username
+        return ouvinte.user.username
+
+    def get_image(self, ouvinte) -> str:
+        _, imagem = self._retrato(ouvinte)
+        return imagem.url if imagem else ""
+
+    def get_zoom(self, ouvinte) -> int:
+        dono, _ = self._retrato(ouvinte)
+        return getattr(dono, "image_zoom", 100) or 100
+
+    def get_focus_x(self, ouvinte) -> float:
+        dono, _ = self._retrato(ouvinte)
+        return getattr(dono, "image_focus_x", 0.5)
+
+    def get_focus_y(self, ouvinte) -> float:
+        dono, _ = self._retrato(ouvinte)
+        return getattr(dono, "image_focus_y", 0.5)
+
+    def get_is_master(self, ouvinte) -> bool:
+        return ouvinte.user_id == self.context.get("mestre_id")
+
+
+class PresencaSerializer(serializers.Serializer):
+    """O corpo do batimento de presença: entrar, continuar, ou sair.
+
+    `listening` ausente vale como `true` porque o pedido normal é o batimento —
+    a saída é o caso raro, e é ela que carrega o campo.
+    """
+
+    listening = serializers.BooleanField(required=False, default=True)
 
 
 class EstadoDoPlayerSerializer(serializers.Serializer):

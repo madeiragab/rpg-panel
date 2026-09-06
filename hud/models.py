@@ -870,6 +870,59 @@ class PlaybackState(models.Model):
         return self.position_seconds + max(decorrido, 0)
 
 
+class AudioListener(models.Model):
+    """Quem está com o áudio ligado nesta campanha, agora.
+
+    A mesa quer ver quem está ouvindo, e o navegador não tem como avisar que
+    fechou: aba que cai, notebook que dorme e internet que some são a regra, não
+    a exceção. Por isso a presença não é um liga/desliga guardado no banco — é um
+    horário. Quem está ouvindo diz "ainda estou aqui" de tempos em tempos, e quem
+    parou de dizer some sozinho.
+
+    O `unique_together` é o que impede a mesma pessoa de aparecer duas vezes por
+    ter a campanha aberta em duas abas: a linha é da pessoa na mesa, não da aba.
+    """
+
+    # Três batimentos de folga. Um a menos e a pessoa piscaria na roda toda vez
+    # que um pedido demorasse; muito mais e um fone tirado no meio da sessão
+    # continuaria ali por minutos.
+    SEGUNDOS_ATE_SUMIR = 45
+
+    campaign = models.ForeignKey(
+        Campaign, on_delete=models.CASCADE, related_name="listeners"
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="audio_presence",
+    )
+    last_seen = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("campaign", "user")
+        ordering = ["id"]
+
+    def __str__(self) -> str:  # pragma: no cover - simple display
+        return f"{self.user} ouvindo {self.campaign.name}"
+
+    @classmethod
+    def limite(cls):
+        return timezone.now() - timedelta(seconds=cls.SEGUNDOS_ATE_SUMIR)
+
+    @classmethod
+    def ativos(cls, campaign):
+        """Só quem deu notícia há pouco. A linha velha continua lá, mas não conta."""
+        return (
+            cls.objects.filter(campaign=campaign, last_seen__gte=cls.limite())
+            .select_related("user", "user__profile")
+            .order_by("id")
+        )
+
+    @property
+    def ativo(self) -> bool:
+        return self.last_seen >= self.limite()
+
+
 @receiver(post_save, sender=Campaign)
 def create_playback_state(sender, instance: Campaign, created: bool, **kwargs):  # noqa: ANN001
     if created:

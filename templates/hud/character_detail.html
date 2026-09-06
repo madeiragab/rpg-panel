@@ -435,5 +435,9 @@
     }
     </script>
 
-{% include "hud/_audio_player.html" %}
+{% comment %}
+   Ficha solta não tem mesa, e sem mesa não há trilha: o widget chamaria
+   `/api/campaigns//audio/` e ficaria piscando erro num canto da tela.
+{% endcomment %}
+{% if campaign %}{% include "hud/_audio_player.html" %}{% endif %}
 {% endblock %}
