@@ -13,6 +13,7 @@ por um motivo que não tem nada a ver com a regra sendo testada.
 
 import base64
 import json
+import re
 from io import BytesIO
 
 from PIL import Image
@@ -2360,3 +2361,83 @@ class OrdemDosAtributosTests(TestCase):
         )
 
         self.assertEqual(resposta.status_code, 405)
+
+
+@SEM_REDIRECT_HTTPS
+@SEM_MANIFESTO
+class EstruturaDasColunasTests(TestCase):
+    """As colunas da ficha tem que ser irmas, e nao uma dentro da outra.
+
+    Duas vezes uma edicao de template deixou a coluna do meio sem fechar, e as
+    outras viraram filhas dela: sumia a terceira coluna e o inventario deixava
+    de atravessar a pagina. O erro nao aparece em nenhum outro teste — a pagina
+    responde 200 igual, so sai torta.
+    """
+
+    def setUp(self):
+        self.mestre = make_user('mestre')
+        self.jogador = make_user('jogador')
+        self.campanha = Campaign.objects.create(name='Ossos', master=self.mestre)
+        self.campanha.players.add(self.jogador)
+        self.personagem = Character.objects.create(
+            name='Kai', created_by=self.mestre, campaign=self.campanha,
+            assigned_to=self.jogador,
+        )
+        self.npc = NPC.objects.create(
+            name='Vulto', created_by=self.mestre, campaign=self.campanha
+        )
+        self.inimigo = Enemy.objects.create(
+            name='Cerbero', created_by=self.mestre, campaign=self.campanha
+        )
+
+    def _profundidade(self, html):
+        """Maior aninhamento de <section> na pagina."""
+        fundo = 0
+        maior = 0
+        for pedaco in re.finditer(r'</?section\b', html):
+            if pedaco.group(0).startswith('</'):
+                fundo -= 1
+            else:
+                fundo += 1
+                maior = max(maior, fundo)
+        return maior, fundo
+
+    def _conferir(self, url):
+        self.client.force_login(self.mestre)
+        html = self.client.get(url).content.decode()
+
+        maior, sobrou = self._profundidade(html)
+        self.assertEqual(sobrou, 0, 'sobrou <section> sem fechar')
+        self.assertEqual(maior, 1, 'uma coluna ficou dentro da outra')
+        return html
+
+    def test_ficha_do_personagem_tem_as_tres_colunas_irmas(self):
+        html = self._conferir(reverse('character_detail', args=[self.personagem.pk]))
+
+        self.assertIn('coluna-pericias', html)
+        self.assertIn('coluna-ficha', html)
+        self.assertIn('coluna-atributos', html)
+        self.assertIn('largura-total', html)
+
+    def test_ficha_do_npc_tem_as_tres_colunas_irmas(self):
+        html = self._conferir(reverse('npc_detail', args=[self.npc.pk]))
+
+        self.assertIn('coluna-atributos', html)
+        self.assertIn('largura-total', html)
+
+    def test_ficha_do_inimigo_tem_as_tres_colunas_irmas(self):
+        """O inimigo nao tem inventario, entao aqui sao tres colunas e so."""
+        html = self._conferir(reverse('enemy_detail', args=[self.inimigo.pk]))
+
+        self.assertIn('coluna-atributos', html)
+
+    def test_a_ficha_do_jogador_tambem_fecha_certo(self):
+        """O aviso de modo leitura entra antes das colunas e ja bagunçou o grid."""
+        self.client.force_login(self.jogador)
+        html = self.client.get(
+            reverse('character_detail', args=[self.personagem.pk])
+        ).content.decode()
+
+        maior, sobrou = self._profundidade(html)
+        self.assertEqual(sobrou, 0)
+        self.assertEqual(maior, 1)
