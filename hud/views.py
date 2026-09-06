@@ -12,7 +12,6 @@ from django.core.cache import cache
 from django.core.mail import send_mail
 from django.http import HttpRequest, HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 from django.db.models import Q
@@ -498,21 +497,6 @@ def register(request: HttpRequest) -> HttpResponse:
     return render(request, "registration/register.html", {"form": form})
 
 
-def _enquadramento(ficha, rota: str, chave: str, pode_editar: bool) -> dict[str, Any]:
-    """O que o portrait.js precisa saber para montar o retrato.
-
-    Vai como JSON (json_script) e não como atributo formatado: com
-    LANGUAGE_CODE pt-br o template escreveria "0,5" no lugar de "0.5", e o
-    parseFloat do outro lado leria 0.
-    """
-    return {
-        "zoom": ficha.image_zoom,
-        "x": ficha.image_focus_x,
-        "y": ficha.image_focus_y,
-        "saveUrl": reverse(rota, kwargs={chave: ficha.pk}) if pode_editar else None,
-    }
-
-
 def _ler_enquadramento(request: HttpRequest) -> tuple[int, float, float] | None:
     """Lê zoom e ponto do POST, já aparados na faixa que a moldura aceita."""
     try:
@@ -690,11 +674,26 @@ def character_detail(request: HttpRequest, pk: int) -> HttpResponse:
             "campaign": character.campaign,
             "campaign_characters": campaign_characters,
             "visible_npcs": visible_npcs,
-            "enquadramento": _enquadramento(
-                character, "update_character_framing", "character_id", is_master
-            ),
         },
     )
+
+
+def _item_no_slot(item: Item | None) -> dict[str, Any]:
+    """O que o inventory.js precisa para redesenhar um slot.
+
+    O enquadramento vai junto com a imagem: sem ele o slot que acabou de
+    receber o item mostraria o corte pelo meio, e só voltaria ao corte certo
+    depois de recarregar a página.
+    """
+    if item is None:
+        return {"itemName": "Vazio", "itemImage": "", "itemZoom": 100, "itemFocusX": 0.5, "itemFocusY": 0.5}
+    return {
+        "itemName": item.name,
+        "itemImage": item.image.url if item.image else "",
+        "itemZoom": item.image_zoom,
+        "itemFocusX": item.image_focus_x,
+        "itemFocusY": item.image_focus_y,
+    }
 
 
 @login_required
@@ -720,14 +719,12 @@ def assign_slot(request: HttpRequest, character_id: int, slot_id: int) -> JsonRe
             item = get_object_or_404(Item, pk=item_id, campaign__isnull=True)
         slot.item = item
         slot.save()
-        return JsonResponse(
-            {"success": True, "itemName": item.name, "itemImage": item.image.url if item.image else ""}
-        )
+        return JsonResponse({"success": True, **_item_no_slot(item)})
 
     # Sem item_id: remove item do slot
     slot.item = None
     slot.save()
-    return JsonResponse({"success": True, "itemName": "Vazio", "itemImage": ""})
+    return JsonResponse({"success": True, **_item_no_slot(None)})
 
 
 @login_required
@@ -745,13 +742,11 @@ def assign_npc_slot(request: HttpRequest, npc_id: int, slot_id: int) -> JsonResp
         item = get_object_or_404(Item, pk=item_id, campaign=npc.campaign)
         slot.item = item
         slot.save()
-        return JsonResponse(
-            {"success": True, "itemName": item.name, "itemImage": item.image.url if item.image else ""}
-        )
+        return JsonResponse({"success": True, **_item_no_slot(item)})
 
     slot.item = None
     slot.save()
-    return JsonResponse({"success": True, "itemName": "Vazio", "itemImage": ""})
+    return JsonResponse({"success": True, **_item_no_slot(None)})
 
 
 @login_required
@@ -1020,9 +1015,6 @@ def npc_detail(request: HttpRequest, pk: int) -> HttpResponse:
             "ability_form": ability_form,
             "items": items,
             "campaign": campaign,
-            "enquadramento": _enquadramento(
-                npc, "update_npc_framing", "npc_id", is_master
-            ),
         },
     )
 
@@ -1174,9 +1166,6 @@ def enemy_detail(request: HttpRequest, pk: int) -> HttpResponse:
             "skill_form": skill_form,
             "ability_form": ability_form,
             "campaign": campaign,
-            "enquadramento": _enquadramento(
-                enemy, "update_enemy_framing", "enemy_id", is_master
-            ),
         },
     )
 
@@ -1207,6 +1196,41 @@ def update_enemy_framing(request: HttpRequest, enemy_id: int) -> JsonResponse:
         {"success": True, "zoom": enemy.image_zoom,
          "x": enemy.image_focus_x, "y": enemy.image_focus_y}
     )
+
+
+@login_required
+@require_POST
+def update_item_framing(request: HttpRequest, item_id: int) -> JsonResponse:
+    """Guarda o corte da imagem do item. Item é da mesa, quem enquadra é o mestre."""
+    item = get_object_or_404(Item, pk=item_id)
+    if item.campaign:
+        if item.campaign.master != request.user:
+            return JsonResponse({"error": "Sem permissão"}, status=403)
+    elif item.created_by != request.user:
+        return JsonResponse({"error": "Sem permissão"}, status=403)
+
+    dados = _ler_enquadramento(request)
+    if dados is None:
+        return JsonResponse({"error": "Enquadramento inválido"}, status=400)
+
+    item.image_zoom, item.image_focus_x, item.image_focus_y = dados
+    item.save(update_fields=["image_zoom", "image_focus_x", "image_focus_y"])
+    return JsonResponse({"success": True})
+
+
+@login_required
+@require_POST
+def update_avatar_framing(request: HttpRequest) -> JsonResponse:
+    """Guarda o corte do próprio avatar. Cada um enquadra o seu, e só o seu."""
+    perfil = request.user.profile
+
+    dados = _ler_enquadramento(request)
+    if dados is None:
+        return JsonResponse({"error": "Enquadramento inválido"}, status=400)
+
+    perfil.image_zoom, perfil.image_focus_x, perfil.image_focus_y = dados
+    perfil.save(update_fields=["image_zoom", "image_focus_x", "image_focus_y"])
+    return JsonResponse({"success": True})
 
 
 @login_required

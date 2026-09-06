@@ -240,21 +240,13 @@ a:hover { color: var(--accent-soft); }
 /* A moldura tem proporção fixa e fica sempre cheia. Quem decide o tamanho e a
    posição da foto dentro dela é o portrait.js, com o zoom e o ponto salvos na
    ficha. */
-.portrait-thumb {
-    position: relative;
-    overflow: hidden;
-    width: 100%;
-    max-width: 280px;
-    aspect-ratio: 3 / 4;
-    border-radius: 14px;
-    border: 1px solid var(--border);
-    background: var(--panel-strong);
-    box-shadow: 0 10px 24px rgba(0,0,0,0.38), 0 0 0 2px rgba(225, 29, 46, 0.14);
-}
-/* Sem o JS a foto ainda preenche a moldura pelo centro: o object-fit é o
+/* Vale para qualquer moldura, não só o retrato da ficha: o slot do inventário
+   e o avatar da barra de cima usam as mesmas regras. */
+[data-portrait-frame] { position: relative; overflow: hidden; }
+/* Sem o JS a imagem ainda preenche a moldura pelo centro: o object-fit é o
    fallback, e o script troca width/height/left/top pelos números do
    enquadramento assim que roda. */
-.portrait-thumb img {
+[data-portrait-frame] img {
     position: absolute;
     left: 0;
     top: 0;
@@ -266,8 +258,31 @@ a:hover { color: var(--accent-soft); }
     user-select: none;
     -webkit-user-drag: none;
 }
-.portrait-thumb.editavel { cursor: grab; touch-action: none; }
-.portrait-thumb.arrastando { cursor: grabbing; }
+[data-portrait-frame] img[hidden] { display: none; }
+[data-portrait-frame].editavel { cursor: grab; touch-action: none; }
+[data-portrait-frame].arrastando { cursor: grabbing; }
+
+.portrait-thumb {
+    width: 100%;
+    max-width: 280px;
+    aspect-ratio: 3 / 4;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background: var(--panel-strong);
+    box-shadow: 0 10px 24px rgba(0,0,0,0.38), 0 0 0 2px rgba(225, 29, 46, 0.14);
+}
+
+/* A mesma moldura serve para o retrato da ficha, o avatar da barra de cima e a
+   imagem do item — só muda o tamanho e a forma. */
+.portrait-thumb.redondo { border-radius: 50%; aspect-ratio: 1; }
+.portrait-thumb.quadrado { aspect-ratio: 1; }
+.portrait-thumb.minusculo,
+.portrait-thumb.pequeno,
+.portrait-thumb.medio { box-shadow: none; flex: none; }
+.portrait-thumb.minusculo { width: 32px; max-width: 32px; }
+.portrait-thumb.pequeno { width: 36px; max-width: 36px; }
+.portrait-thumb.medio { width: 72px; max-width: 72px; }
+.portrait-thumb.largura-cheia { max-width: none; }
 .portrait-thumb.empty { background: repeating-linear-gradient(45deg, rgba(255,255,255,0.08) 0 8px, transparent 8px 16px), var(--panel-strong); }
 .portrait-hint { font-size: 0.85rem; }
 .portrait-controls {

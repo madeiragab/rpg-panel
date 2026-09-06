@@ -1,0 +1,37 @@
+{% load l10n %}
+{% comment %}
+   Uma moldura enquadrada. Serve para o retrato da ficha, para a imagem do item
+   e para o avatar do perfil — o que muda é o tamanho, que vem em `classe`.
+
+   Os números vão em data-* e passam pelo |unlocalize de propósito: com
+   LANGUAGE_CODE pt-br o template escreveria "0,5" no lugar de "0.5", e o
+   Number() do outro lado leria 0.
+
+   Sem `url_salvar` a moldura só mostra: o portrait.js não liga arraste nem
+   zoom, e é assim que o jogador vê o corte que o mestre escolheu.
+
+   Parâmetros: retrato (o objeto com image_zoom/image_focus_x/image_focus_y),
+   imagem (o ImageFieldFile), alt, classe, url_salvar, dica.
+{% endcomment %}
+<div class="portrait-wrap">
+    <div class="portrait-thumb {{ classe|default:'' }}{% if not imagem %} empty{% endif %}"
+         data-portrait-frame
+         data-zoom="{{ retrato.image_zoom }}"
+         data-focus-x="{{ retrato.image_focus_x|unlocalize }}"
+         data-focus-y="{{ retrato.image_focus_y|unlocalize }}"
+         {% if url_salvar and imagem %}data-save-url="{{ url_salvar }}"{% endif %}>
+        {% if imagem %}<img src="{{ imagem.url }}" alt="{{ alt|default:'' }}">{% endif %}
+    </div>
+    {% if url_salvar and imagem %}
+        <div class="portrait-controls">
+            <input type="range" data-portrait-zoom min="100" max="400" step="1"
+                   value="{{ retrato.image_zoom }}" aria-label="Zoom da imagem"
+                   title="Aproximar a imagem dentro da moldura">
+            <button type="button" data-portrait-center class="hud-button ghost"
+                    title="Voltar ao enquadramento inicial">centrar</button>
+        </div>
+        <div class="portrait-hint muted">Arraste a imagem para escolher o pedaço que aparece.</div>
+    {% elif dica %}
+        <div class="portrait-hint muted">{{ dica }}</div>
+    {% endif %}
+</div>

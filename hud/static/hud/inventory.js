@@ -79,21 +79,36 @@
         slot.dataset.itemImage = data.itemImage || '';
 
         // Update slot UI
-        const figure = slot.querySelector('.slot-figure');
-        if (figure) {
-          if (data.itemImage) {
-            figure.classList.remove('empty');
-            figure.style.backgroundImage = `url('${data.itemImage}')`;
-          } else {
-            figure.classList.add('empty');
-            figure.style.backgroundImage = '';
-          }
-        }
+        desenharMoldura(slot.querySelector('.slot-figure'), data);
 
         // Update selected display
         updateSelected(data.itemImage || '', data.itemName || 'Vazio');
       })
       .catch(() => {});
+  }
+
+  /* A moldura mostra o pedaço da imagem que o mestre escolheu, e o corte vem
+     na resposta junto com a URL. Sem isto o slot recém-preenchido cortaria
+     pelo meio até alguém recarregar a página. */
+  function desenharMoldura(moldura, data) {
+    if (!moldura) return;
+    let foto = moldura.querySelector('img');
+    if (data.itemImage) {
+      if (!foto) {
+        foto = document.createElement('img');
+        moldura.appendChild(foto);
+      }
+      moldura.classList.remove('empty');
+      moldura.dataset.zoom = String(data.itemZoom ?? 100);
+      moldura.dataset.focusX = String(data.itemFocusX ?? 0.5);
+      moldura.dataset.focusY = String(data.itemFocusY ?? 0.5);
+      foto.alt = data.itemName || '';
+      foto.src = data.itemImage;
+    } else {
+      moldura.classList.add('empty');
+      if (foto) foto.remove();
+    }
+    if (window.hudPortrait) window.hudPortrait.preparar(moldura);
   }
 
   function updateSelected(img, name) {

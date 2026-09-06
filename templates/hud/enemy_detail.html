@@ -76,26 +76,8 @@
             {% endfor %}
         </div>
 
-        <div class="portrait-wrap">
-            <div class="portrait-thumb{% if not enemy.image %} empty{% endif %}" id="portrait-frame">
-                {% if enemy.image %}
-                    <img id="portrait-image" src="{{ enemy.image.url }}" alt="Retrato de {{ enemy.name }}">
-                {% endif %}
-            </div>
-            {% if enemy.image and is_master %}
-                <div class="portrait-controls">
-                    <input type="range" id="portrait-zoom" min="100" max="400" step="1"
-                           value="{{ enemy.image_zoom }}" aria-label="Zoom do retrato"
-                           title="Aproximar a foto dentro da moldura">
-                    <button type="button" id="portrait-center" class="hud-button ghost"
-                            title="Voltar ao enquadramento inicial">centrar</button>
-                </div>
-                <div class="portrait-hint muted">Arraste a foto para escolher o pedaço que aparece.</div>
-            {% else %}
-                <div class="portrait-hint muted">Retrato do inimigo (opcional)</div>
-            {% endif %}
-            {{ enquadramento|json_script:"portrait-framing" }}
-        </div>
+        {% if is_master %}{% url 'update_enemy_framing' enemy.pk as url_enquadrar %}{% endif %}
+        {% include "hud/_retrato.html" with retrato=enemy imagem=enemy.image alt=enemy.name url_salvar=url_enquadrar dica="Retrato do inimigo (opcional)" %}
 
         <div class="attributes-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px;">
             {% for attr in enemy.attributes.all %}
@@ -165,12 +147,6 @@
         {% endif %}
     </section>
 </div>
-
-{% comment %}
-   Fora do bloco do mestre de propósito: o jogador não enquadra, mas precisa do
-   script para ver o retrato no corte que o mestre escolheu.
-{% endcomment %}
-<script src="{% static 'hud/portrait.js' %}"></script>
 
 <script>
 function getCookie(name) {

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
+{% load l10n %}
 {% load hud_filters %}
 
 {% block content %}
@@ -8,13 +9,13 @@
     <div class="character-navbar-inner">
         {% for char in campaign_characters %}
         <a href="{% url 'character_detail' char.pk %}{% if not is_master %}?mode=player{% endif %}" class="character-nav-item {% if char.id == character.id %}active{% endif %}" title="{{ char.name }}">
-            <span class="character-nav-avatar" style="background:{% if char.image %}url('{{ char.image.url }}'){% else %}#241a1c{% endif %}; background-size: cover; background-position: {% widthratio char.image_focus_x 1 100 %}% {% widthratio char.image_focus_y 1 100 %}%;"></span>
+            {% include "hud/_retrato.html" with retrato=char imagem=char.image alt=char.name classe="redondo pequeno" url_salvar="" dica="" %}
             <span class="character-nav-name">{{ char.name }}</span>
         </a>
         {% endfor %}
         {% for npc in visible_npcs %}
         <a href="{% url 'npc_detail' npc.pk %}{% if not is_master %}?mode=player{% endif %}" class="character-nav-item" title="{{ npc.name }}">
-            <span class="character-nav-avatar" style="background:{% if npc.image %}url('{{ npc.image.url }}'){% else %}#2e2224{% endif %}; background-size: cover; background-position: {% widthratio npc.image_focus_x 1 100 %}% {% widthratio npc.image_focus_y 1 100 %}%;"></span>
+            {% include "hud/_retrato.html" with retrato=npc imagem=npc.image alt=npc.name classe="redondo pequeno" url_salvar="" dica="" %}
             <span class="character-nav-name">{{ npc.name }}</span>
         </a>
         {% endfor %}
@@ -65,7 +66,7 @@
             <h1 class="panel-title">{{ character.name }}</h1>
             {% if character.assigned_to %}
                 <div class="list-inline" style="gap: 8px; align-items: center;">
-                    <span class="mini-thumb" style="width:36px;height:36px;border-radius:50%;border:1px solid var(--border); background:{% if character.assigned_to.profile.avatar %}url('{{ character.assigned_to.profile.avatar.url }}'){% else %}#241a1c{% endif %}; background-size: cover; background-position: center;"></span>
+                    {% include "hud/_retrato.html" with retrato=character.assigned_to.profile imagem=character.assigned_to.profile.avatar alt=character.assigned_to.username classe="redondo pequeno" url_salvar="" dica="" %}
                     <span class="muted">{{ character.assigned_to.username }}</span>
                     {% if is_master and character.campaign %}
                         <button id="toggle-player-select" type="button" class="hud-button ghost" style="padding:2px 6px; font-size:14px;">▼</button>
@@ -122,26 +123,8 @@
             </div>
         </div>
         {% endif %}
-        <div class="portrait-wrap">
-            <div class="portrait-thumb{% if not character.image %} empty{% endif %}" id="portrait-frame">
-                {% if character.image %}
-                    <img id="portrait-image" src="{{ character.image.url }}" alt="Retrato de {{ character.name }}">
-                {% endif %}
-            </div>
-            {% if character.image and is_master %}
-                <div class="portrait-controls">
-                    <input type="range" id="portrait-zoom" min="100" max="400" step="1"
-                           value="{{ character.image_zoom }}" aria-label="Zoom do retrato"
-                           title="Aproximar a foto dentro da moldura">
-                    <button type="button" id="portrait-center" class="hud-button ghost"
-                            title="Voltar ao enquadramento inicial">centrar</button>
-                </div>
-                <div class="portrait-hint muted">Arraste a foto para escolher o pedaço que aparece.</div>
-            {% else %}
-                <div class="portrait-hint muted">Retrato do personagem (opcional)</div>
-            {% endif %}
-            {{ enquadramento|json_script:"portrait-framing" }}
-        </div>
+        {% if is_master %}{% url 'update_character_framing' character.pk as url_enquadrar %}{% endif %}
+        {% include "hud/_retrato.html" with retrato=character imagem=character.image alt=character.name url_salvar=url_enquadrar dica="Retrato do personagem (opcional)" %}
         
         <div class="attributes-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px;">
             {% for attr in character.attributes.all %}
@@ -215,8 +198,9 @@
             <div class="item-pool" id="item-pool">
                 {% for item in items %}
                     <div class="item-chip" data-item-id="{{ item.pk }}" data-item-image="{% if item.image %}{{ item.image.url }}{% endif %}">
-                        <span class="item-thumb{% if not item.image %} empty{% endif %}"
-                              {% if item.image %}style="background-image: url('{{ item.image.url }}')"{% endif %}></span>
+                        <span class="item-thumb{% if not item.image %} empty{% endif %}" data-portrait-frame
+                              data-zoom="{{ item.image_zoom }}" data-focus-x="{{ item.image_focus_x|unlocalize }}" data-focus-y="{{ item.image_focus_y|unlocalize }}">
+                            {% if item.image %}<img src="{{ item.image.url }}" alt="{{ item.name }}">{% endif %}</span>
                         <span class="item-name">{{ item.name }}</span>
                     </div>
                 {% empty %}
@@ -235,8 +219,9 @@
                         data-assign-url="{% url 'assign_slot' character.pk slot.pk %}"
                         data-item-name="{{ slot.item.name|default:'Vazio' }}"
                         data-item-image="{% if slot.item and slot.item.image %}{{ slot.item.image.url }}{% endif %}">
-                        <div class="slot-figure{% if not slot.item or not slot.item.image %} empty{% endif %}"
-                            {% if slot.item and slot.item.image %}style="background-image: url('{{ slot.item.image.url }}')"{% endif %}></div>
+                        <div class="slot-figure{% if not slot.item or not slot.item.image %} empty{% endif %}" data-portrait-frame
+                             data-zoom="{{ slot.item.image_zoom|default:100 }}" data-focus-x="{{ slot.item.image_focus_x|default:0.5|unlocalize }}" data-focus-y="{{ slot.item.image_focus_y|default:0.5|unlocalize }}">
+                            {% if slot.item and slot.item.image %}<img src="{{ slot.item.image.url }}" alt="{{ slot.item.name }}">{% endif %}</div>
                         <span class="slot-label">{{ slot.label }}</span>
                     </button>
                 {% endfor %}
@@ -251,11 +236,6 @@
     {% if is_master %}
         <script src="{% static 'hud/inventory.js' %}"></script>
     {% endif %}
-    {% comment %}
-       Fora do bloco do mestre de propósito: o jogador não enquadra, mas precisa
-       do script para ver o retrato no corte que o mestre escolheu.
-    {% endcomment %}
-    <script src="{% static 'hud/portrait.js' %}"></script>
     <script>
     // Toggle player select panel
     const toggleBtn = document.getElementById('toggle-player-select');

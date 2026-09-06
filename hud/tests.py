@@ -1244,3 +1244,139 @@ class BarrasDoInimigoTests(TestCase):
         )
 
         self.assertEqual(resposta.status_code, 403)
+
+
+@SEM_REDIRECT_HTTPS
+class EnquadramentoDeItemEAvatarTests(TestCase):
+    """O corte tambem vale para a imagem do item e para o avatar do perfil."""
+
+    def setUp(self):
+        self.mestre = make_user('mestre')
+        self.jogador = make_user('jogador')
+        self.campanha = Campaign.objects.create(name='Ossos', master=self.mestre)
+        self.campanha.players.add(self.jogador)
+        self.item = Item.objects.create(name='Adaga', campaign=self.campanha)
+
+    def test_item_nasce_centrado_e_sem_zoom(self):
+        self.assertEqual(self.item.image_zoom, 100)
+        self.assertEqual(self.item.image_focus_x, 0.5)
+
+    def test_mestre_enquadra_a_imagem_do_item(self):
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.post(
+            reverse('update_item_framing', args=[self.item.pk]),
+            {'zoom': '260', 'focus_x': '0.15', 'focus_y': '0.85'},
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.image_zoom, 260)
+        self.assertAlmostEqual(self.item.image_focus_x, 0.15)
+        self.assertAlmostEqual(self.item.image_focus_y, 0.85)
+
+    def test_jogador_nao_enquadra_item_da_mesa(self):
+        self.client.force_login(self.jogador)
+
+        resposta = self.client.post(
+            reverse('update_item_framing', args=[self.item.pk]),
+            {'zoom': '260', 'focus_x': '0.15', 'focus_y': '0.85'},
+        )
+
+        self.assertEqual(resposta.status_code, 403)
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.image_zoom, 100)
+
+    def test_item_de_outra_campanha_nao_e_enquadrado_por_este_mestre(self):
+        outro_mestre = make_user('outro')
+        outra = Campaign.objects.create(name='Cinzas', master=outro_mestre)
+        alheio = Item.objects.create(name='Elmo', campaign=outra)
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.post(
+            reverse('update_item_framing', args=[alheio.pk]),
+            {'zoom': '200', 'focus_x': '0.5', 'focus_y': '0.5'},
+        )
+
+        self.assertEqual(resposta.status_code, 403)
+
+    def test_valor_do_item_fora_da_faixa_e_aparado(self):
+        self.client.force_login(self.mestre)
+
+        self.client.post(
+            reverse('update_item_framing', args=[self.item.pk]),
+            {'zoom': '9000', 'focus_x': '-1', 'focus_y': '9'},
+        )
+
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.image_zoom, 400)
+        self.assertAlmostEqual(self.item.image_focus_x, 0.0)
+        self.assertAlmostEqual(self.item.image_focus_y, 1.0)
+
+    def test_cada_um_enquadra_o_proprio_avatar(self):
+        self.client.force_login(self.jogador)
+
+        resposta = self.client.post(
+            reverse('update_avatar_framing'),
+            {'zoom': '180', 'focus_x': '0.25', 'focus_y': '0.75'},
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        perfil = UserProfile.objects.get(user=self.jogador)
+        self.assertEqual(perfil.image_zoom, 180)
+        self.assertAlmostEqual(perfil.image_focus_x, 0.25)
+
+    def test_enquadrar_o_avatar_nao_mexe_no_dos_outros(self):
+        self.client.force_login(self.jogador)
+
+        self.client.post(
+            reverse('update_avatar_framing'),
+            {'zoom': '180', 'focus_x': '0.25', 'focus_y': '0.75'},
+        )
+
+        self.assertEqual(UserProfile.objects.get(user=self.mestre).image_zoom, 100)
+
+    def test_avatar_recusa_get(self):
+        self.client.force_login(self.jogador)
+
+        resposta = self.client.get(reverse('update_avatar_framing'))
+
+        self.assertEqual(resposta.status_code, 405)
+
+    def test_o_slot_recebe_o_corte_junto_com_a_imagem(self):
+        """Sem isto o slot recem-preenchido cortaria pelo meio ate recarregar."""
+        self.item.image_zoom = 240
+        self.item.image_focus_x = 0.2
+        self.item.save()
+        personagem = Character.objects.create(
+            name='Kai', created_by=self.mestre, campaign=self.campanha,
+            assigned_to=self.jogador,
+        )
+        slot = personagem.slots.first()
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.post(
+            reverse('assign_slot', args=[personagem.pk, slot.pk]),
+            {'item_id': self.item.pk},
+        )
+
+        dados = resposta.json()
+        self.assertEqual(dados['itemZoom'], 240)
+        self.assertAlmostEqual(dados['itemFocusX'], 0.2)
+
+    def test_slot_esvaziado_volta_ao_corte_neutro(self):
+        personagem = Character.objects.create(
+            name='Kai', created_by=self.mestre, campaign=self.campanha,
+            assigned_to=self.jogador,
+        )
+        slot = personagem.slots.first()
+        slot.item = self.item
+        slot.save()
+        self.client.force_login(self.mestre)
+
+        dados = self.client.post(
+            reverse('assign_slot', args=[personagem.pk, slot.pk])
+        ).json()
+
+        self.assertEqual(dados['itemName'], 'Vazio')
+        self.assertEqual(dados['itemZoom'], 100)

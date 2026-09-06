@@ -9,8 +9,9 @@
         <a href="{% url 'home' %}" class="hud-button ghost">Voltar</a>
     </div>
 
-    <div class="list-inline" style="align-items:center; gap:12px; margin-bottom:16px;">
-        <span class="mini-thumb" style="width:48px;height:48px;border-radius:50%;border:1px solid var(--border); background:{% if user_profile and user_profile.avatar %}url('{{ user_profile.avatar.url }}'){% else %}#241a1c{% endif %}; background-size: cover; background-position: center;"></span>
+    <div class="list-inline" style="align-items:flex-start; gap:16px; margin-bottom:16px;">
+        {% url 'update_avatar_framing' as url_enquadrar %}
+        {% include "hud/_retrato.html" with retrato=user_profile imagem=user_profile.avatar alt=user.username classe="redondo medio" url_salvar=url_enquadrar dica="Avatar do perfil (opcional)" %}
         <div>
             <div style="font-weight:600;">{{ user.username }}</div>
             {% if user_profile and user_profile.nickname %}
@@ -24,6 +25,7 @@
         {{ form.as_p }}
         <button type="submit" class="hud-button">Salvar</button>
     </form>
-    <p class="muted" style="margin-top:10px;">Dica: escolha uma imagem quadrada para melhor visualização.</p>
+    <p class="muted" style="margin-top:10px;">Dica: a moldura acima é redonda como o avatar aparece no site — o que couber nela é o que os outros vão ver.</p>
 </section>
+
 {% endblock %}

@@ -17,7 +17,7 @@
                     <a href="{% url 'character_list' %}">Personagens</a>
                 {% endif %}
                 <a href="{% url 'user_page' %}" class="user-link" style="display:flex;align-items:center;gap:8px;">
-                    <span class="mini-thumb" style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border); background:{% if user_profile and user_profile.avatar %}url('{{ user_profile.avatar.url }}'){% else %}#241a1c{% endif %}; background-size: cover; background-position: center;"></span>
+                    {% include "hud/_retrato.html" with retrato=user_profile imagem=user_profile.avatar alt=user.username classe="redondo minusculo" url_salvar="" dica="" %}
                     <span>{{ user.username }}</span>
                 </a>
                 <form method="post" action="{% url 'logout' %}" class="logout-form">
@@ -41,6 +41,7 @@
         {% block content %}{% endblock %}
     </main>
 
+    <script src="{% static 'hud/portrait.js' %}"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

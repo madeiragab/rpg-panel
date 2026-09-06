@@ -41,36 +41,6 @@ class Campaign(models.Model):
         return self.name
 
 
-class UserProfile(models.Model):
-    ROLE_MASTER = "MASTER"
-    ROLE_PLAYER = "PLAYER"
-    ROLE_CHOICES = (
-        (ROLE_MASTER, "Master"),
-        (ROLE_PLAYER, "Player"),
-    )
-
-    user = models.OneToOneField(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="profile",
-    )
-    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default=ROLE_PLAYER)
-    display_name = models.CharField(max_length=120, blank=True)  # Nome
-    nickname = models.CharField(max_length=60, blank=True)  # Apelido
-    avatar = models.ImageField(upload_to="avatars/", null=True, blank=True)
-
-    def __str__(self) -> str:  # pragma: no cover - simple display
-        return f"{self.user.username} ({self.role})"
-
-    @property
-    def is_master(self) -> bool:
-        return self.role == self.ROLE_MASTER
-
-    @property
-    def is_player(self) -> bool:
-        return self.role == self.ROLE_PLAYER
-
-
 class RetratoEnquadrado(models.Model):
     """O zoom e o pedaço da foto que aparece dentro da moldura da ficha.
 
@@ -108,6 +78,40 @@ class RetratoEnquadrado(models.Model):
         self.image_zoom = 100
         self.image_focus_x = 0.5
         self.image_focus_y = 0.5
+
+
+class UserProfile(RetratoEnquadrado):
+    ROLE_MASTER = "MASTER"
+    ROLE_PLAYER = "PLAYER"
+    ROLE_CHOICES = (
+        (ROLE_MASTER, "Master"),
+        (ROLE_PLAYER, "Player"),
+    )
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="profile",
+    )
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default=ROLE_PLAYER)
+    display_name = models.CharField(max_length=120, blank=True)  # Nome
+    nickname = models.CharField(max_length=60, blank=True)  # Apelido
+    avatar = models.ImageField(upload_to="avatars/", null=True, blank=True)
+
+    def __str__(self) -> str:  # pragma: no cover - simple display
+        return f"{self.user.username} ({self.role})"
+
+    def save(self, *args, **kwargs):  # type: ignore[override]
+        self.clamp_framing()
+        return super().save(*args, **kwargs)
+
+    @property
+    def is_master(self) -> bool:
+        return self.role == self.ROLE_MASTER
+
+    @property
+    def is_player(self) -> bool:
+        return self.role == self.ROLE_PLAYER
 
 
 class NPC(RetratoEnquadrado):
@@ -427,7 +431,7 @@ class EnemyAttribute(models.Model):
         return f"{self.enemy.name}: {self.name} = {self.value}"
 
 
-class Item(models.Model):
+class Item(RetratoEnquadrado):
     campaign = models.ForeignKey(
         Campaign,
         on_delete=models.CASCADE,
@@ -452,6 +456,10 @@ class Item(models.Model):
 
     def __str__(self) -> str:  # pragma: no cover - simple display
         return self.name
+
+    def save(self, *args, **kwargs):  # type: ignore[override]
+        self.clamp_framing()
+        return super().save(*args, **kwargs)
 
 
 class InventorySlot(models.Model):
