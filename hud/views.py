@@ -1007,14 +1007,43 @@ def create_sticky_note(request: HttpRequest, pk: int) -> HttpResponse:
 @login_required
 @require_POST
 def update_sticky_note(request: HttpRequest, pk: int) -> JsonResponse:
-    """Guarda o texto do post-it, do jeito que estava quando pararam de digitar."""
+    """Guarda o que mudou no post-it: o texto, o tamanho, ou os dois.
+
+    Só grava o que veio no pedido. A versão anterior lia `text` com um padrão
+    vazio, e isso bastava enquanto o texto era a única coisa que mudava — agora
+    que o redimensionamento também escreve aqui, o mesmo padrão apagaria a
+    anotação inteira toda vez que alguém esticasse a peça.
+    """
     note = get_object_or_404(StickyNote, pk=pk)
     if note.campaign.master != request.user:
         return JsonResponse({"error": "Sem permissão"}, status=403)
 
-    note.text = request.POST.get("text", "")
-    note.save(update_fields=["text"])
-    return JsonResponse({"success": True, "text": note.text})
+    campos = []
+
+    if "text" in request.POST:
+        note.text = request.POST["text"]
+        campos.append("text")
+
+    for campo in ("width", "height"):
+        if campo not in request.POST:
+            continue
+        try:
+            # `float` antes de `int` porque o navegador mede em pixels
+            # fracionários: um "180.5" viraria erro se fosse direto para int.
+            setattr(note, campo, int(float(request.POST[campo])))
+        except (TypeError, ValueError):
+            return JsonResponse({"error": f"{campo} inválido"}, status=400)
+        campos.append(campo)
+
+    if not campos:
+        return JsonResponse({"error": "Nada para guardar"}, status=400)
+
+    # O clamp mora no save() do modelo, então o tamanho que volta aqui já é o
+    # tamanho que valeu — é ele que a tela adota, e não o que ela pediu.
+    note.save(update_fields=campos)
+    return JsonResponse(
+        {"success": True, "text": note.text, "width": note.width, "height": note.height}
+    )
 
 
 @login_required

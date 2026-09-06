@@ -258,7 +258,8 @@ a:hover { color: var(--accent-soft); }
     user-select: none;
     -webkit-user-drag: none;
 }
-/* O que é redondo enche e corta: tarja dentro de um círculo fica pior. */
+/* O que é redondo enche e corta: tarja dentro de um círculo fica pior. Vale
+   também para a polaroid, pelo mesmo motivo — papel com tarja não é foto. */
 [data-portrait-frame][data-encaixe="preencher"] img { object-fit: cover; }
 [data-portrait-frame] img[hidden] { display: none; }
 [data-portrait-frame].editavel { cursor: grab; touch-action: none; }
@@ -1320,7 +1321,10 @@ a:hover { color: var(--accent-soft); }
 
 /* O post-it é escrito no lugar: o textarea É o papel, sem botão de salvar. */
 .peca.post-it {
-    width: 180px;
+    /* A peça não tem largura própria: ela veste o textarea, que é a superfície
+       que a pessoa estica. Largura fixa aqui faria o papel e o texto brigarem,
+       um transbordando o outro. */
+    width: auto;
     padding: 0;
     border: none;
     border-radius: 2px;
@@ -1355,8 +1359,15 @@ a:hover { color: var(--accent-soft); }
 
 .post-it-texto {
     display: block;
-    width: 100%;
-    min-height: 118px;
+    /* Largura e altura vêm do banco, no style da própria tag. Os mínimos são a
+       rede: um arrastão perdido não pode deixar um papel de três pixels, que
+       ninguém consegue pegar de volta para esticar. */
+    width: 180px;
+    height: 118px;
+    min-width: 120px;
+    min-height: 72px;
+    max-width: 900px;
+    max-height: 900px;
     padding: 8px 10px 10px;
     box-sizing: border-box;
     font-family: 'Space Grotesk', sans-serif;
@@ -1366,7 +1377,9 @@ a:hover { color: var(--accent-soft); }
     background: transparent;
     border: none;
     outline: none;
-    resize: vertical;
+    /* Para os lados também: uma profecia de três linhas cabe melhor num papel
+       largo do que num comprido, e quem escreve é que sabe qual dos dois. */
+    resize: both;
 }
 .post-it-texto::placeholder { color: rgba(0, 0, 0, 0.35); }
 /* Enquanto o texto não chegou no servidor, a beirada avisa. */
@@ -1589,7 +1602,12 @@ a:hover { color: var(--accent-soft); }
 @media (max-width: 420px) {
     .portrait-thumb:not(.minusculo):not(.pequeno):not(.medio) { max-width: 220px; }
     .peca { width: 150px; }
-    .peca.polaroid, .peca.post-it { width: 140px; }
+    .peca.polaroid { width: 140px; }
+    /* O post-it não entra aqui: a largura dele é escolhida e guardada, e
+       sobrescrevê-la faria a peça mudar de forma só por trocar de tela. O que
+       o celular precisa é de um teto, para um papel largo não passar da borda
+       do quadro — e é o textarea que o recebe, porque é ele que manda. */
+    .peca.post-it .post-it-texto { max-width: 78vw; }
 }
 
 /* ------------------------------------------------- as colunas da ficha -- */

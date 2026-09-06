@@ -1748,6 +1748,79 @@ class PostItDoQuadroTests(TestCase):
         recado.refresh_from_db()
         self.assertEqual(recado.text, 'segredo')
 
+    def test_mestre_estica_o_post_it_para_os_lados(self):
+        recado = StickyNote.objects.create(campaign=self.campanha)
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.post(
+            reverse('update_sticky_note', args=[recado.pk]),
+            {'width': '420', 'height': '260'},
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        recado.refresh_from_db()
+        self.assertEqual((recado.width, recado.height), (420, 260))
+
+    def test_mudar_o_tamanho_nao_apaga_o_texto(self):
+        # O pedido de tamanho não manda texto nenhum. Enquanto a view lia
+        # `text` com padrão vazio, esticar a peça limpava a anotação inteira.
+        recado = StickyNote.objects.create(campaign=self.campanha, text='a senha e cinza')
+        self.client.force_login(self.mestre)
+
+        self.client.post(
+            reverse('update_sticky_note', args=[recado.pk]), {'width': '300'}
+        )
+
+        recado.refresh_from_db()
+        self.assertEqual(recado.text, 'a senha e cinza')
+        self.assertEqual(recado.width, 300)
+
+    def test_escrever_nao_mexe_no_tamanho(self):
+        recado = StickyNote.objects.create(campaign=self.campanha, width=400, height=300)
+        self.client.force_login(self.mestre)
+
+        self.client.post(
+            reverse('update_sticky_note', args=[recado.pk]), {'text': 'outra coisa'}
+        )
+
+        recado.refresh_from_db()
+        self.assertEqual((recado.width, recado.height), (400, 300))
+
+    def test_tamanho_fora_da_faixa_e_puxado_para_dentro(self):
+        # Um arrastão perdido não pode deixar um papel de tres pixels, que
+        # ninguem consegue pegar de volta para esticar.
+        minusculo = StickyNote.objects.create(campaign=self.campanha, width=3, height=1)
+        gigante = StickyNote.objects.create(campaign=self.campanha, width=99999, height=99999)
+
+        self.assertEqual(minusculo.width, StickyNote.LARGURA_MINIMA)
+        self.assertEqual(minusculo.height, StickyNote.ALTURA_MINIMA)
+        self.assertEqual(gigante.width, StickyNote.TAMANHO_MAXIMO)
+        self.assertEqual(gigante.height, StickyNote.TAMANHO_MAXIMO)
+
+    def test_tamanho_ilegivel_e_recusado(self):
+        recado = StickyNote.objects.create(campaign=self.campanha, width=200)
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.post(
+            reverse('update_sticky_note', args=[recado.pk]), {'width': 'largo'}
+        )
+
+        self.assertEqual(resposta.status_code, 400)
+        recado.refresh_from_db()
+        self.assertEqual(recado.width, 200)
+
+    def test_jogador_nao_estica_o_post_it(self):
+        recado = StickyNote.objects.create(campaign=self.campanha, width=200)
+        self.client.force_login(self.jogador)
+
+        resposta = self.client.post(
+            reverse('update_sticky_note', args=[recado.pk]), {'width': '800'}
+        )
+
+        self.assertEqual(resposta.status_code, 403)
+        recado.refresh_from_db()
+        self.assertEqual(recado.width, 200)
+
     def test_texto_gigante_e_cortado_no_limite(self):
         recado = StickyNote.objects.create(
             campaign=self.campanha, text='x' * (StickyNote.LIMITE_DO_TEXTO + 200)

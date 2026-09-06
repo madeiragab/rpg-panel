@@ -583,12 +583,28 @@ class StickyNote(PecaDoQuadro):
     LIMITE_DO_TEXTO = 500
     CORES = ["#f2e06a", "#f3a6b8", "#a8dfa0", "#9fd2f0"]
 
+    # O tamanho fica no banco pelo mesmo motivo da cor e da inclinação: o quadro
+    # é a campanha vista de cima, e o post-it que o mestre esticou para caber a
+    # profecia inteira tem que estar esticado do outro lado da mesa também. Um
+    # tamanho que só vive no navegador de quem arrastou não é um quadro
+    # compartilhado, é um desenho particular.
+    LARGURA_PADRAO = 180
+    ALTURA_PADRAO = 118
+    # Os limites não são gosto, são o que impede um arrastão perdido de deixar
+    # uma peça de três pixels (impossível de pegar de volta) ou uma que cobre o
+    # quadro inteiro. Dentro deles, qualquer tamanho serve.
+    LARGURA_MINIMA = 120
+    ALTURA_MINIMA = 72
+    TAMANHO_MAXIMO = 900
+
     campaign = models.ForeignKey(
         Campaign, on_delete=models.CASCADE, related_name="notes"
     )
     text = models.TextField(blank=True, max_length=LIMITE_DO_TEXTO)
     color = models.CharField(max_length=20, default=CORES[0])
     tilt = models.SmallIntegerField(default=0)
+    width = models.PositiveSmallIntegerField(default=LARGURA_PADRAO)
+    height = models.PositiveSmallIntegerField(default=ALTURA_PADRAO)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -604,8 +620,19 @@ class StickyNote(PecaDoQuadro):
     def __str__(self) -> str:  # pragma: no cover - simple display
         return (self.text[:40] or f"Post-it {self.pk}")
 
+    def clamp_tamanho(self) -> None:
+        self.width = min(
+            max(int(self.width or self.LARGURA_PADRAO), self.LARGURA_MINIMA),
+            self.TAMANHO_MAXIMO,
+        )
+        self.height = min(
+            max(int(self.height or self.ALTURA_PADRAO), self.ALTURA_MINIMA),
+            self.TAMANHO_MAXIMO,
+        )
+
     def save(self, *args, **kwargs):  # type: ignore[override]
         self.clamp_board()
+        self.clamp_tamanho()
         self.text = (self.text or "")[: self.LIMITE_DO_TEXTO]
         if self.color not in self.CORES:
             self.color = self.CORES[0]
