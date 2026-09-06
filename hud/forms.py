@@ -2,7 +2,22 @@ from django import forms
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 
-from .models import Campaign, Character, CharacterAbility, CharacterAttribute, CharacterSkill, Item, NPC, NPCAbility, NPCAttribute, NPCSkill, UserProfile
+from .models import (
+    Campaign,
+    Character,
+    CharacterAbility,
+    CharacterAttribute,
+    CharacterSkill,
+    Enemy,
+    EnemyAbility,
+    EnemySkill,
+    Item,
+    NPC,
+    NPCAbility,
+    NPCAttribute,
+    NPCSkill,
+    UserProfile,
+)
 
 
 class ForgotPasswordForm(forms.Form):
@@ -279,5 +294,29 @@ class CharacterSkillForm(forms.ModelForm):
 class CharacterAbilityForm(forms.ModelForm):
     class Meta:
         model = CharacterAbility
+        fields = ["name", "order"]
+        labels = {"name": "Nome", "order": "Ordem"}
+
+
+class EnemyForm(RetratoMixin, forms.ModelForm):
+    class Meta:
+        model = Enemy
+        fields = ["name", "image"]
+        widgets = {
+            "image": forms.ClearableFileInput(attrs={"accept": ACCEPT_DE_RETRATO}),
+        }
+        labels = {"name": "Nome do inimigo", "image": "Imagem (upload)"}
+
+
+class EnemySkillForm(forms.ModelForm):
+    class Meta:
+        model = EnemySkill
+        fields = ["name", "value", "order"]
+        labels = {"name": "Nome", "value": "Valor", "order": "Ordem"}
+
+
+class EnemyAbilityForm(forms.ModelForm):
+    class Meta:
+        model = EnemyAbility
         fields = ["name", "order"]
         labels = {"name": "Nome", "order": "Ordem"}

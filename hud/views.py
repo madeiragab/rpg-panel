@@ -26,13 +26,33 @@ from .forms import (
     CharacterAttributeForm,
     CharacterForm,
     CharacterSkillForm,
+    EnemyAbilityForm,
+    EnemyForm,
+    EnemySkillForm,
     ItemForm,
     NPCForm,
     NPCAbilityForm,
     NPCAttributeForm,
     NPCSkillForm,
 )
-from .models import Campaign, Character, CharacterAttribute, InventorySlot, Item, NPC, NPCAbility, NPCAttribute, NPCBar, NPCInventorySlot, NPCSkill, UserProfile, CharacterBar
+from .models import (
+    Campaign,
+    Character,
+    CharacterAttribute,
+    CharacterBar,
+    Enemy,
+    EnemyAttribute,
+    EnemyBar,
+    InventorySlot,
+    Item,
+    NPC,
+    NPCAbility,
+    NPCAttribute,
+    NPCBar,
+    NPCInventorySlot,
+    NPCSkill,
+    UserProfile,
+)
 
 
 PEDIDOS_POR_CONTA = 5
@@ -225,6 +245,7 @@ def campaign_detail(request: HttpRequest, pk: int) -> HttpResponse:
     npc_form = NPCForm(prefix="npc") if is_master else None
     if is_master and npc_form:
         npc_form.fields["assigned_to_character"].queryset = campaign.characters.all()
+    enemy_form = EnemyForm(prefix="enemy") if is_master else None
     players = campaign.players.select_related("profile").all()
     search_results = []
     if is_master:
@@ -279,6 +300,15 @@ def campaign_detail(request: HttpRequest, pk: int) -> HttpResponse:
                 npc.save()
                 messages.success(request, "NPC adicionado à campanha.")
                 return redirect("campaign_detail", pk=campaign.pk)
+        elif form_type == "enemy":
+            enemy_form = EnemyForm(request.POST, request.FILES, prefix="enemy")
+            if enemy_form.is_valid():
+                enemy = enemy_form.save(commit=False)
+                enemy.campaign = campaign
+                enemy.created_by = request.user
+                enemy.save()
+                messages.success(request, "Inimigo adicionado à campanha.")
+                return redirect("campaign_detail", pk=campaign.pk)
         elif form_type == "item_update":
             item_id = request.POST.get("item_id")
             description = request.POST.get("description", "")
@@ -327,6 +357,8 @@ def campaign_detail(request: HttpRequest, pk: int) -> HttpResponse:
     
     items = campaign.items.all()
     npcs = campaign.npcs.all()
+    # O jogador só enxerga o que o mestre revelou; o mestre vê todos.
+    enemies = campaign.enemies.all() if is_master else campaign.enemies.filter(visible=True)
 
     return render(
         request,
@@ -338,8 +370,10 @@ def campaign_detail(request: HttpRequest, pk: int) -> HttpResponse:
             "campaign_form": campaign_form,
             "item_form": item_form,
             "npc_form": npc_form,
+            "enemy_form": enemy_form,
             "items": items,
             "npcs": npcs,
+            "enemies": enemies,
             "is_master": is_master,
             "players": players,
             "search_results": search_results,
@@ -1069,6 +1103,201 @@ def delete_npc_bar(request: HttpRequest, npc_pk: int, bar_id: int) -> JsonRespon
         return JsonResponse({"success": True})
 
     return JsonResponse({"success": False, "error": "Método não permitido"}, status=405)
+
+
+@login_required
+def enemy_detail(request: HttpRequest, pk: int) -> HttpResponse:
+    """A ficha do inimigo. Igual à do personagem, sem a aba de inventário."""
+    enemy = get_object_or_404(Enemy, pk=pk)
+    campaign = enemy.campaign
+
+    is_master = False
+    is_player = False
+
+    if campaign:
+        is_master = campaign.master == request.user
+        # O jogador só abre o que o mestre já revelou: uma ficha escondida
+        # entregaria a vida e as habilidades do que ainda nem apareceu na mesa.
+        is_player = request.user in campaign.players.all() and enemy.visible
+
+    if request.GET.get("mode") == "player":
+        is_master = False
+
+    if not campaign or (not is_master and not is_player):
+        return HttpResponseForbidden("Você não tem acesso a este inimigo.")
+
+    skill_form = EnemySkillForm(prefix="skill")
+    ability_form = EnemyAbilityForm(prefix="ability")
+    enemy_form = EnemyForm(instance=enemy, prefix="enemy")
+
+    if request.method == "POST" and is_master:
+        form_type = request.POST.get("form_type")
+        if form_type == "enemy":
+            enemy_form = EnemyForm(request.POST, request.FILES, instance=enemy, prefix="enemy")
+            if enemy_form.is_valid():
+                enemy_form.save()
+                messages.success(request, "Inimigo atualizado.")
+                return redirect("enemy_detail", pk=enemy.pk)
+        elif form_type == "skill":
+            skill_form = EnemySkillForm(request.POST, prefix="skill")
+            if skill_form.is_valid():
+                skill = skill_form.save(commit=False)
+                skill.enemy = enemy
+                skill.save()
+                messages.success(request, "Perícia adicionada.")
+                return redirect("enemy_detail", pk=enemy.pk)
+        elif form_type == "ability":
+            ability_form = EnemyAbilityForm(request.POST, prefix="ability")
+            if ability_form.is_valid():
+                ability = ability_form.save(commit=False)
+                ability.enemy = enemy
+                ability.save()
+                messages.success(request, "Habilidade adicionada.")
+                return redirect("enemy_detail", pk=enemy.pk)
+        elif form_type == "attribute":
+            name = request.POST.get("attribute-name", "").strip()
+            value = request.POST.get("attribute-value", "").strip()
+            if name and value:
+                EnemyAttribute.objects.create(enemy=enemy, name=name, value=value)
+                messages.success(request, "Atributo adicionado.")
+                return redirect("enemy_detail", pk=enemy.pk)
+            messages.error(request, "Nome e valor do atributo são obrigatórios.")
+
+    return render(
+        request,
+        "hud/enemy_detail.html",
+        {
+            "enemy": enemy,
+            "is_master": is_master,
+            "is_player": is_player,
+            "enemy_form": enemy_form,
+            "skill_form": skill_form,
+            "ability_form": ability_form,
+            "campaign": campaign,
+            "enquadramento": _enquadramento(
+                enemy, "update_enemy_framing", "enemy_id", is_master
+            ),
+        },
+    )
+
+
+def _inimigo_do_mestre(request: HttpRequest, pk: int) -> Enemy | None:
+    """O inimigo, se quem pede for o mestre da campanha dele. Senão, None."""
+    enemy = get_object_or_404(Enemy, pk=pk)
+    if not enemy.campaign or enemy.campaign.master != request.user:
+        return None
+    return enemy
+
+
+@login_required
+@require_POST
+def update_enemy_framing(request: HttpRequest, enemy_id: int) -> JsonResponse:
+    """Guarda o corte do retrato do inimigo."""
+    enemy = _inimigo_do_mestre(request, enemy_id)
+    if enemy is None:
+        return JsonResponse({"error": "Sem permissão"}, status=403)
+
+    dados = _ler_enquadramento(request)
+    if dados is None:
+        return JsonResponse({"error": "Enquadramento inválido"}, status=400)
+
+    enemy.image_zoom, enemy.image_focus_x, enemy.image_focus_y = dados
+    enemy.save(update_fields=CAMPOS_DO_ENQUADRAMENTO)
+    return JsonResponse(
+        {"success": True, "zoom": enemy.image_zoom,
+         "x": enemy.image_focus_x, "y": enemy.image_focus_y}
+    )
+
+
+@login_required
+@require_POST
+def toggle_enemy_visibility(request: HttpRequest, enemy_id: int) -> JsonResponse:
+    """Revela ou esconde o inimigo para a mesa. Só o mestre."""
+    enemy = _inimigo_do_mestre(request, enemy_id)
+    if enemy is None:
+        return JsonResponse({"error": "Sem permissão"}, status=403)
+
+    enemy.visible = not enemy.visible
+    enemy.save()
+    return JsonResponse({"success": True, "visible": enemy.visible})
+
+
+@login_required
+@require_POST
+def delete_enemy(request: HttpRequest, pk: int) -> HttpResponse:
+    enemy = _inimigo_do_mestre(request, pk)
+    if enemy is None:
+        return HttpResponseForbidden("Sem permissão")
+    campaign_id = enemy.campaign_id
+    enemy.delete()
+    messages.success(request, "Inimigo deletado.")
+    return redirect("campaign_detail", pk=campaign_id)
+
+
+@login_required
+@require_POST
+def add_enemy_bar(request: HttpRequest, pk: int) -> JsonResponse:
+    """Adiciona uma barra dinâmica ao inimigo."""
+    enemy = _inimigo_do_mestre(request, pk)
+    if enemy is None:
+        return JsonResponse({"success": False, "error": "Não autorizado"}, status=403)
+
+    name = request.POST.get("name", "").strip()
+    try:
+        max_value = int(request.POST.get("max_value", 100))
+    except (TypeError, ValueError):
+        return JsonResponse({"success": False, "error": "Dados inválidos"})
+    color = request.POST.get("color", "#e11d2e")
+
+    if not name or max_value <= 0:
+        return JsonResponse({"success": False, "error": "Dados inválidos"})
+
+    bar = EnemyBar.objects.create(
+        enemy=enemy, name=name, max_value=max_value, current=max_value, color=color
+    )
+    return JsonResponse(
+        {
+            "success": True,
+            "bar": {
+                "id": bar.id,
+                "name": bar.name,
+                "current": bar.current,
+                "max_value": bar.max_value,
+                "color": bar.color,
+            },
+        }
+    )
+
+
+@login_required
+@require_POST
+def modify_enemy_bar(request: HttpRequest, enemy_pk: int, bar_id: int) -> JsonResponse:
+    """Sobe ou desce em um o valor atual de uma barra do inimigo."""
+    enemy = _inimigo_do_mestre(request, enemy_pk)
+    if enemy is None:
+        return JsonResponse({"success": False, "error": "Não autorizado"}, status=403)
+
+    bar = get_object_or_404(EnemyBar, id=bar_id, enemy=enemy)
+    action = request.POST.get("action", "increase")
+    if action == "increase":
+        bar.current = min(bar.current + 1, bar.max_value)
+    elif action == "decrease":
+        bar.current = max(bar.current - 1, 0)
+    bar.save()
+    return JsonResponse({"success": True, "current": bar.current})
+
+
+@login_required
+@require_POST
+def delete_enemy_bar(request: HttpRequest, enemy_pk: int, bar_id: int) -> JsonResponse:
+    """Deleta uma barra do inimigo."""
+    enemy = _inimigo_do_mestre(request, enemy_pk)
+    if enemy is None:
+        return JsonResponse({"success": False, "error": "Não autorizado"}, status=403)
+
+    bar = get_object_or_404(EnemyBar, id=bar_id, enemy=enemy)
+    bar.delete()
+    return JsonResponse({"success": True})
 
 
 @login_required

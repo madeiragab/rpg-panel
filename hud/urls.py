@@ -12,6 +12,7 @@ urlpatterns = [
     path("characters/", views.character_list, name="character_list"),
     path("characters/<int:pk>/", views.character_detail, name="character_detail"),
     path("npcs/<int:pk>/", views.npc_detail, name="npc_detail"),
+    path("enemies/<int:pk>/", views.enemy_detail, name="enemy_detail"),
     path(
         "characters/<int:character_id>/slots/<int:slot_id>/assign/",
         views.assign_slot,
@@ -27,6 +28,7 @@ urlpatterns = [
     path("me/", views.user_page, name="user_page"),
     path("items/<int:pk>/delete/", views.delete_item, name="delete_item"),
     path("npcs/<int:pk>/delete/", views.delete_npc, name="delete_npc"),
+    path("enemies/<int:pk>/delete/", views.delete_enemy, name="delete_enemy"),
     path("characters/<int:pk>/delete/", views.delete_character, name="delete_character"),
     path("forgot-password/", views.forgot_password, name="forgot_password"),
     path("reset-password/<str:token>/", views.reset_password, name="reset_password"),
@@ -42,4 +44,9 @@ urlpatterns = [
     path("npcs/<int:pk>/add-bar/", views.add_npc_bar, name="add_npc_bar"),
     path("npcs/<int:npc_pk>/<int:bar_id>/modify-bar/", views.modify_npc_bar, name="modify_npc_bar"),
     path("npcs/<int:npc_pk>/<int:bar_id>/delete-bar/", views.delete_npc_bar, name="delete_npc_bar"),
+    path("enemies/<int:enemy_id>/framing/", views.update_enemy_framing, name="update_enemy_framing"),
+    path("enemies/<int:enemy_id>/toggle-visibility/", views.toggle_enemy_visibility, name="toggle_enemy_visibility"),
+    path("enemies/<int:pk>/add-bar/", views.add_enemy_bar, name="add_enemy_bar"),
+    path("enemies/<int:enemy_pk>/<int:bar_id>/modify-bar/", views.modify_enemy_bar, name="modify_enemy_bar"),
+    path("enemies/<int:enemy_pk>/<int:bar_id>/delete-bar/", views.delete_enemy_bar, name="delete_enemy_bar"),
 ]

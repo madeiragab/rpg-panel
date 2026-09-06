@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% comment %}
+   A ficha do inimigo é a do NPC sem a seção de inventário. Ela não é um
+   include da outra porque as duas apontam para modelos diferentes em cada
+   laço e em cada URL — o que sobraria de comum seria um template cheio de
+   variáveis indiretas, mais difícil de ler do que as duas separadas.
+{% endcomment %}
+
+{% block content %}
+<div style="padding: 12px 24px; max-width: 1400px; margin: 0 auto;">
+    {% if campaign %}
+        {% if is_master %}
+        <a href="{% url 'campaign_detail' campaign.pk %}" class="hud-button ghost">Voltar para Campanha</a>
+        {% else %}
+        <a href="{% url 'campaign_detail' campaign.pk %}?mode=player" class="hud-button ghost">Voltar para Campanha</a>
+        {% endif %}
+    {% else %}
+        <a href="{% url 'home' %}" class="hud-button ghost">Voltar</a>
+    {% endif %}
+</div>
+<div class="hud-layout" {% if campaign and campaign.banner %}style="background-image: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.85)), url('{{ campaign.banner.url }}'); background-size: cover; background-attachment: fixed; background-position: center;"{% endif %}>
+    {% if not is_master %}
+        <div class="player-view-notice">
+            <p>📖 Você está visualizando este inimigo em modo leitura</p>
+        </div>
+    {% endif %}
+
+    <section class="panel-card column">
+        <h2 class="panel-title">Perícias / Proficiências</h2>
+        <div class="tags-wrap">
+            {% for skill in enemy.skills.all %}
+                <span class="skill-tag">
+                    {{ skill.name }}{% if skill.value %} <span class="skill-value">{{ skill.value }}</span>{% endif %}
+                </span>
+            {% empty %}
+                <span class="muted">Sem perícias cadastradas.</span>
+            {% endfor %}
+        </div>
+        {% if is_master %}
+            <form method="post" class="panel-form compact">
+                {% csrf_token %}
+                <input type="hidden" name="form_type" value="skill">
+                {{ skill_form.as_p }}
+                <button type="submit" class="hud-button ghost">Adicionar perícia</button>
+            </form>
+        {% endif %}
+    </section>
+
+    <section class="panel-card column">
+        <div class="character-header">
+            <h1 class="panel-title">{{ enemy.name }}</h1>
+        </div>
+
+        <div id="bars-container" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px;">
+            {% for bar in enemy.bars.all %}
+            <div class="character-bar" data-bar-id="{{ bar.id }}" style="display: flex; align-items: center; gap: 12px;">
+                <span style="font-weight: 600; min-width: 80px; color: var(--text);">{{ bar.name }}</span>
+                {% if is_master %}
+                    <button class="hud-button ghost" onclick="modifyEnemyBar({{ bar.id }}, 'decrease')" style="padding: 4px 8px; font-size: 16px;">−</button>
+                {% endif %}
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
+                    <span class="bar-display" style="font-size: 0.9rem; color: var(--muted);" data-current="{{ bar.current }}" data-max="{{ bar.max_value }}">{{ bar.current }} / {{ bar.max_value }}</span>
+                    <div style="width: 100%; height: 10px; background: rgba(255, 255, 255, 0.1); border-radius: 5px; overflow: hidden;">
+                        <div class="bar-fill" style="height: 100%; background: {{ bar.color }}; width: {% widthratio bar.current bar.max_value 100 %}%; transition: width 0.3s ease;"></div>
+                    </div>
+                </div>
+                {% if is_master %}
+                    <button class="hud-button ghost" onclick="modifyEnemyBar({{ bar.id }}, 'increase')" style="padding: 4px 8px; font-size: 16px;">+</button>
+                    <button class="hud-button danger" onclick="deleteEnemyBar({{ bar.id }})" style="padding: 4px 8px; font-size: 12px;">×</button>
+                {% endif %}
+            </div>
+            {% empty %}
+                <span class="muted">Sem barras cadastradas.</span>
+            {% endfor %}
+        </div>
+
+        <div class="portrait-wrap">
+            <div class="portrait-thumb{% if not enemy.image %} empty{% endif %}" id="portrait-frame">
+                {% if enemy.image %}
+                    <img id="portrait-image" src="{{ enemy.image.url }}" alt="Retrato de {{ enemy.name }}">
+                {% endif %}
+            </div>
+            {% if enemy.image and is_master %}
+                <div class="portrait-controls">
+                    <input type="range" id="portrait-zoom" min="100" max="400" step="1"
+                           value="{{ enemy.image_zoom }}" aria-label="Zoom do retrato"
+                           title="Aproximar a foto dentro da moldura">
+                    <button type="button" id="portrait-center" class="hud-button ghost"
+                            title="Voltar ao enquadramento inicial">centrar</button>
+                </div>
+                <div class="portrait-hint muted">Arraste a foto para escolher o pedaço que aparece.</div>
+            {% else %}
+                <div class="portrait-hint muted">Retrato do inimigo (opcional)</div>
+            {% endif %}
+            {{ enquadramento|json_script:"portrait-framing" }}
+        </div>
+
+        <div class="attributes-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px;">
+            {% for attr in enemy.attributes.all %}
+                <div class="attribute-box" style="background: rgba(18,12,13,0.4); padding: 8px; border-radius: 6px; text-align: center;">
+                    <div style="font-size: 0.75rem; color: var(--muted); text-transform: uppercase;">{{ attr.name }}</div>
+                    <div style="font-size: 1.1rem; font-weight: 600; color: var(--text);">{{ attr.value }}</div>
+                </div>
+            {% endfor %}
+        </div>
+
+        {% if is_master %}
+            <form method="post" class="panel-form compact" style="margin-top: 12px;">
+                {% csrf_token %}
+                <input type="hidden" name="form_type" value="attribute">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <div>
+                        <label for="id_attribute-name" style="display: block; font-size: 0.9rem; margin-bottom: 4px;">Nome</label>
+                        <input type="text" name="attribute-name" placeholder="Ex: Força, Inteligência" style="width: 100%; padding: 6px; border: 1px solid var(--border); border-radius: 4px; background: rgba(255,255,255,0.05); color: var(--text);">
+                    </div>
+                    <div>
+                        <label for="id_attribute-value" style="display: block; font-size: 0.9rem; margin-bottom: 4px;">Valor</label>
+                        <input type="text" name="attribute-value" placeholder="Ex: 18, A+, Excelente" style="width: 100%; padding: 6px; border: 1px solid var(--border); border-radius: 4px; background: rgba(255,255,255,0.05); color: var(--text);">
+                    </div>
+                </div>
+                <button type="submit" class="hud-button ghost" style="margin-top: 8px;">+ Atributo</button>
+            </form>
+
+            <form method="post" enctype="multipart/form-data" class="panel-form compact" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">
+                {% csrf_token %}
+                <input type="hidden" name="form_type" value="enemy">
+                {{ enemy_form.as_p }}
+                <button type="submit" class="hud-button">Atualizar informações</button>
+            </form>
+
+            <form method="post" class="panel-form" id="add-bar-form" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">
+                {% csrf_token %}
+                <h3 class="panel-subtitle">Adicionar Barra</h3>
+                <label for="bar-name">Nome da barra</label>
+                <input type="text" id="bar-name" placeholder="Ex.: Vida, Fúria, Armadura..." />
+                <label for="bar-max">Valor máximo</label>
+                <input type="number" id="bar-max" value="100" min="1" />
+                <label for="bar-color">Cor</label>
+                <input type="color" id="bar-color" value="#e11d2e" />
+                <button type="button" class="hud-button ghost" onclick="addEnemyBar()">Adicionar</button>
+            </form>
+        {% endif %}
+    </section>
+
+    <section class="panel-card column">
+        <h2 class="panel-title">Habilidades</h2>
+        <div class="tags-wrap">
+            {% for ability in enemy.abilities.all %}
+                <span class="ability-tag">
+                    {{ ability.name }}
+                </span>
+            {% empty %}
+                <span class="muted">Sem habilidades cadastradas.</span>
+            {% endfor %}
+        </div>
+        {% if is_master %}
+            <form method="post" class="panel-form compact">
+                {% csrf_token %}
+                <input type="hidden" name="form_type" value="ability">
+                {{ ability_form.as_p }}
+                <button type="submit" class="hud-button ghost">Adicionar habilidade</button>
+            </form>
+        {% endif %}
+    </section>
+</div>
+
+{% comment %}
+   Fora do bloco do mestre de propósito: o jogador não enquadra, mas precisa do
+   script para ver o retrato no corte que o mestre escolheu.
+{% endcomment %}
+<script src="{% static 'hud/portrait.js' %}"></script>
+
+<script>
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+}
+
+function modifyEnemyBar(barId, action) {
+    fetch(`/enemies/{{ enemy.id }}/${barId}/modify-bar/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': getCookie('csrftoken') || ''
+        },
+        body: new URLSearchParams({ action: action }).toString()
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const barElement = document.querySelector(`[data-bar-id="${barId}"]`);
+            if (barElement) {
+                const display = barElement.querySelector('.bar-display');
+                const fill = barElement.querySelector('.bar-fill');
+                const maxValue = parseInt(display.getAttribute('data-max')) || 100;
+                display.textContent = `${data.current} / ${maxValue}`;
+                fill.style.width = `${(data.current / maxValue) * 100}%`;
+            }
+        }
+    })
+    .catch(error => console.error('Erro:', error));
+}
+
+function addEnemyBar() {
+    const name = document.getElementById('bar-name').value.trim();
+    const maxValue = parseInt(document.getElementById('bar-max').value) || 100;
+    const color = document.getElementById('bar-color').value;
+
+    if (!name) {
+        alert('Digite o nome da barra');
+        return;
+    }
+
+    fetch(`/enemies/{{ enemy.id }}/add-bar/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': getCookie('csrftoken') || ''
+        },
+        body: new URLSearchParams({
+            name: name,
+            max_value: maxValue,
+            color: color,
+        }).toString()
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        }
+    })
+    .catch(error => console.error('Erro:', error));
+}
+
+function deleteEnemyBar(barId) {
+    if (!confirm('Tem certeza que deseja deletar esta barra?')) return;
+    fetch(`/enemies/{{ enemy.id }}/${barId}/delete-bar/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': getCookie('csrftoken') || ''
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        }
+    })
+    .catch(error => console.error('Erro:', error));
+}
+</script>
+{% endblock %}

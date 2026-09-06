@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block content %}
-<div class="content" {% if campaign and campaign.banner %}style="background-image: linear-gradient(rgba(12, 15, 26, 0.85), rgba(12, 15, 26, 0.85)), url('{{ campaign.banner.url }}'); background-size: cover; background-attachment: fixed; background-position: center;"{% endif %}>
+<div class="content" {% if campaign and campaign.banner %}style="background-image: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.85)), url('{{ campaign.banner.url }}'); background-size: cover; background-attachment: fixed; background-position: center;"{% endif %}>
     <div class="campaign-detail-header">
         <div>
             <div style="display: flex; align-items: center; gap: 10px;">
@@ -52,6 +52,7 @@
             {% if request.GET.mode != 'player' %}
             <button class="tab-button" data-tab="items">Itens</button>
             <button class="tab-button" data-tab="npcs">NPCs</button>
+            <button class="tab-button" data-tab="enemies">Inimigos</button>
             {% endif %}
             <button class="tab-button" data-tab="players">Jogadores</button>
         </div>
@@ -80,7 +81,7 @@
                             </h3>
                             {% if character.assigned_to %}
                                 <div class="list-inline" style="gap:6px; align-items:center; margin-bottom:8px;">
-                                    <span class="mini-thumb" style="width:28px;height:28px;border-radius:50%;border:1px solid var(--border); background:{% if character.assigned_to.profile.avatar %}url('{{ character.assigned_to.profile.avatar.url }}'){% else %}#ffffff{% endif %}; background-size: cover; background-position: center;"></span>
+                                    <span class="mini-thumb" style="width:28px;height:28px;border-radius:50%;border:1px solid var(--border); background:{% if character.assigned_to.profile.avatar %}url('{{ character.assigned_to.profile.avatar.url }}'){% else %}#241a1c{% endif %}; background-size: cover; background-position: center;"></span>
                                     <span class="muted" style="font-size:0.85rem;">{{ character.assigned_to.username }}</span>
                                 </div>
                             {% else %}
@@ -216,6 +217,51 @@
             </div>
         </div>
 
+        <div class="tab-content" id="enemies-tab" style="display: none;">
+            <div class="panel-header">
+                <h2 class="panel-title">Inimigos</h2>
+                <button id="toggle-create-enemy" class="hud-button">+</button>
+            </div>
+            <div class="characters-grid">
+                {% for enemy in enemies %}
+                    <div class="character-card">
+                        {% if enemy.image %}
+                            <div class="character-card-image" style="background-image: url('{{ enemy.image.url }}'); background-position: {% widthratio enemy.image_focus_x 1 100 %}% {% widthratio enemy.image_focus_y 1 100 %}%;"></div>
+                        {% else %}
+                            <div class="character-card-image empty"></div>
+                        {% endif %}
+                        <div class="character-card-info">
+                            <h3>
+                                {{ enemy.name }}
+                                <button onclick="toggleEnemyVisibility({{ enemy.id }}, this)" class="hud-button ghost" style="font-size: 18px; padding: 4px 8px;" title="{% if enemy.visible %}Esconder da mesa{% else %}Revelar para a mesa{% endif %}">
+                                    {% if enemy.visible %}👁️{% else %}🚫{% endif %}
+                                </button>
+                            </h3>
+                            <p class="muted">{{ enemy.bars.count }} barra{{ enemy.bars.count|pluralize }}, sem inventário</p>
+                            <div class="list-inline">
+                                <a href="{% url 'enemy_detail' enemy.pk %}" class="hud-button">Editar</a>
+                                <form method="post" action="{% url 'delete_enemy' enemy.pk %}" onsubmit="return confirm('Tem certeza que deseja deletar este inimigo?');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="hud-button danger">Deletar</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                {% empty %}
+                    <p class="muted">Nenhum inimigo criado ainda.</p>
+                {% endfor %}
+            </div>
+            <div id="create-enemy" class="panel-card" style="display:none;">
+                <h3 class="panel-subtitle">Criar Inimigo</h3>
+                <form method="post" enctype="multipart/form-data" class="panel-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="form_type" value="enemy">
+                    {{ enemy_form.as_p }}
+                    <button type="submit" class="hud-button">Criar</button>
+                </form>
+            </div>
+        </div>
+
         <div class="tab-content" id="players-tab" style="display: none;">
             <h2 class="panel-title">Jogadores</h2>
             <div class="panel-card" style="margin-bottom:12px;">
@@ -237,7 +283,7 @@
                     {% for p in players %}
                     <li class="list-item">
                         <div class="list-inline">
-                            <span class="mini-thumb" style="width:36px;height:36px;border-radius:50%;border:1px solid var(--border); background:{% if p.profile.avatar %}url('{{ p.profile.avatar.url }}'){% else %}#ffffff{% endif %}; background-size: cover; background-position: center;"></span>
+                            <span class="mini-thumb" style="width:36px;height:36px;border-radius:50%;border:1px solid var(--border); background:{% if p.profile.avatar %}url('{{ p.profile.avatar.url }}'){% else %}#241a1c{% endif %}; background-size: cover; background-position: center;"></span>
                             <span>{{ p.profile.display_name|default:p.get_full_name|default:p.username }}</span>
                         </div>
                         <form method="post" onsubmit="return confirm('Remover este jogador da campanha?');">
@@ -276,7 +322,7 @@
                                 <h3>{{ character.name }}</h3>
                                 {% if character.assigned_to %}
                                     <div class="list-inline" style="gap:6px; align-items:center; margin-bottom:8px;">
-                                        <span class="mini-thumb" style="width:28px;height:28px;border-radius:50%;border:1px solid var(--border); background:{% if character.assigned_to.profile.avatar %}url('{{ character.assigned_to.profile.avatar.url }}'){% else %}#ffffff{% endif %}; background-size: cover; background-position: center;"></span>
+                                        <span class="mini-thumb" style="width:28px;height:28px;border-radius:50%;border:1px solid var(--border); background:{% if character.assigned_to.profile.avatar %}url('{{ character.assigned_to.profile.avatar.url }}'){% else %}#241a1c{% endif %}; background-size: cover; background-position: center;"></span>
                                         <span class="muted" style="font-size:0.85rem;">{{ character.assigned_to.username }}</span>
                                     </div>
                                 {% endif %}
@@ -299,7 +345,7 @@
                     {% for p in players %}
                     <li class="list-item">
                         <div class="list-inline">
-                            <span class="mini-thumb" style="width:36px;height:36px;border-radius:50%;border:1px solid var(--border); background:{% if p.profile.avatar %}url('{{ p.profile.avatar.url }}'){% else %}#ffffff{% endif %}; background-size: cover; background-position: center;"></span>
+                            <span class="mini-thumb" style="width:36px;height:36px;border-radius:50%;border:1px solid var(--border); background:{% if p.profile.avatar %}url('{{ p.profile.avatar.url }}'){% else %}#241a1c{% endif %}; background-size: cover; background-position: center;"></span>
                             <span>{{ p.username }}</span>
                             {% if p.id == user.id %}
                                 <form method="post" action="{% url 'leave_campaign' campaign.pk %}" style="margin-left: auto;">
@@ -386,6 +432,13 @@ if (toggleNPC) {
         createNPC.style.display = createNPC.style.display === 'none' ? 'block' : 'none';
     });
 }
+const toggleEnemy = document.getElementById('toggle-create-enemy');
+const createEnemy = document.getElementById('create-enemy');
+if (toggleEnemy) {
+    toggleEnemy.addEventListener('click', () => {
+        createEnemy.style.display = createEnemy.style.display === 'none' ? 'block' : 'none';
+    });
+}
 
 // Item detail viewer (apenas mestre)
 const itemCards = document.querySelectorAll('.item-card');
@@ -461,7 +514,7 @@ function renderResults(items) {
         left.className = 'list-inline';
         const avatar = document.createElement('span');
         avatar.className = 'square-thumb';
-        avatar.style.cssText = "width:36px;height:36px;border:1px solid var(--border); background:" + (item.avatar ? `url('${item.avatar}')` : '#ffffff') + "; background-size: cover; background-position: center;";
+        avatar.style.cssText = "width:36px;height:36px;border:1px solid var(--border); background:" + (item.avatar ? `url('${item.avatar}')` : '#241a1c') + "; background-size: cover; background-position: center;";
         const name = document.createElement('span');
         name.textContent = item.name;
         left.appendChild(avatar);
@@ -536,6 +589,24 @@ function toggleNPCVisibility(npcId, button) {
         if (data.success) {
             button.textContent = data.visible ? '👁️' : '🚫';
             button.title = data.visible ? 'Ocultar NPC' : 'Mostrar NPC';
+        }
+    })
+    .catch(error => console.error('Erro:', error));
+}
+
+function toggleEnemyVisibility(enemyId, button) {
+    fetch(`/enemies/${enemyId}/toggle-visibility/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            button.textContent = data.visible ? '👁️' : '🚫';
+            button.title = data.visible ? 'Esconder da mesa' : 'Revelar para a mesa';
         }
     })
     .catch(error => console.error('Erro:', error));

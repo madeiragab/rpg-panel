@@ -332,6 +332,101 @@ class NPCAttribute(models.Model):
         return f"{self.npc.name}: {self.name} = {self.value}"
 
 
+class Enemy(RetratoEnquadrado):
+    """A ficha do inimigo: a mesma do personagem, sem inventário.
+
+    Inimigo não carrega mochila. O que ele deixa cair vira item da campanha
+    pela mão do mestre, então não há `InventorySlot` aqui — e é só isso que o
+    separa do NPC. Também não tem os campos `hp_*`/`sp_*`: eles existem em
+    `Character` e `NPC` por compatibilidade com os dados de antes das barras, e
+    uma ficha nova não precisa herdar essa dívida.
+
+    Nasce escondido. Quem revela é o mestre, quando quer que a mesa veja a
+    barra de vida do que está na frente dela.
+    """
+
+    campaign = models.ForeignKey(
+        Campaign,
+        on_delete=models.CASCADE,
+        related_name="enemies",
+        null=True,
+        blank=True,
+    )
+    name = models.CharField(max_length=120)
+    image = models.ImageField(upload_to="enemies/", null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="created_enemies",
+    )
+    visible = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self) -> str:  # pragma: no cover - simple display
+        return self.name
+
+    def save(self, *args, **kwargs):  # type: ignore[override]
+        self.clamp_framing()
+        return super().save(*args, **kwargs)
+
+
+class EnemySkill(models.Model):
+    enemy = models.ForeignKey(Enemy, on_delete=models.CASCADE, related_name="skills")
+    name = models.CharField(max_length=80)
+    value = models.CharField(max_length=40, blank=True)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["order", "name"]
+
+    def __str__(self) -> str:  # pragma: no cover - simple display
+        return f"{self.enemy.name}: {self.name}"
+
+
+class EnemyAbility(models.Model):
+    enemy = models.ForeignKey(Enemy, on_delete=models.CASCADE, related_name="abilities")
+    name = models.CharField(max_length=80)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["order", "name"]
+
+    def __str__(self) -> str:  # pragma: no cover - simple display
+        return f"{self.enemy.name}: {self.name}"
+
+
+class EnemyBar(models.Model):
+    enemy = models.ForeignKey(Enemy, on_delete=models.CASCADE, related_name="bars")
+    name = models.CharField(max_length=80)
+    current = models.IntegerField(default=0)
+    max_value = models.IntegerField(default=100)
+    color = models.CharField(max_length=20, default="#e11d2e")
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["order", "name"]
+
+    def __str__(self) -> str:  # pragma: no cover - simple display
+        return f"{self.enemy.name}: {self.name}"
+
+
+class EnemyAttribute(models.Model):
+    enemy = models.ForeignKey(Enemy, on_delete=models.CASCADE, related_name="attributes")
+    name = models.CharField(max_length=80)
+    value = models.CharField(max_length=40)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["order", "name"]
+
+    def __str__(self) -> str:  # pragma: no cover - simple display
+        return f"{self.enemy.name}: {self.name} = {self.value}"
+
+
 class Item(models.Model):
     campaign = models.ForeignKey(
         Campaign,

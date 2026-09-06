@@ -105,6 +105,22 @@ Each of these exists in a `Character…` and an `NPC…` flavor, all ordered by
 Values are `CharField`, not numbers, on purpose: different systems write
 attributes as `18`, `+3` or `d8`, and the panel does not interpret them.
 
+## Enemy
+
+`Enemy` is the third sheet, and the shortest: same framed portrait, same bars,
+attributes, skills and abilities as `Character` and `NPC` — **no inventory**. An
+enemy carries no bag; whatever it drops becomes a campaign item through the
+master. There is no `inventory_capacity`, no `ensure_slots()`, no slot table.
+
+It also does not inherit the `hp_*`/`sp_*` fields: those exist on the other two
+only for compatibility with pre-bar data, and a new sheet need not carry that
+debt.
+
+It is born with `visible = False`. The master reveals it when the table should
+see the health bar of whatever is in front of them; while hidden, a player of
+the campaign still gets a 403. The sub-entities (`EnemySkill`, `EnemyAbility`,
+`EnemyBar`, `EnemyAttribute`) follow the same shape as the NPC ones.
+
 ## Item and inventory slots
 
 `Item` is campaign-scoped and shared: the same item row can sit in several

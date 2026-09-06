@@ -30,6 +30,8 @@ from hud.forms import (
 from hud.models import (
     Campaign,
     Character,
+    Enemy,
+    EnemyBar,
     InventorySlot,
     Item,
     NPC,
@@ -981,3 +983,264 @@ class RetratoDaFichaTests(TestCase):
 
         self.assertEqual(ficha.image_zoom, 300)
         self.assertAlmostEqual(ficha.image_focus_x, 0.1)
+
+
+@SEM_REDIRECT_HTTPS
+@SEM_MANIFESTO
+class FichaDeInimigoTests(TestCase):
+    """A ficha do inimigo: quem cria, quem abre e o que ela nao tem."""
+
+    def setUp(self):
+        self.mestre = make_user('mestre')
+        self.jogador = make_user('jogador')
+        self.estranho = make_user('estranho')
+        self.campanha = Campaign.objects.create(name='Ossos', master=self.mestre)
+        self.campanha.players.add(self.jogador)
+        self.inimigo = Enemy.objects.create(
+            name='Cerbero', created_by=self.mestre, campaign=self.campanha
+        )
+
+    def test_inimigo_nao_tem_inventario(self):
+        """O que separa o inimigo do NPC: nenhum slot, nem relacao para eles."""
+        self.assertFalse(hasattr(self.inimigo, 'slots'))
+        self.assertFalse(hasattr(self.inimigo, 'inventory_capacity'))
+
+    def test_inimigo_nasce_escondido(self):
+        self.assertFalse(self.inimigo.visible)
+
+    def test_mestre_cria_inimigo_na_campanha(self):
+        self.client.force_login(self.mestre)
+
+        self.client.post(
+            reverse('campaign_detail', args=[self.campanha.pk]),
+            {'form_type': 'enemy', 'enemy-name': 'Hidra'},
+        )
+
+        self.assertTrue(self.campanha.enemies.filter(name='Hidra').exists())
+
+    def test_jogador_nao_cria_inimigo(self):
+        self.client.force_login(self.jogador)
+
+        self.client.post(
+            reverse('campaign_detail', args=[self.campanha.pk]),
+            {'form_type': 'enemy', 'enemy-name': 'Hidra'},
+        )
+
+        self.assertFalse(self.campanha.enemies.filter(name='Hidra').exists())
+
+    def test_mestre_abre_a_ficha(self):
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.get(reverse('enemy_detail', args=[self.inimigo.pk]))
+
+        self.assertEqual(resposta.status_code, 200)
+
+    def test_jogador_nao_abre_inimigo_escondido(self):
+        self.client.force_login(self.jogador)
+
+        resposta = self.client.get(reverse('enemy_detail', args=[self.inimigo.pk]))
+
+        self.assertEqual(resposta.status_code, 403)
+
+    def test_jogador_abre_o_inimigo_revelado_em_leitura(self):
+        self.inimigo.visible = True
+        self.inimigo.save()
+        self.client.force_login(self.jogador)
+
+        resposta = self.client.get(reverse('enemy_detail', args=[self.inimigo.pk]))
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertFalse(resposta.context['is_master'])
+
+    def test_quem_nao_e_da_campanha_leva_403_mesmo_revelado(self):
+        self.inimigo.visible = True
+        self.inimigo.save()
+        self.client.force_login(self.estranho)
+
+        resposta = self.client.get(reverse('enemy_detail', args=[self.inimigo.pk]))
+
+        self.assertEqual(resposta.status_code, 403)
+
+    def test_so_o_mestre_revela(self):
+        self.client.force_login(self.jogador)
+
+        resposta = self.client.post(
+            reverse('toggle_enemy_visibility', args=[self.inimigo.pk])
+        )
+
+        self.assertEqual(resposta.status_code, 403)
+        self.inimigo.refresh_from_db()
+        self.assertFalse(self.inimigo.visible)
+
+    def test_mestre_revela_e_esconde(self):
+        self.client.force_login(self.mestre)
+
+        self.client.post(reverse('toggle_enemy_visibility', args=[self.inimigo.pk]))
+        self.inimigo.refresh_from_db()
+        self.assertTrue(self.inimigo.visible)
+
+        self.client.post(reverse('toggle_enemy_visibility', args=[self.inimigo.pk]))
+        self.inimigo.refresh_from_db()
+        self.assertFalse(self.inimigo.visible)
+
+    def test_mestre_adiciona_atributo_e_pericia(self):
+        self.client.force_login(self.mestre)
+
+        self.client.post(
+            reverse('enemy_detail', args=[self.inimigo.pk]),
+            {'form_type': 'attribute', 'attribute-name': 'Forca', 'attribute-value': '9'},
+        )
+        self.client.post(
+            reverse('enemy_detail', args=[self.inimigo.pk]),
+            {'form_type': 'skill', 'skill-name': 'Rastrear', 'skill-value': '+6',
+             'skill-order': 0},
+        )
+
+        self.assertEqual(self.inimigo.attributes.get().name, 'Forca')
+        self.assertEqual(self.inimigo.skills.get().name, 'Rastrear')
+
+    def test_jogador_com_o_inimigo_revelado_nao_edita(self):
+        self.inimigo.visible = True
+        self.inimigo.save()
+        self.client.force_login(self.jogador)
+
+        self.client.post(
+            reverse('enemy_detail', args=[self.inimigo.pk]),
+            {'form_type': 'attribute', 'attribute-name': 'Forca', 'attribute-value': '9'},
+        )
+
+        self.assertEqual(self.inimigo.attributes.count(), 0)
+
+    def test_mestre_apaga_o_inimigo(self):
+        self.client.force_login(self.mestre)
+
+        self.client.post(reverse('delete_enemy', args=[self.inimigo.pk]))
+
+        self.assertFalse(Enemy.objects.filter(pk=self.inimigo.pk).exists())
+
+    def test_jogador_nao_apaga_o_inimigo(self):
+        self.client.force_login(self.jogador)
+
+        resposta = self.client.post(reverse('delete_enemy', args=[self.inimigo.pk]))
+
+        self.assertEqual(resposta.status_code, 403)
+        self.assertTrue(Enemy.objects.filter(pk=self.inimigo.pk).exists())
+
+
+@SEM_REDIRECT_HTTPS
+class BarrasDoInimigoTests(TestCase):
+    def setUp(self):
+        self.mestre = make_user('mestre')
+        self.jogador = make_user('jogador')
+        self.campanha = Campaign.objects.create(name='Ossos', master=self.mestre)
+        self.campanha.players.add(self.jogador)
+        self.inimigo = Enemy.objects.create(
+            name='Cerbero', created_by=self.mestre, campaign=self.campanha, visible=True
+        )
+
+    def _criar_barra(self):
+        return EnemyBar.objects.create(
+            enemy=self.inimigo, name='Vida', current=10, max_value=10
+        )
+
+    def test_mestre_cria_barra_cheia(self):
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.post(
+            reverse('add_enemy_bar', args=[self.inimigo.pk]),
+            {'name': 'Vida', 'max_value': '40', 'color': '#e11d2e'},
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        barra = self.inimigo.bars.get()
+        self.assertEqual(barra.current, 40)
+        self.assertEqual(barra.max_value, 40)
+
+    def test_barra_sem_nome_e_recusada(self):
+        self.client.force_login(self.mestre)
+
+        self.client.post(
+            reverse('add_enemy_bar', args=[self.inimigo.pk]),
+            {'name': '  ', 'max_value': '40'},
+        )
+
+        self.assertEqual(self.inimigo.bars.count(), 0)
+
+    def test_barra_nao_passa_do_maximo_nem_fica_negativa(self):
+        barra = self._criar_barra()
+        self.client.force_login(self.mestre)
+        url = reverse('modify_enemy_bar', args=[self.inimigo.pk, barra.pk])
+
+        self.client.post(url, {'action': 'increase'})
+        barra.refresh_from_db()
+        self.assertEqual(barra.current, 10)
+
+        for _ in range(12):
+            self.client.post(url, {'action': 'decrease'})
+        barra.refresh_from_db()
+        self.assertEqual(barra.current, 0)
+
+    def test_jogador_nao_mexe_na_barra(self):
+        barra = self._criar_barra()
+        self.client.force_login(self.jogador)
+
+        resposta = self.client.post(
+            reverse('modify_enemy_bar', args=[self.inimigo.pk, barra.pk]),
+            {'action': 'decrease'},
+        )
+
+        self.assertEqual(resposta.status_code, 403)
+        barra.refresh_from_db()
+        self.assertEqual(barra.current, 10)
+
+    def test_barra_de_outro_inimigo_nao_entra_pela_url(self):
+        outro = Enemy.objects.create(
+            name='Quimera', created_by=self.mestre, campaign=self.campanha
+        )
+        barra = self._criar_barra()
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.post(
+            reverse('modify_enemy_bar', args=[outro.pk, barra.pk]),
+            {'action': 'decrease'},
+        )
+
+        self.assertEqual(resposta.status_code, 404)
+
+    def test_mestre_apaga_a_barra(self):
+        barra = self._criar_barra()
+        self.client.force_login(self.mestre)
+
+        self.client.post(reverse('delete_enemy_bar', args=[self.inimigo.pk, barra.pk]))
+
+        self.assertEqual(self.inimigo.bars.count(), 0)
+
+    def test_get_e_recusado(self):
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.get(reverse('add_enemy_bar', args=[self.inimigo.pk]))
+
+        self.assertEqual(resposta.status_code, 405)
+
+    def test_mestre_enquadra_o_retrato_do_inimigo(self):
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.post(
+            reverse('update_enemy_framing', args=[self.inimigo.pk]),
+            {'zoom': '220', 'focus_x': '0.3', 'focus_y': '0.7'},
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        self.inimigo.refresh_from_db()
+        self.assertEqual(self.inimigo.image_zoom, 220)
+        self.assertAlmostEqual(self.inimigo.image_focus_x, 0.3)
+
+    def test_jogador_nao_enquadra_o_inimigo(self):
+        self.client.force_login(self.jogador)
+
+        resposta = self.client.post(
+            reverse('update_enemy_framing', args=[self.inimigo.pk]),
+            {'zoom': '220', 'focus_x': '0.3', 'focus_y': '0.7'},
+        )
+
+        self.assertEqual(resposta.status_code, 403)

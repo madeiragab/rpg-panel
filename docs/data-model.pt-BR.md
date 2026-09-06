@@ -85,6 +85,14 @@ Cada uma delas existe em uma versão `Character…` e uma `NPC…`, todas ordena
 
 Os valores são `CharField`, não números, de propósito: sistemas diferentes escrevem atributos como `18`, `+3` ou `d8`, e o painel não os interpreta.
 
+## Enemy
+
+`Enemy` é a terceira ficha, e a mais curta: mesmo retrato enquadrado, mesmas barras, atributos, perícias e habilidades de `Character` e `NPC` — **sem inventário**. Inimigo não carrega mochila; o que ele deixa cair vira item da campanha pela mão do mestre. Não tem `inventory_capacity`, não tem `ensure_slots()`, não tem tabela de slots.
+
+Também não herda os campos `hp_*`/`sp_*`: eles só existem nas outras duas por compatibilidade com os dados anteriores às barras, e uma ficha nova não precisa carregar essa dívida.
+
+Nasce com `visible = False`. Quem revela é o mestre, quando quer que a mesa veja a barra de vida do que está na frente dela; enquanto está escondido, o jogador leva 403 mesmo sendo da campanha. As subentidades (`EnemySkill`, `EnemyAbility`, `EnemyBar`, `EnemyAttribute`) seguem o mesmo formato das de NPC.
+
 ## Item e slots de inventário
 
 `Item` tem escopo de campanha e é compartilhado: a mesma linha de item pode estar em vários inventários, porque os slots a referenciam por FK.
