@@ -1,0 +1,23 @@
+{% comment %}
+   Uma barra na peça do quadro. Os passos são −5 −1 +1 +5: no meio do combate,
+   tirar doze de vida em doze cliques é pior do que não ter o botão.
+
+   Cada botão já vem com o endereço da barra porque personagem, NPC e inimigo
+   têm rotas de formato diferente — o JS do quadro não precisa saber de qual
+   dos três a peça é.
+{% endcomment %}
+<div class="peca-barra" data-bar-id="{{ bar.id }}">
+    <div class="peca-barra-topo">
+        <span class="peca-barra-nome">{{ bar.name }}</span>
+        <span class="peca-barra-valor" data-max="{{ bar.max_value }}">{{ bar.current }} / {{ bar.max_value }}</span>
+    </div>
+    <div class="peca-barra-trilho">
+        <div class="peca-barra-cheia" style="background: {{ bar.color }}; width: {% widthratio bar.current bar.max_value 100 %}%;"></div>
+    </div>
+    <div class="peca-barra-botoes">
+        <button type="button" data-barra-url="{{ url_barra }}" data-acao="decrease" data-passo="5">−5</button>
+        <button type="button" data-barra-url="{{ url_barra }}" data-acao="decrease" data-passo="1">−1</button>
+        <button type="button" data-barra-url="{{ url_barra }}" data-acao="increase" data-passo="1">+1</button>
+        <button type="button" data-barra-url="{{ url_barra }}" data-acao="increase" data-passo="5">+5</button>
+    </div>
+</div>

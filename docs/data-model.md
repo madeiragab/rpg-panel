@@ -121,6 +121,36 @@ see the health bar of whatever is in front of them; while hidden, a player of
 the campaign still gets a 403. The sub-entities (`EnemySkill`, `EnemyAbility`,
 `EnemyBar`, `EnemyAttribute`) follow the same shape as the NPC ones.
 
+## The campaign board
+
+The master lays the session out on a board: characters, NPCs, enemies and
+polaroids stay where they were dropped, and everyone's bars go up and down
+without leaving it.
+
+Position comes from the abstract `PecaDoQuadro` class (`board_x`, `board_y`),
+inherited by `Character`, `NPC`, `Enemy` and `Polaroid`. It is a **fraction of
+the board (0 to 1), not a pixel**: the master arranges the table on the big
+monitor and the same arrangement holds up on a laptop. `NULL` means "never
+dragged" — the view lays those out on a grid when the board opens, storing
+nothing; a position only becomes a number in the database once someone actually
+drags the piece.
+
+`Polaroid` is the piece that is nobody's sheet: the dungeon map, the note the
+thief left behind. It has an image (framed like the sheets), a caption, and
+`tilt` — the tilt in degrees, between −8 and 8. That lives in the database
+rather than in a CSS `random` because a board that reshuffles its angles on
+every reload is tiring to look at.
+
+The board belongs to the master and shows everything on the table, hidden
+pieces included: filtering by `visible` there would hide from him what he
+himself has not revealed yet. Each piece carries a badge saying whether the
+table can see it.
+
+The bar buttons send `amount` alongside `action`, and all three endpoints
+(`modify_bar`, `modify_npc_bar`, `modify_enemy_bar`) step by that much — with a
+floor of 1, since a negative `amount` would otherwise invert the action and
+make `decrease` heal.
+
 ## Item and inventory slots
 
 `Item` is campaign-scoped and shared: the same item row can sit in several

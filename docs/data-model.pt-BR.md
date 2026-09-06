@@ -93,6 +93,18 @@ Também não herda os campos `hp_*`/`sp_*`: eles só existem nas outras duas por
 
 Nasce com `visible = False`. Quem revela é o mestre, quando quer que a mesa veja a barra de vida do que está na frente dela; enquanto está escondido, o jogador leva 403 mesmo sendo da campanha. As subentidades (`EnemySkill`, `EnemyAbility`, `EnemyBar`, `EnemyAttribute`) seguem o mesmo formato das de NPC.
 
+## O quadro da campanha
+
+O mestre arruma a sessão num quadro: personagens, NPCs, inimigos e polaroids ficam onde ele largou, e as barras de todos sobem e descem sem sair dali.
+
+A posição vem da classe abstrata `PecaDoQuadro` (`board_x`, `board_y`), herdada por `Character`, `NPC`, `Enemy` e `Polaroid`. É **fração do quadro (0 a 1), não pixel**: o mestre arruma no monitor grande e o mesmo arranjo continua de pé no notebook. `NULL` quer dizer "nunca foi arrastada" — a view distribui essas em grade ao abrir, sem gravar nada; a posição só vira número no banco quando alguém arrasta de verdade.
+
+`Polaroid` é a peça que não é ficha de ninguém: o mapa da masmorra, o bilhete que o ladrão deixou. Tem imagem (com o mesmo enquadramento das fichas), legenda e `tilt` — a inclinação em graus, entre −8 e 8. Ela fica no banco em vez de sair de um `random` no CSS porque um quadro que embaralha os ângulos a cada F5 cansa de olhar.
+
+O quadro é do mestre e mostra tudo da mesa, escondidos inclusive: filtrar por `visible` ali esconderia dele o que ele mesmo ainda não revelou. Cada peça leva um selo dizendo se a mesa a enxerga.
+
+Os botões de barra mandam `amount` junto de `action`, e os três endpoints (`modify_bar`, `modify_npc_bar`, `modify_enemy_bar`) andam esse tanto — com piso em 1, senão um `amount` negativo inverteria a ação e `decrease` curaria.
+
 ## Item e slots de inventário
 
 `Item` tem escopo de campanha e é compartilhado: a mesma linha de item pode estar em vários inventários, porque os slots a referenciam por FK.

@@ -16,6 +16,7 @@ from .models import (
     NPCAbility,
     NPCAttribute,
     NPCSkill,
+    Polaroid,
     UserProfile,
 )
 
@@ -320,3 +321,14 @@ class EnemyAbilityForm(forms.ModelForm):
         model = EnemyAbility
         fields = ["name", "order"]
         labels = {"name": "Nome", "order": "Ordem"}
+
+
+class PolaroidForm(RetratoMixin, forms.ModelForm):
+    class Meta:
+        model = Polaroid
+        fields = ["image", "caption"]
+        widgets = {
+            "image": forms.ClearableFileInput(attrs={"accept": ACCEPT_DE_RETRATO}),
+            "caption": forms.TextInput(attrs={"placeholder": "Ex.: o mapa que o ladrão largou"}),
+        }
+        labels = {"image": "Foto", "caption": "Legenda"}

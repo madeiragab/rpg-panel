@@ -114,7 +114,31 @@ class UserProfile(RetratoEnquadrado):
         return self.role == self.ROLE_PLAYER
 
 
-class NPC(RetratoEnquadrado):
+class PecaDoQuadro(models.Model):
+    """Onde a peça está no quadro da campanha.
+
+    A posição é fração do quadro (0 a 1), e não pixel: o mestre arruma a mesa
+    no monitor grande e o mesmo arranjo continua de pé no notebook.
+
+    Nulo quer dizer "nunca foi arrastada". O quadro distribui essas em grade ao
+    abrir, em vez de empilhar todas no mesmo canto — e só quando alguém arrasta
+    é que a posição vira um número no banco.
+    """
+
+    board_x = models.FloatField(null=True, blank=True)
+    board_y = models.FloatField(null=True, blank=True)
+
+    class Meta:
+        abstract = True
+
+    def clamp_board(self) -> None:
+        for campo in ("board_x", "board_y"):
+            valor = getattr(self, campo)
+            if valor is not None:
+                setattr(self, campo, min(max(float(valor), 0.0), 1.0))
+
+
+class NPC(RetratoEnquadrado, PecaDoQuadro):
     campaign = models.ForeignKey(
         Campaign,
         on_delete=models.CASCADE,
@@ -158,6 +182,7 @@ class NPC(RetratoEnquadrado):
     def save(self, *args, **kwargs):  # type: ignore[override]
         self.clamp_stats()
         self.clamp_framing()
+        self.clamp_board()
         return super().save(*args, **kwargs)
 
     def ensure_slots(self) -> None:
@@ -172,7 +197,7 @@ class NPC(RetratoEnquadrado):
         self.slots.filter(position__gt=self.inventory_capacity).delete()
 
 
-class Character(RetratoEnquadrado):
+class Character(RetratoEnquadrado, PecaDoQuadro):
     campaign = models.ForeignKey(
         Campaign,
         on_delete=models.CASCADE,
@@ -216,6 +241,7 @@ class Character(RetratoEnquadrado):
     def save(self, *args, **kwargs):  # type: ignore[override]
         self.clamp_stats()
         self.clamp_framing()
+        self.clamp_board()
         return super().save(*args, **kwargs)
 
     def ensure_slots(self) -> None:
@@ -336,7 +362,7 @@ class NPCAttribute(models.Model):
         return f"{self.npc.name}: {self.name} = {self.value}"
 
 
-class Enemy(RetratoEnquadrado):
+class Enemy(RetratoEnquadrado, PecaDoQuadro):
     """A ficha do inimigo: a mesma do personagem, sem inventário.
 
     Inimigo não carrega mochila. O que ele deixa cair vira item da campanha
@@ -375,6 +401,7 @@ class Enemy(RetratoEnquadrado):
 
     def save(self, *args, **kwargs):  # type: ignore[override]
         self.clamp_framing()
+        self.clamp_board()
         return super().save(*args, **kwargs)
 
 
@@ -429,6 +456,47 @@ class EnemyAttribute(models.Model):
 
     def __str__(self) -> str:  # pragma: no cover - simple display
         return f"{self.enemy.name}: {self.name} = {self.value}"
+
+
+class Polaroid(RetratoEnquadrado, PecaDoQuadro):
+    """Uma foto pregada no quadro da campanha.
+
+    Não é ficha de ninguém: é o mapa da masmorra, o bilhete que o ladrão
+    deixou, a cara do sujeito que os jogadores só viram de longe. Por isso não
+    tem barra nem atributo — só imagem, legenda e o lugar onde foi pregada.
+
+    A inclinação fica no banco em vez de sair de um random no CSS: um quadro
+    que embaralha os ângulos a cada F5 cansa de olhar.
+    """
+
+    INCLINACAO_MAXIMA = 8
+
+    campaign = models.ForeignKey(
+        Campaign, on_delete=models.CASCADE, related_name="polaroids"
+    )
+    image = models.ImageField(upload_to="polaroids/", null=True, blank=True)
+    caption = models.CharField(max_length=120, blank=True)
+    tilt = models.SmallIntegerField(default=0)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="polaroids",
+        null=True,
+        blank=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+
+    def __str__(self) -> str:  # pragma: no cover - simple display
+        return self.caption or f"Polaroid {self.pk}"
+
+    def save(self, *args, **kwargs):  # type: ignore[override]
+        self.clamp_framing()
+        self.clamp_board()
+        self.tilt = min(max(int(self.tilt or 0), -self.INCLINACAO_MAXIMA), self.INCLINACAO_MAXIMA)
+        return super().save(*args, **kwargs)
 
 
 class Item(RetratoEnquadrado):

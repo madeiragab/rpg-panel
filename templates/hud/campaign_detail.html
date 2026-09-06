@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 {% load l10n %}
+{% load hud_filters %}
 
 {% block content %}
 <div class="content" {% if campaign and campaign.banner %}style="background-image: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.85)), url('{{ campaign.banner.url }}'); background-size: cover; background-attachment: fixed; background-position: center;"{% endif %}>
@@ -56,6 +57,9 @@
             <button class="tab-button" data-tab="enemies">Inimigos</button>
             {% endif %}
             <button class="tab-button" data-tab="players">Jogadores</button>
+            {% if request.GET.mode != 'player' %}
+            <button class="tab-button" data-tab="board">Campanha</button>
+            {% endif %}
         </div>
 
         <div class="tab-content" id="characters-tab">
@@ -272,6 +276,101 @@
             </div>
         </div>
 
+        <div class="tab-content" id="board-tab" style="display: none;">
+            <div class="panel-header">
+                <h2 class="panel-title">Quadro da Campanha</h2>
+                <button id="toggle-create-polaroid" class="hud-button" title="Pregar uma polaroid">+</button>
+            </div>
+            <p class="muted" style="margin: 0 0 10px;">
+                Arraste as peças para arrumar a sessão. A posição fica salva.
+                O quadro mostra tudo da mesa — o que a mesa ainda não vê leva o selo 🚫.
+            </p>
+
+            <div id="create-polaroid" class="panel-card" style="display:none; margin-bottom: 12px;">
+                <h3 class="panel-subtitle">Pregar polaroid</h3>
+                <form method="post" enctype="multipart/form-data" class="panel-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="form_type" value="polaroid">
+                    {{ polaroid_form.as_p }}
+                    <button type="submit" class="hud-button">Pregar no quadro</button>
+                </form>
+            </div>
+
+            <div class="quadro" id="quadro" data-move-url="{% url 'move_board_piece' campaign.pk %}">
+                {% for peca in characters %}
+                    <div class="peca" data-kind="character" data-id="{{ peca.pk }}"
+                         style="left: {{ peca.quadro_x|porcento }}%; top: {{ peca.quadro_y|porcento }}%;">
+                        <div class="peca-topo">
+                            {% include "hud/_retrato.html" with retrato=peca imagem=peca.image alt=peca.name classe="redondo pequeno" url_salvar="" dica="" %}
+                            <a href="{% url 'character_detail' peca.pk %}" class="peca-nome" title="Abrir a ficha">{{ peca.name }}</a>
+                            <span class="peca-selo aliado" title="Personagem de jogador">aliado</span>
+                            {% if not peca.visible %}<span class="peca-selo oculto" title="A mesa não vê">🚫</span>{% endif %}
+                        </div>
+                        {% for bar in peca.bars.all %}
+                            {% url 'modify_bar' bar.id as url_barra %}
+                            {% include "hud/_barra_do_quadro.html" with bar=bar url_barra=url_barra %}
+                        {% empty %}
+                            <div class="peca-vazia muted">Sem barras</div>
+                        {% endfor %}
+                    </div>
+                {% endfor %}
+
+                {% for peca in npcs %}
+                    <div class="peca" data-kind="npc" data-id="{{ peca.pk }}"
+                         style="left: {{ peca.quadro_x|porcento }}%; top: {{ peca.quadro_y|porcento }}%;">
+                        <div class="peca-topo">
+                            {% include "hud/_retrato.html" with retrato=peca imagem=peca.image alt=peca.name classe="redondo pequeno" url_salvar="" dica="" %}
+                            <a href="{% url 'npc_detail' peca.pk %}" class="peca-nome" title="Abrir a ficha">{{ peca.name }}</a>
+                            <span class="peca-selo npc" title="NPC">npc</span>
+                            {% if not peca.visible %}<span class="peca-selo oculto" title="A mesa não vê">🚫</span>{% endif %}
+                        </div>
+                        {% for bar in peca.bars.all %}
+                            {% url 'modify_npc_bar' peca.pk bar.id as url_barra %}
+                            {% include "hud/_barra_do_quadro.html" with bar=bar url_barra=url_barra %}
+                        {% empty %}
+                            <div class="peca-vazia muted">Sem barras</div>
+                        {% endfor %}
+                    </div>
+                {% endfor %}
+
+                {% for peca in enemies %}
+                    <div class="peca inimigo" data-kind="enemy" data-id="{{ peca.pk }}"
+                         style="left: {{ peca.quadro_x|porcento }}%; top: {{ peca.quadro_y|porcento }}%;">
+                        <div class="peca-topo">
+                            {% include "hud/_retrato.html" with retrato=peca imagem=peca.image alt=peca.name classe="redondo pequeno" url_salvar="" dica="" %}
+                            <a href="{% url 'enemy_detail' peca.pk %}" class="peca-nome" title="Abrir a ficha">{{ peca.name }}</a>
+                            <span class="peca-selo inimigo" title="Inimigo">inimigo</span>
+                            {% if not peca.visible %}<span class="peca-selo oculto" title="A mesa não vê">🚫</span>{% endif %}
+                        </div>
+                        {% for bar in peca.bars.all %}
+                            {% url 'modify_enemy_bar' peca.pk bar.id as url_barra %}
+                            {% include "hud/_barra_do_quadro.html" with bar=bar url_barra=url_barra %}
+                        {% empty %}
+                            <div class="peca-vazia muted">Sem barras</div>
+                        {% endfor %}
+                    </div>
+                {% endfor %}
+
+                {% for peca in polaroids %}
+                    <div class="peca polaroid" data-kind="polaroid" data-id="{{ peca.pk }}"
+                         style="left: {{ peca.quadro_x|porcento }}%; top: {{ peca.quadro_y|porcento }}%; --inclinacao: {{ peca.tilt }}deg;">
+                        {% url 'update_polaroid_framing' peca.pk as url_enquadrar %}
+                        {% include "hud/_retrato.html" with retrato=peca imagem=peca.image alt=peca.caption classe="quadrado largura-cheia" url_salvar=url_enquadrar dica="" %}
+                        <div class="polaroid-legenda">{{ peca.caption|default:"—" }}</div>
+                        <form method="post" action="{% url 'delete_polaroid' peca.pk %}" onsubmit="return confirm('Tirar esta polaroid do quadro?');">
+                            {% csrf_token %}
+                            <button type="submit" class="hud-button danger" title="Tirar do quadro">×</button>
+                        </form>
+                    </div>
+                {% empty %}
+                {% endfor %}
+
+                {% if not characters and not npcs and not enemies and not polaroids %}
+                    <p class="muted quadro-vazio">Quadro vazio. Crie personagens, NPCs ou inimigos — ou pregue uma polaroid.</p>
+                {% endif %}
+            </div>
+        </div>
+
         <div class="tab-content" id="players-tab" style="display: none;">
             <h2 class="panel-title">Jogadores</h2>
             <div class="panel-card" style="margin-bottom:12px;">
@@ -440,6 +539,13 @@ const createNPC = document.getElementById('create-npc');
 if (toggleNPC) {
     toggleNPC.addEventListener('click', () => {
         createNPC.style.display = createNPC.style.display === 'none' ? 'block' : 'none';
+    });
+}
+const togglePolaroid = document.getElementById('toggle-create-polaroid');
+const createPolaroid = document.getElementById('create-polaroid');
+if (togglePolaroid) {
+    togglePolaroid.addEventListener('click', () => {
+        createPolaroid.style.display = createPolaroid.style.display === 'none' ? 'block' : 'none';
     });
 }
 const toggleEnemy = document.getElementById('toggle-create-enemy');
@@ -642,6 +748,8 @@ function toggleEnemyVisibility(enemyId, button) {
     .catch(error => console.error('Erro:', error));
 }
 </script>
+
+<script src="{% static 'hud/board.js' %}"></script>
 
 {% include "hud/_audio_player.html" %}
 {% endblock %}

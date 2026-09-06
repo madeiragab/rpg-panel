@@ -36,6 +36,7 @@ from hud.models import (
     Item,
     NPC,
     PasswordResetToken,
+    Polaroid,
     UserProfile,
 )
 
@@ -1380,3 +1381,238 @@ class EnquadramentoDeItemEAvatarTests(TestCase):
 
         self.assertEqual(dados['itemName'], 'Vazio')
         self.assertEqual(dados['itemZoom'], 100)
+
+
+@SEM_REDIRECT_HTTPS
+@SEM_MANIFESTO
+class QuadroDaCampanhaTests(TestCase):
+    """Arrastar peca, pregar polaroid e mexer nas barras de la."""
+
+    def setUp(self):
+        self.mestre = make_user('mestre')
+        self.jogador = make_user('jogador')
+        self.campanha = Campaign.objects.create(name='Ossos', master=self.mestre)
+        self.campanha.players.add(self.jogador)
+        self.personagem = Character.objects.create(
+            name='Kai', created_by=self.mestre, campaign=self.campanha,
+            assigned_to=self.jogador,
+        )
+        self.inimigo = Enemy.objects.create(
+            name='Cerbero', created_by=self.mestre, campaign=self.campanha
+        )
+
+    def _mover(self, kind, pk, x='0.25', y='0.75'):
+        return self.client.post(
+            reverse('move_board_piece', args=[self.campanha.pk]),
+            {'kind': kind, 'id': pk, 'x': x, 'y': y},
+        )
+
+    def test_peca_nasce_sem_posicao(self):
+        """Nulo quer dizer 'nunca foi arrastada', e a grade cuida dessas."""
+        self.assertIsNone(self.personagem.board_x)
+        self.assertIsNone(self.inimigo.board_y)
+
+    def test_mestre_arrasta_personagem(self):
+        self.client.force_login(self.mestre)
+
+        resposta = self._mover('character', self.personagem.pk)
+
+        self.assertEqual(resposta.status_code, 200)
+        self.personagem.refresh_from_db()
+        self.assertAlmostEqual(self.personagem.board_x, 0.25)
+        self.assertAlmostEqual(self.personagem.board_y, 0.75)
+
+    def test_mestre_arrasta_inimigo(self):
+        self.client.force_login(self.mestre)
+
+        self._mover('enemy', self.inimigo.pk, x='0.1', y='0.2')
+
+        self.inimigo.refresh_from_db()
+        self.assertAlmostEqual(self.inimigo.board_x, 0.1)
+
+    def test_posicao_fora_do_quadro_e_aparada(self):
+        self.client.force_login(self.mestre)
+
+        self._mover('character', self.personagem.pk, x='-4', y='9')
+
+        self.personagem.refresh_from_db()
+        self.assertAlmostEqual(self.personagem.board_x, 0.0)
+        self.assertAlmostEqual(self.personagem.board_y, 1.0)
+
+    def test_nan_e_recusado(self):
+        self.client.force_login(self.mestre)
+
+        resposta = self._mover('character', self.personagem.pk, x='nan')
+
+        self.assertEqual(resposta.status_code, 400)
+        self.personagem.refresh_from_db()
+        self.assertIsNone(self.personagem.board_x)
+
+    def test_tipo_desconhecido_e_400(self):
+        self.client.force_login(self.mestre)
+
+        resposta = self._mover('item', self.personagem.pk)
+
+        self.assertEqual(resposta.status_code, 400)
+
+    def test_jogador_nao_arruma_o_quadro(self):
+        self.client.force_login(self.jogador)
+
+        resposta = self._mover('character', self.personagem.pk)
+
+        self.assertEqual(resposta.status_code, 403)
+        self.personagem.refresh_from_db()
+        self.assertIsNone(self.personagem.board_x)
+
+    def test_peca_de_outra_campanha_nao_entra_pela_url(self):
+        """O filtro por campanha e o que impede mover a peca da mesa alheia."""
+        outra = Campaign.objects.create(name='Cinzas', master=self.mestre)
+        alheio = Character.objects.create(
+            name='Nix', created_by=self.mestre, campaign=outra,
+            assigned_to=self.jogador,
+        )
+        self.client.force_login(self.mestre)
+
+        resposta = self._mover('character', alheio.pk)
+
+        self.assertEqual(resposta.status_code, 404)
+
+    def test_get_e_recusado(self):
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.get(
+            reverse('move_board_piece', args=[self.campanha.pk])
+        )
+
+        self.assertEqual(resposta.status_code, 405)
+
+    def test_aba_do_quadro_so_aparece_para_o_mestre(self):
+        self.client.force_login(self.jogador)
+
+        resposta = self.client.get(reverse('campaign_detail', args=[self.campanha.pk]))
+
+        self.assertNotContains(resposta, 'id="board-tab"')
+
+    def test_quadro_do_mestre_mostra_ate_o_que_a_mesa_nao_ve(self):
+        """O inimigo nasce escondido, e o mestre precisa ve-lo para arrumar."""
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.get(reverse('campaign_detail', args=[self.campanha.pk]))
+
+        self.assertContains(resposta, 'id="board-tab"')
+        self.assertContains(resposta, 'Cerbero')
+
+    def test_mestre_prega_polaroid(self):
+        self.client.force_login(self.mestre)
+
+        self.client.post(
+            reverse('campaign_detail', args=[self.campanha.pk]),
+            {'form_type': 'polaroid', 'polaroid-caption': 'O mapa da cripta'},
+        )
+
+        self.assertEqual(self.campanha.polaroids.get().caption, 'O mapa da cripta')
+
+    def test_jogador_nao_prega_polaroid(self):
+        self.client.force_login(self.jogador)
+
+        self.client.post(
+            reverse('campaign_detail', args=[self.campanha.pk]),
+            {'form_type': 'polaroid', 'polaroid-caption': 'O mapa da cripta'},
+        )
+
+        self.assertEqual(self.campanha.polaroids.count(), 0)
+
+    def test_inclinacao_da_polaroid_fica_na_faixa(self):
+        polaroid = Polaroid.objects.create(campaign=self.campanha, tilt=90)
+
+        self.assertEqual(polaroid.tilt, Polaroid.INCLINACAO_MAXIMA)
+
+    def test_mestre_tira_a_polaroid_do_quadro(self):
+        polaroid = Polaroid.objects.create(campaign=self.campanha, caption='Mapa')
+        self.client.force_login(self.mestre)
+
+        self.client.post(reverse('delete_polaroid', args=[polaroid.pk]))
+
+        self.assertEqual(self.campanha.polaroids.count(), 0)
+
+    def test_jogador_nao_tira_a_polaroid(self):
+        polaroid = Polaroid.objects.create(campaign=self.campanha, caption='Mapa')
+        self.client.force_login(self.jogador)
+
+        resposta = self.client.post(reverse('delete_polaroid', args=[polaroid.pk]))
+
+        self.assertEqual(resposta.status_code, 403)
+        self.assertEqual(self.campanha.polaroids.count(), 1)
+
+    def test_polaroid_tambem_se_arrasta(self):
+        polaroid = Polaroid.objects.create(campaign=self.campanha, caption='Mapa')
+        self.client.force_login(self.mestre)
+
+        self._mover('polaroid', polaroid.pk, x='0.4', y='0.6')
+
+        polaroid.refresh_from_db()
+        self.assertAlmostEqual(polaroid.board_x, 0.4)
+
+
+@SEM_REDIRECT_HTTPS
+class PassoDaBarraTests(TestCase):
+    """O quadro tira mais de um por clique; a ficha continua tirando um."""
+
+    def setUp(self):
+        self.mestre = make_user('mestre')
+        self.jogador = make_user('jogador')
+        self.campanha = Campaign.objects.create(name='Ossos', master=self.mestre)
+        self.campanha.players.add(self.jogador)
+        self.inimigo = Enemy.objects.create(
+            name='Cerbero', created_by=self.mestre, campaign=self.campanha
+        )
+        self.barra = EnemyBar.objects.create(
+            enemy=self.inimigo, name='Vida', current=20, max_value=20
+        )
+
+    def _mexer(self, **extra):
+        return self.client.post(
+            reverse('modify_enemy_bar', args=[self.inimigo.pk, self.barra.pk]),
+            {'action': 'decrease', **extra},
+        )
+
+    def test_sem_amount_anda_um(self):
+        self.client.force_login(self.mestre)
+
+        self._mexer()
+
+        self.barra.refresh_from_db()
+        self.assertEqual(self.barra.current, 19)
+
+    def test_amount_anda_o_que_pediu(self):
+        self.client.force_login(self.mestre)
+
+        self._mexer(amount='5')
+
+        self.barra.refresh_from_db()
+        self.assertEqual(self.barra.current, 15)
+
+    def test_amount_nao_derruba_abaixo_de_zero(self):
+        self.client.force_login(self.mestre)
+
+        self._mexer(amount='999')
+
+        self.barra.refresh_from_db()
+        self.assertEqual(self.barra.current, 0)
+
+    def test_amount_lixo_vira_um(self):
+        self.client.force_login(self.mestre)
+
+        self._mexer(amount='muito')
+
+        self.barra.refresh_from_db()
+        self.assertEqual(self.barra.current, 19)
+
+    def test_amount_negativo_nao_inverte_a_acao(self):
+        """Sem o piso em 1, 'decrease' com amount -5 curaria em vez de ferir."""
+        self.client.force_login(self.mestre)
+
+        self._mexer(amount='-5')
+
+        self.barra.refresh_from_db()
+        self.assertEqual(self.barra.current, 19)

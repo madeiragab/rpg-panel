@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 from datetime import timedelta
 from math import isfinite
+from random import randint
 
 from django.contrib import messages
 from django.contrib.auth import update_session_auth_hash
@@ -29,6 +30,7 @@ from .forms import (
     EnemyForm,
     EnemySkillForm,
     ItemForm,
+    PolaroidForm,
     NPCForm,
     NPCAbilityForm,
     NPCAttributeForm,
@@ -50,6 +52,7 @@ from .models import (
     NPCBar,
     NPCInventorySlot,
     NPCSkill,
+    Polaroid,
     UserProfile,
 )
 
@@ -245,6 +248,7 @@ def campaign_detail(request: HttpRequest, pk: int) -> HttpResponse:
     if is_master and npc_form:
         npc_form.fields["assigned_to_character"].queryset = campaign.characters.all()
     enemy_form = EnemyForm(prefix="enemy") if is_master else None
+    polaroid_form = PolaroidForm(prefix="polaroid") if is_master else None
     players = campaign.players.select_related("profile").all()
     search_results = []
     if is_master:
@@ -298,6 +302,18 @@ def campaign_detail(request: HttpRequest, pk: int) -> HttpResponse:
                 npc.created_by = request.user
                 npc.save()
                 messages.success(request, "NPC adicionado à campanha.")
+                return redirect("campaign_detail", pk=campaign.pk)
+        elif form_type == "polaroid":
+            polaroid_form = PolaroidForm(request.POST, request.FILES, prefix="polaroid")
+            if polaroid_form.is_valid():
+                polaroid = polaroid_form.save(commit=False)
+                polaroid.campaign = campaign
+                polaroid.created_by = request.user
+                # Cada foto entra torta de um jeito, e continua desse jeito: um
+                # quadro que reembaralha os ângulos a cada F5 cansa de olhar.
+                polaroid.tilt = randint(-Polaroid.INCLINACAO_MAXIMA, Polaroid.INCLINACAO_MAXIMA)
+                polaroid.save()
+                messages.success(request, "Polaroid pregada no quadro.")
                 return redirect("campaign_detail", pk=campaign.pk)
         elif form_type == "enemy":
             enemy_form = EnemyForm(request.POST, request.FILES, prefix="enemy")
@@ -358,6 +374,12 @@ def campaign_detail(request: HttpRequest, pk: int) -> HttpResponse:
     npcs = campaign.npcs.all()
     # O jogador só enxerga o que o mestre revelou; o mestre vê todos.
     enemies = campaign.enemies.all() if is_master else campaign.enemies.filter(visible=True)
+    polaroids = campaign.polaroids.all() if is_master else Polaroid.objects.none()
+    if is_master:
+        # Uma peça que nunca foi arrastada entra na grade, e a grade é uma só
+        # para todas: arrumar cada lista por conta empilharia as três no mesmo
+        # canto do quadro.
+        _arrumar_no_quadro(list(characters) + list(npcs) + list(enemies) + list(polaroids))
 
     return render(
         request,
@@ -370,9 +392,11 @@ def campaign_detail(request: HttpRequest, pk: int) -> HttpResponse:
             "item_form": item_form,
             "npc_form": npc_form,
             "enemy_form": enemy_form,
+            "polaroid_form": polaroid_form,
             "items": items,
             "npcs": npcs,
             "enemies": enemies,
+            "polaroids": polaroids,
             "is_master": is_master,
             "players": players,
             "search_results": search_results,
@@ -678,6 +702,19 @@ def character_detail(request: HttpRequest, pk: int) -> HttpResponse:
     )
 
 
+def _passo_da_barra(request: HttpRequest) -> int:
+    """De quanto anda a barra neste clique.
+
+    A ficha manda 1 e o quadro manda o que o botão disser: no meio do combate,
+    tirar 12 de vida em doze cliques é pior do que não ter o botão.
+    """
+    try:
+        passo = int(request.POST.get("amount", 1))
+    except (TypeError, ValueError):
+        return 1
+    return min(max(passo, 1), 999)
+
+
 def _item_no_slot(item: Item | None) -> dict[str, Any]:
     """O que o inventory.js precisa para redesenhar um slot.
 
@@ -694,6 +731,108 @@ def _item_no_slot(item: Item | None) -> dict[str, Any]:
         "itemFocusX": item.image_focus_x,
         "itemFocusY": item.image_focus_y,
     }
+
+
+# ---------------------------------------------------------------- o quadro --
+# O quadro é do mestre e mostra tudo: personagem, NPC e inimigo da campanha,
+# escondidos inclusive. Filtrar pelo `visible` aqui esconderia do mestre o que
+# ele mesmo ainda não revelou — cada peça leva um selo dizendo se a mesa a
+# enxerga, e é isso que ele precisa saber enquanto arruma a sessão.
+
+# Grade em que as peças que nunca foram arrastadas aparecem. Empilhar todas no
+# mesmo ponto deixaria o quadro inútil no primeiro acesso.
+COLUNAS_DO_QUADRO = 5
+PRIMEIRA_COLUNA = 0.12
+PRIMEIRA_LINHA = 0.16
+PASSO_HORIZONTAL = 0.19
+PASSO_VERTICAL = 0.30
+
+
+def _arrumar_no_quadro(pecas: list) -> list:
+    """Dá a cada peça um `quadro_x`/`quadro_y` para o template posicionar.
+
+    Quem já foi arrastada usa o que está no banco. Quem nunca foi entra na
+    grade, sem gravar nada: a posição só vira número no banco quando alguém
+    arrasta de verdade.
+    """
+    solta = 0
+    for peca in pecas:
+        if peca.board_x is not None and peca.board_y is not None:
+            peca.quadro_x = peca.board_x
+            peca.quadro_y = peca.board_y
+            continue
+        coluna = solta % COLUNAS_DO_QUADRO
+        linha = solta // COLUNAS_DO_QUADRO
+        peca.quadro_x = min(PRIMEIRA_COLUNA + coluna * PASSO_HORIZONTAL, 0.95)
+        peca.quadro_y = min(PRIMEIRA_LINHA + linha * PASSO_VERTICAL, 0.95)
+        solta += 1
+    return pecas
+
+
+TIPOS_DO_QUADRO = {
+    "character": Character,
+    "npc": NPC,
+    "enemy": Enemy,
+    "polaroid": Polaroid,
+}
+
+
+@login_required
+@require_POST
+def move_board_piece(request: HttpRequest, pk: int) -> JsonResponse:
+    """Guarda onde a peça parou. Só o mestre arruma o quadro da mesa dele."""
+    campaign = get_object_or_404(Campaign, pk=pk)
+    if campaign.master != request.user:
+        return JsonResponse({"error": "Sem permissão"}, status=403)
+
+    modelo = TIPOS_DO_QUADRO.get(request.POST.get("kind", ""))
+    if modelo is None:
+        return JsonResponse({"error": "Tipo desconhecido"}, status=400)
+
+    try:
+        x = float(request.POST.get("x", ""))
+        y = float(request.POST.get("y", ""))
+    except (TypeError, ValueError):
+        return JsonResponse({"error": "Posição inválida"}, status=400)
+    if not (isfinite(x) and isfinite(y)):
+        return JsonResponse({"error": "Posição inválida"}, status=400)
+
+    # O filtro por campanha é o que impede mover, pela mesma URL, a peça de
+    # outra mesa em que este usuário não é mestre.
+    peca = get_object_or_404(modelo, pk=request.POST.get("id") or 0, campaign=campaign)
+    peca.board_x = min(max(x, 0.0), 1.0)
+    peca.board_y = min(max(y, 0.0), 1.0)
+    peca.save(update_fields=["board_x", "board_y"])
+    return JsonResponse({"success": True, "x": peca.board_x, "y": peca.board_y})
+
+
+@login_required
+@require_POST
+def delete_polaroid(request: HttpRequest, pk: int) -> HttpResponse:
+    polaroid = get_object_or_404(Polaroid, pk=pk)
+    if polaroid.campaign.master != request.user:
+        return HttpResponseForbidden("Sem permissão")
+    campaign_id = polaroid.campaign_id
+    polaroid.delete()
+    messages.success(request, "Polaroid removida do quadro.")
+    return redirect("campaign_detail", pk=campaign_id)
+
+
+@login_required
+@require_POST
+def update_polaroid_framing(request: HttpRequest, polaroid_id: int) -> JsonResponse:
+    """Guarda o corte da foto pregada no quadro."""
+    polaroid = get_object_or_404(Polaroid, pk=polaroid_id)
+    if polaroid.campaign.master != request.user:
+        return JsonResponse({"error": "Sem permissão"}, status=403)
+
+    dados = _ler_enquadramento(request)
+    if dados is None:
+        return JsonResponse({"error": "Enquadramento inválido"}, status=400)
+
+    polaroid.image_zoom, polaroid.image_focus_x, polaroid.image_focus_y = dados
+    polaroid.save(update_fields=["image_zoom", "image_focus_x", "image_focus_y"])
+    return JsonResponse({"success": True})
 
 
 @login_required
@@ -902,10 +1041,11 @@ def modify_bar(request: HttpRequest, bar_id: int) -> JsonResponse:
     
     action = request.POST.get("action")
     
+    passo = _passo_da_barra(request)
     if action == "increase":
-        bar.current = min(bar.current + 1, bar.max_value)
+        bar.current = min(bar.current + passo, bar.max_value)
     elif action == "decrease":
-        bar.current = max(bar.current - 1, 0)
+        bar.current = max(bar.current - passo, 0)
     else:
         return JsonResponse({"error": "Ação inválida"}, status=400)
     
@@ -1069,10 +1209,11 @@ def modify_npc_bar(request: HttpRequest, npc_pk: int, bar_id: int) -> JsonRespon
 
     if request.method == "POST":
         action = request.POST.get("action", "increase")
+        passo = _passo_da_barra(request)
         if action == "increase":
-            bar.current = min(bar.current + 1, bar.max_value)
+            bar.current = min(bar.current + passo, bar.max_value)
         elif action == "decrease":
-            bar.current = max(bar.current - 1, 0)
+            bar.current = max(bar.current - passo, 0)
         bar.save()
         return JsonResponse({"success": True, "current": bar.current})
 
@@ -1303,10 +1444,11 @@ def modify_enemy_bar(request: HttpRequest, enemy_pk: int, bar_id: int) -> JsonRe
 
     bar = get_object_or_404(EnemyBar, id=bar_id, enemy=enemy)
     action = request.POST.get("action", "increase")
+    passo = _passo_da_barra(request)
     if action == "increase":
-        bar.current = min(bar.current + 1, bar.max_value)
+        bar.current = min(bar.current + passo, bar.max_value)
     elif action == "decrease":
-        bar.current = max(bar.current - 1, 0)
+        bar.current = max(bar.current - passo, 0)
     bar.save()
     return JsonResponse({"success": True, "current": bar.current})
 
