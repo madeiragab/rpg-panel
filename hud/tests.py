@@ -1533,12 +1533,15 @@ class QuadroDaCampanhaTests(TestCase):
         self.assertNotContains(resposta, 'data-kind="character"')
 
     def test_mestre_em_mode_player_tambem_nao_recebe_o_quadro(self):
+        """O mestre so consegue espiar o modo leitura se tambem for da mesa."""
+        self.campanha.players.add(self.mestre)
         self.client.force_login(self.mestre)
 
         resposta = self.client.get(
             reverse('campaign_detail', args=[self.campanha.pk]) + '?mode=player'
         )
 
+        self.assertEqual(resposta.status_code, 200)
         self.assertNotContains(resposta, 'id="quadro"')
 
     def test_mestre_prega_polaroid(self):
