@@ -1809,3 +1809,8 @@ a:hover { color: var(--accent-soft); }
    card: o ponto é fração da sobra, então acertar numa moldura alta e aplicar
    numa larga e baixa dá outro corte. */
 .portrait-thumb.formato-menu { aspect-ratio: 7 / 5; max-width: 280px; }
+
+/* A coluna rolava por dentro (`overflow-y: auto`), e overflow-y sozinho
+   também recorta na horizontal: o balão da descrição da habilidade era
+   cortado na borda do card. A rolagem agora é da página. */
+.column { max-height: none; overflow: visible; }

@@ -2747,3 +2747,62 @@ class FichaEhDoDonoTests(TestCase):
         resposta = self.client.get(reverse('npc_detail', args=[npc.pk]))
 
         self.assertEqual(resposta.status_code, 403)
+
+
+@SEM_REDIRECT_HTTPS
+@SEM_MANIFESTO
+class FichaEscondidaTests(TestCase):
+    """Escondida e escondida: some da lista e nao abre nem pela URL.
+
+    Sem isto o `visible` era cortina e nao tranca — o personagem sumia da
+    campanha e continuava abrindo para o dono pelo endereco direto.
+    """
+
+    def setUp(self):
+        self.mestre = make_user('mestre')
+        self.dono = make_user('dono')
+        self.campanha = Campaign.objects.create(name='Ossos', master=self.mestre)
+        self.campanha.players.add(self.mestre, self.dono)
+        self.ficha = Character.objects.create(
+            name='Kai', created_by=self.mestre, campaign=self.campanha,
+            assigned_to=self.dono, visible=False,
+        )
+
+    def test_o_dono_nao_abre_a_ficha_escondida(self):
+        self.client.force_login(self.dono)
+
+        resposta = self.client.get(
+            reverse('character_detail', args=[self.ficha.pk])
+        )
+
+        self.assertEqual(resposta.status_code, 403)
+
+    def test_revelar_devolve_a_ficha_ao_dono(self):
+        self.ficha.visible = True
+        self.ficha.save()
+        self.client.force_login(self.dono)
+
+        resposta = self.client.get(
+            reverse('character_detail', args=[self.ficha.pk])
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+
+    def test_o_mestre_abre_a_escondida(self):
+        """Quem escondeu precisa continuar entrando para preparar a ficha."""
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.get(
+            reverse('character_detail', args=[self.ficha.pk])
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+
+    def test_a_escondida_nao_aparece_na_lista_da_campanha(self):
+        self.client.force_login(self.dono)
+
+        resposta = self.client.get(
+            reverse('campaign_detail', args=[self.campanha.pk])
+        )
+
+        self.assertNotIn('Kai', [c.name for c in resposta.context['characters']])

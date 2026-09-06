@@ -703,7 +703,11 @@ def character_detail(request: HttpRequest, pk: int) -> HttpResponse:
         # O jogador abre a própria ficha, e só ela. Bastar estar na
         # campanha abria a ficha de todo mundo — nome, vida, perícias e
         # inventário dos outros — e ficha alheia é do dono e do mestre.
-        is_player = character.assigned_to == request.user
+        #
+        # E só enquanto o mestre a deixa à vista: escondida, ela já sai da
+        # lista da campanha, e continuar abrindo pela URL faria do `visible`
+        # uma cortina em vez de uma tranca.
+        is_player = character.assigned_to == request.user and character.visible
     else:
         # Fallback para modo legado (sem campanha)
         is_master = character.created_by == request.user
