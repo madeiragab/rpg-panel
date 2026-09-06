@@ -2525,9 +2525,18 @@ class DoisEnquadramentosTests(TestCase):
 
         self.assertIn('data-zoom="320"', html)
 
-    def test_o_seletor_aparece_na_ficha_do_mestre(self):
-        html = self.client.get(
+    def test_o_seletor_so_aparece_quando_ha_imagem(self):
+        """Sem foto nao ha o que enquadrar, nem na ficha nem no menu."""
+        sem_foto = self.client.get(
             reverse('character_detail', args=[self.personagem.pk])
         ).content.decode()
 
-        self.assertIn('data-portrait-alvos', html)
+        # So o nome do arquivo: o template nao abre a imagem, so monta a URL.
+        self.personagem.image = 'characters/kai.png'
+        self.personagem.save()
+        com_foto = self.client.get(
+            reverse('character_detail', args=[self.personagem.pk])
+        ).content.decode()
+
+        self.assertNotIn('data-portrait-alvos', sem_foto)
+        self.assertIn('data-portrait-alvos', com_foto)
