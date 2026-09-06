@@ -163,27 +163,59 @@
   function ligarPostIt(campo) {
     let agendado = null;
 
-    function guardar() {
+    /* Manda só o que mudou. O servidor grava campo a campo justamente para
+       isto: um pedido de tamanho não pode carregar um texto vazio junto e
+       apagar a anotação. */
+    function guardar(dados) {
       clearTimeout(agendado);
       const corpo = new URLSearchParams();
-      corpo.append('text', campo.value);
-      fetch(campo.dataset.salvarUrl, {
+      Object.entries(dados).forEach(([chave, valor]) => corpo.append(chave, valor));
+      return fetch(campo.dataset.salvarUrl, {
         method: 'POST',
         headers: { 'X-CSRFToken': csrf(), 'X-Requested-With': 'XMLHttpRequest' },
         body: corpo,
-      })
-        .then(() => campo.classList.remove('sujo'))
-        .catch(() => {});
+      }).catch(() => {});
+    }
+
+    function guardarTexto() {
+      guardar({ text: campo.value }).then(() => campo.classList.remove('sujo'));
     }
 
     campo.addEventListener('input', () => {
       campo.classList.add('sujo');
       clearTimeout(agendado);
-      agendado = setTimeout(guardar, 700);
+      agendado = setTimeout(guardarTexto, 700);
     });
     campo.addEventListener('blur', () => {
-      if (campo.classList.contains('sujo')) guardar();
+      if (campo.classList.contains('sujo')) guardarTexto();
     });
+
+    /* O tamanho é escolhido arrastando o canto, e o navegador não avisa quando
+       o arraste acaba — só que o elemento mudou de tamanho, dezenas de vezes
+       por segundo. A espera é o que transforma isso num POST só, no tamanho em
+       que a pessoa parou.
+
+       O primeiro disparo do ResizeObserver é o do próprio layout inicial, e não
+       um arraste: guardá-lo mandaria um POST por post-it toda vez que o quadro
+       abrisse. Por isso a primeira medida só é anotada. */
+    if (!('ResizeObserver' in window)) return;
+
+    let ultimo = null;
+    let esperando = null;
+
+    new ResizeObserver(() => {
+      const largura = Math.round(campo.offsetWidth);
+      const altura = Math.round(campo.offsetHeight);
+      if (!largura || !altura) return;
+
+      const medida = `${largura}x${altura}`;
+      if (ultimo === null) { ultimo = medida; return; }
+      if (medida === ultimo) return;
+      ultimo = medida;
+
+      clearTimeout(esperando);
+      esperando = setTimeout(() => guardar({ width: largura, height: altura }), 500);
+    }).observe(campo);
   }
 
   /* ------------------------------------------------- enquadrar a polaroid -- */

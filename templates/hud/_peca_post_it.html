@@ -14,7 +14,13 @@
             <button type="submit" title="Tirar do quadro">×</button>
         </form>
     </div>
+    {% comment %}
+       O tamanho vem do banco e vai no style: o textarea é a superfície de
+       redimensionar, e a peça se ajusta a ele (width: auto no CSS). Assim o
+       post-it que o mestre esticou está esticado para a mesa toda.
+    {% endcomment %}
     <textarea class="post-it-texto" maxlength="500"
+              style="width: {{ peca.width }}px; height: {{ peca.height }}px;"
               data-salvar-url="{% url 'update_sticky_note' peca.pk %}"
               placeholder="Clique e escreva…"
               aria-label="Texto do post-it">{{ peca.text }}</textarea>

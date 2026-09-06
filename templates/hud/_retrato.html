@@ -11,7 +11,11 @@
    zoom, e é assim que o jogador vê o corte que o mestre escolheu.
 
    Parâmetros: retrato (o objeto com image_zoom/image_focus_x/image_focus_y),
-   imagem (o ImageFieldFile), alt, classe, url_salvar, dica.
+   imagem (o ImageFieldFile), alt, classe, url_salvar, dica, encaixe.
+
+   O `encaixe` só precisa ser passado quando não é o que a forma pede: redondo
+   enche e corta por padrão, o resto entra inteiro com tarja em volta. A polaroid
+   pede `preencher` mesmo sendo quadrada — papel com tarja não é foto.
 {% endcomment %}
 <div class="portrait-wrap">
     <div class="portrait-thumb {{ classe|default:'' }}{% if not imagem %} empty{% endif %}"
@@ -19,7 +23,7 @@
          data-zoom="{{ retrato.image_zoom }}"
          data-focus-x="{{ retrato.image_focus_x|unlocalize }}"
          data-focus-y="{{ retrato.image_focus_y|unlocalize }}"
-         data-encaixe="{% if 'redondo' in classe %}preencher{% else %}inteira{% endif %}"
+         data-encaixe="{% if encaixe %}{{ encaixe }}{% elif 'redondo' in classe %}preencher{% else %}inteira{% endif %}"
          {% if url_salvar and imagem %}data-save-url="{{ url_salvar }}"{% endif %}>
         {% if imagem %}<img src="{{ imagem.url }}" alt="{{ alt|default:'' }}">{% endif %}
     </div>

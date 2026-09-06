@@ -11,7 +11,16 @@
        moldura sempre arrastável não deixaria sobrar onde pegar para mover a peça.
     {% endcomment %}
     {% url 'update_polaroid_framing' peca.pk as url_enquadrar %}
-    {% include "hud/_retrato.html" with retrato=peca imagem=peca.image alt=peca.caption classe="quadrado largura-cheia" url_salvar="" dica="" %}
+    {% comment %}
+       `preencher`: a foto se ajusta à polaroid, e não o contrário. A peça tem um
+       tamanho só — todas iguais no quadro — e é a imagem que entra nele, enchendo
+       o papel. Encaixar a foto inteira deixava duas tarjas hachuradas em toda
+       foto deitada, que é o oposto de uma foto pregada num quadro.
+
+       O que a foto perde nas beiradas o mestre escolhe pelo botão ✥, com o mesmo
+       zoom e arraste do retrato da ficha.
+    {% endcomment %}
+    {% include "hud/_retrato.html" with retrato=peca imagem=peca.image alt=peca.caption classe="quadrado largura-cheia" encaixe="preencher" url_salvar="" dica="" %}
     <div class="polaroid-legenda">{{ peca.caption|default:"—" }}</div>
     <div class="polaroid-acoes">
         {% if peca.image %}
