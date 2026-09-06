@@ -57,6 +57,23 @@
                 <button type="submit" class="hud-button ghost">Adicionar perícia</button>
             </form>
         {% endif %}
+
+        <h2 class="panel-title">Ataques</h2>
+        <div class="tags-wrap">
+            {% for attack in character.attacks.all %}
+                {% include "hud/_linha_da_ficha.html" with linha=attack tipo="character-attack" classe="attack-tag" com_valor=False com_dano=True pode_editar=is_master %}
+            {% empty %}
+                <span class="muted" data-vazio>Sem ataques cadastrados.</span>
+            {% endfor %}
+        </div>
+        {% if is_master %}
+            <form method="post" class="panel-form compact so-editando">
+                {% csrf_token %}
+                <input type="hidden" name="form_type" value="attack">
+                {{ attack_form.as_p }}
+                <button type="submit" class="hud-button ghost">Adicionar ataque</button>
+            </form>
+        {% endif %}
     </section>
 
 

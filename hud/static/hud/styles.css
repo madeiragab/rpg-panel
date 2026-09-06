@@ -1814,3 +1814,7 @@ a:hover { color: var(--accent-soft); }
    também recorta na horizontal: o balão da descrição da habilidade era
    cortado na borda do card. A rolagem agora é da página. */
 .column { max-height: none; overflow: visible; }
+
+/* O ataque tem a mesma forma da habilidade, com a cor puxada para o vermelho:
+   numa coluna com perícias em cima, a diferença tem que se ver de relance. */
+.etiqueta.attack-tag { border-color: rgba(225, 29, 46, 0.45); background: rgba(225, 29, 46, 0.08); }

@@ -427,3 +427,52 @@ class PolaroidForm(RetratoMixin, forms.ModelForm):
             "caption": forms.TextInput(attrs={"placeholder": "Ex.: o mapa que o ladrão largou"}),
         }
         labels = {"image": "Foto", "caption": "Legenda"}
+
+
+class CharacterAttackForm(forms.ModelForm):
+    class Meta:
+        model = CharacterAttack
+        fields = ["name", "damage", "description", "order"]
+        labels = {
+            "name": "Nome",
+            "damage": "Dano",
+            "description": "Descrição",
+            "order": "Ordem",
+        }
+        widgets = {
+            "damage": forms.TextInput(attrs={"placeholder": "Ex.: 1d8+2 cortante"}),
+            "description": forms.Textarea(attrs={"rows": 2, "placeholder": "Alcance, condições, efeito"}),
+            "order": forms.HiddenInput(),
+        }
+
+class EnemyAttackForm(forms.ModelForm):
+    class Meta:
+        model = EnemyAttack
+        fields = ["name", "damage", "description", "order"]
+        labels = {
+            "name": "Nome",
+            "damage": "Dano",
+            "description": "Descrição",
+            "order": "Ordem",
+        }
+        widgets = {
+            "damage": forms.TextInput(attrs={"placeholder": "Ex.: 1d8+2 cortante"}),
+            "description": forms.Textarea(attrs={"rows": 2, "placeholder": "Alcance, condições, efeito"}),
+            "order": forms.HiddenInput(),
+        }
+
+class NPCAttackForm(forms.ModelForm):
+    class Meta:
+        model = NPCAttack
+        fields = ["name", "damage", "description", "order"]
+        labels = {
+            "name": "Nome",
+            "damage": "Dano",
+            "description": "Descrição",
+            "order": "Ordem",
+        }
+        widgets = {
+            "damage": forms.TextInput(attrs={"placeholder": "Ex.: 1d8+2 cortante"}),
+            "description": forms.Textarea(attrs={"rows": 2, "placeholder": "Alcance, condições, efeito"}),
+            "order": forms.HiddenInput(),
+        }

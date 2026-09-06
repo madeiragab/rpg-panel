@@ -37,6 +37,7 @@ from hud.models import (
     Campaign,
     Character,
     CharacterAbility,
+    CharacterAttack,
     CharacterAttribute,
     CharacterSkill,
     Enemy,
@@ -2806,3 +2807,115 @@ class FichaEscondidaTests(TestCase):
         )
 
         self.assertNotIn('Kai', [c.name for c in resposta.context['characters']])
+
+
+@SEM_REDIRECT_HTTPS
+@SEM_MANIFESTO
+class AtaquesTests(TestCase):
+    """Ataque tem a forma da habilidade: nome, dano, descricao e campos livres."""
+
+    def setUp(self):
+        self.mestre = make_user('mestre')
+        self.jogador = make_user('jogador')
+        self.campanha = Campaign.objects.create(name='Ossos', master=self.mestre)
+        self.campanha.players.add(self.jogador)
+        self.personagem = Character.objects.create(
+            name='Kai', created_by=self.mestre, campaign=self.campanha,
+            assigned_to=self.jogador,
+        )
+        self.inimigo = Enemy.objects.create(
+            name='Cerbero', created_by=self.mestre, campaign=self.campanha
+        )
+        self.client.force_login(self.mestre)
+
+    def test_mestre_cria_ataque_na_ficha(self):
+        self.client.post(
+            reverse('character_detail', args=[self.personagem.pk]),
+            {'form_type': 'attack', 'attack-name': 'Espada longa',
+             'attack-damage': '1d8+2', 'attack-description': 'Corpo a corpo.',
+             'attack-order': 0},
+        )
+
+        ataque = self.personagem.attacks.get()
+        self.assertEqual(ataque.name, 'Espada longa')
+        self.assertEqual(ataque.damage, '1d8+2')
+        self.assertEqual(ataque.description, 'Corpo a corpo.')
+
+    def test_a_ordem_segue_a_criacao(self):
+        for nome in ('Soco', 'Chute', 'Cabecada'):
+            self.client.post(
+                reverse('character_detail', args=[self.personagem.pk]),
+                {'form_type': 'attack', 'attack-name': nome, 'attack-order': 0},
+            )
+
+        self.assertEqual(
+            list(self.personagem.attacks.values_list('name', flat=True)),
+            ['Soco', 'Chute', 'Cabecada'],
+        )
+
+    def test_jogador_nao_cria_ataque(self):
+        self.client.force_login(self.jogador)
+
+        self.client.post(
+            reverse('character_detail', args=[self.personagem.pk]),
+            {'form_type': 'attack', 'attack-name': 'Roubado', 'attack-order': 0},
+        )
+
+        self.assertEqual(self.personagem.attacks.count(), 0)
+
+    def test_o_ataque_se_reescreve_pela_mesma_rota_das_outras_linhas(self):
+        ataque = CharacterAttack.objects.create(
+            character=self.personagem, name='Soco', damage='1d4'
+        )
+
+        self.client.post(
+            reverse('update_sheet_line', args=['character-attack', ataque.pk]),
+            {'name': 'Soco giratorio', 'damage': '2d4',
+             'extras': json.dumps([['alcance', 'corpo a corpo']])},
+        )
+
+        ataque.refresh_from_db()
+        self.assertEqual(ataque.name, 'Soco giratorio')
+        self.assertEqual(ataque.damage, '2d4')
+        self.assertEqual(ataque.extras, [['alcance', 'corpo a corpo']])
+
+    def test_o_ataque_se_apaga(self):
+        ataque = CharacterAttack.objects.create(character=self.personagem, name='Soco')
+
+        self.client.post(
+            reverse('delete_sheet_line', args=['character-attack', ataque.pk])
+        )
+
+        self.assertEqual(self.personagem.attacks.count(), 0)
+
+    def test_jogador_nao_reescreve_o_ataque(self):
+        ataque = CharacterAttack.objects.create(character=self.personagem, name='Soco')
+        self.client.force_login(self.jogador)
+
+        resposta = self.client.post(
+            reverse('update_sheet_line', args=['character-attack', ataque.pk]),
+            {'name': 'Roubado'},
+        )
+
+        self.assertEqual(resposta.status_code, 403)
+
+    def test_o_inimigo_tambem_tem_ataques(self):
+        self.client.post(
+            reverse('enemy_detail', args=[self.inimigo.pk]),
+            {'form_type': 'attack', 'attack-name': 'Mordida',
+             'attack-damage': '2d6', 'attack-order': 0},
+        )
+
+        self.assertEqual(self.inimigo.attacks.get().damage, '2d6')
+
+    def test_o_ataque_aparece_na_ficha(self):
+        CharacterAttack.objects.create(
+            character=self.personagem, name='Espada longa', damage='1d8+2'
+        )
+
+        html = self.client.get(
+            reverse('character_detail', args=[self.personagem.pk])
+        ).content.decode()
+
+        self.assertIn('Espada longa', html)
+        self.assertIn('1d8+2', html)

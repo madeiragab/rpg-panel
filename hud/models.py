@@ -613,6 +613,36 @@ class StickyNote(PecaDoQuadro):
         return super().save(*args, **kwargs)
 
 
+class CharacterAttack(HabilidadeComCampos):
+    character = models.ForeignKey(Character, on_delete=models.CASCADE, related_name="attacks")
+
+    class Meta(HabilidadeComCampos.Meta):
+        abstract = False
+
+    def __str__(self) -> str:  # pragma: no cover - simple display
+        return f"{self.character.name}: {self.name}"
+
+
+class EnemyAttack(HabilidadeComCampos):
+    enemy = models.ForeignKey(Enemy, on_delete=models.CASCADE, related_name="attacks")
+
+    class Meta(HabilidadeComCampos.Meta):
+        abstract = False
+
+    def __str__(self) -> str:  # pragma: no cover - simple display
+        return f"{self.enemy.name}: {self.name}"
+
+
+class NPCAttack(HabilidadeComCampos):
+    npc = models.ForeignKey(NPC, on_delete=models.CASCADE, related_name="attacks")
+
+    class Meta(HabilidadeComCampos.Meta):
+        abstract = False
+
+    def __str__(self) -> str:  # pragma: no cover - simple display
+        return f"{self.npc.name}: {self.name}"
+
+
 class Item(RetratoEnquadrado):
     campaign = models.ForeignKey(
         Campaign,

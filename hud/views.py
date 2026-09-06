@@ -26,16 +26,19 @@ from .models import UserProfile, PasswordResetToken
 from .forms import (
     CampaignForm,
     CharacterAbilityForm,
+    CharacterAttackForm,
     CharacterAttributeForm,
     CharacterForm,
     CharacterSkillForm,
     EnemyAbilityForm,
+    EnemyAttackForm,
     EnemyForm,
     EnemySkillForm,
     ItemForm,
     PolaroidForm,
     NPCForm,
     NPCAbilityForm,
+    NPCAttackForm,
     NPCAttributeForm,
     NPCSkillForm,
 )
@@ -43,11 +46,13 @@ from .models import (
     Campaign,
     Character,
     CharacterAbility,
+    CharacterAttack,
     CharacterAttribute,
     CharacterBar,
     CharacterSkill,
     Enemy,
     EnemyAbility,
+    EnemyAttack,
     EnemyAttribute,
     EnemyBar,
     EnemySkill,
@@ -55,6 +60,7 @@ from .models import (
     Item,
     NPC,
     NPCAbility,
+    NPCAttack,
     NPCAttribute,
     NPCBar,
     NPCInventorySlot,
@@ -725,6 +731,7 @@ def character_detail(request: HttpRequest, pk: int) -> HttpResponse:
 
     skill_form = CharacterSkillForm(prefix="skill")
     ability_form = CharacterAbilityForm(prefix="ability")
+    attack_form = CharacterAttackForm(prefix="attack")
     character_form = CharacterForm(instance=character, prefix="character")
 
     if request.method == "POST" and is_master:
@@ -743,6 +750,15 @@ def character_detail(request: HttpRequest, pk: int) -> HttpResponse:
                 skill.character = character
                 skill.save()
                 messages.success(request, "Perícia adicionada.")
+                return redirect("character_detail", pk=character.pk)
+        elif form_type == "attack":
+            attack_form = CharacterAttackForm(request.POST, prefix="attack")
+            if attack_form.is_valid():
+                attack = attack_form.save(commit=False)
+                attack.character = character
+                attack.order = character.attacks.count()
+                attack.save()
+                messages.success(request, "Ataque adicionado.")
                 return redirect("character_detail", pk=character.pk)
         elif form_type == "ability":
             ability_form = CharacterAbilityForm(request.POST, prefix="ability")
@@ -816,6 +832,7 @@ def character_detail(request: HttpRequest, pk: int) -> HttpResponse:
             "character_form": character_form,
             "skill_form": skill_form,
             "ability_form": ability_form,
+            "attack_form": attack_form,
             "items": items,
             "campaign": character.campaign,
             "campaign_characters": campaign_characters,
@@ -1033,6 +1050,9 @@ def update_polaroid_framing(request: HttpRequest, polaroid_id: int) -> JsonRespo
 # quem edita é sempre o mestre da mesa daquela ficha.
 LINHAS_DA_FICHA = {
     "character-skill": (CharacterSkill, "character", ("name", "value")),
+    "character-attack": (CharacterAttack, "character", ("name", "damage")),
+    "npc-attack": (NPCAttack, "npc", ("name", "damage")),
+    "enemy-attack": (EnemyAttack, "enemy", ("name", "damage")),
     "character-ability": (CharacterAbility, "character", ("name", "damage")),
     "character-attribute": (CharacterAttribute, "character", ("name", "value")),
     "npc-skill": (NPCSkill, "npc", ("name", "value")),
@@ -1413,6 +1433,7 @@ def npc_detail(request: HttpRequest, pk: int) -> HttpResponse:
 
     skill_form = NPCSkillForm(prefix="skill")
     ability_form = NPCAbilityForm(prefix="ability")
+    attack_form = NPCAttackForm(prefix="attack")
     npc_form = NPCForm(instance=npc, prefix="npc")
     npc_form.fields["assigned_to_character"].queryset = campaign.characters.all()
 
@@ -1432,6 +1453,15 @@ def npc_detail(request: HttpRequest, pk: int) -> HttpResponse:
                 skill.npc = npc
                 skill.save()
                 messages.success(request, "Perícia adicionada.")
+                return redirect("npc_detail", pk=npc.pk)
+        elif form_type == "attack":
+            attack_form = NPCAttackForm(request.POST, prefix="attack")
+            if attack_form.is_valid():
+                attack = attack_form.save(commit=False)
+                attack.npc = npc
+                attack.order = npc.attacks.count()
+                attack.save()
+                messages.success(request, "Ataque adicionado.")
                 return redirect("npc_detail", pk=npc.pk)
         elif form_type == "ability":
             ability_form = NPCAbilityForm(request.POST, prefix="ability")
@@ -1468,6 +1498,7 @@ def npc_detail(request: HttpRequest, pk: int) -> HttpResponse:
             "npc_form": npc_form,
             "skill_form": skill_form,
             "ability_form": ability_form,
+            "attack_form": attack_form,
             "items": items,
             "campaign": campaign,
         },
@@ -1583,6 +1614,7 @@ def enemy_detail(request: HttpRequest, pk: int) -> HttpResponse:
 
     skill_form = EnemySkillForm(prefix="skill")
     ability_form = EnemyAbilityForm(prefix="ability")
+    attack_form = EnemyAttackForm(prefix="attack")
     enemy_form = EnemyForm(instance=enemy, prefix="enemy")
 
     if request.method == "POST" and is_master:
@@ -1600,6 +1632,15 @@ def enemy_detail(request: HttpRequest, pk: int) -> HttpResponse:
                 skill.enemy = enemy
                 skill.save()
                 messages.success(request, "Perícia adicionada.")
+                return redirect("enemy_detail", pk=enemy.pk)
+        elif form_type == "attack":
+            attack_form = EnemyAttackForm(request.POST, prefix="attack")
+            if attack_form.is_valid():
+                attack = attack_form.save(commit=False)
+                attack.enemy = enemy
+                attack.order = enemy.attacks.count()
+                attack.save()
+                messages.success(request, "Ataque adicionado.")
                 return redirect("enemy_detail", pk=enemy.pk)
         elif form_type == "ability":
             ability_form = EnemyAbilityForm(request.POST, prefix="ability")
@@ -1630,6 +1671,7 @@ def enemy_detail(request: HttpRequest, pk: int) -> HttpResponse:
             "enemy_form": enemy_form,
             "skill_form": skill_form,
             "ability_form": ability_form,
+            "attack_form": attack_form,
             "campaign": campaign,
         },
     )
