@@ -82,7 +82,7 @@
         desenharMoldura(slot.querySelector('.slot-figure'), data);
 
         // Update selected display
-        updateSelected(data.itemImage || '', data.itemName || 'Vazio');
+        updateSelected(data.itemImage || '', data.itemName || 'Vazio', data.itemDescription || '');
       })
       .catch(() => {});
   }
@@ -112,7 +112,38 @@
     if (window.hudPortrait) window.hudPortrait.preparar(moldura);
   }
 
-  function updateSelected(img, name) {
+  /* Passar o mouse mostra o item sem mexer nele: o clique num slot cheio tira
+     o item, entao inspecionar por clique custaria caro. */
+  const selectedDescription = document.getElementById('selected-description');
+  const SEM_ITEM = 'Passe o mouse por um slot para ler a descricao.';
+
+  function espiar(elemento) {
+    const nome = elemento.dataset.itemName;
+    const imagem = elemento.dataset.itemImage;
+    if (!imagem && (!nome || nome === 'Vazio')) return;
+    updateSelected(imagem || '', nome || '', elemento.dataset.itemDescription || '');
+  }
+
+  grid.querySelectorAll('.inventory-slot').forEach((slot) => {
+    slot.addEventListener('mouseenter', () => espiar(slot));
+    slot.addEventListener('focus', () => espiar(slot));
+  });
+  if (itemPool) {
+    itemPool.querySelectorAll('.item-chip').forEach((chip) => {
+      chip.addEventListener('mouseenter', () => {
+        updateSelected(
+          chip.dataset.itemImage || '',
+          chip.querySelector('.item-name') ? chip.querySelector('.item-name').textContent : '',
+          chip.dataset.itemDescription || '',
+        );
+      });
+    });
+  }
+
+  function updateSelected(img, name, descricao) {
+    if (selectedDescription) {
+      selectedDescription.textContent = descricao || (img || name ? 'Sem descricao.' : SEM_ITEM);
+    }
     if (selectedName) selectedName.textContent = name || 'Vazio';
     if (selectedFigure) {
       if (img) {

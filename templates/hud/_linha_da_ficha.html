@@ -12,8 +12,18 @@
       data-nome="{{ linha.name }}"
       data-valor="{{ linha.value|default_if_none:'' }}"
       data-dano="{{ linha.damage|default_if_none:'' }}"
-      data-extras="{{ linha.extras|json_puro }}">
+      data-extras="{{ linha.extras|json_puro }}"
+      data-descricao="{{ linha.description|default_if_none:'' }}">
     <span class="etiqueta-nome">{{ linha.name }}</span>
+    {% if com_dano and linha.description %}
+        {% comment %}
+           A descrição fica atrás de uma interrogação: numa lista de dez
+           habilidades, dez parágrafos abertos ao mesmo tempo viram parede.
+        {% endcomment %}
+        <span class="etiqueta-ajuda" tabindex="0" role="note" aria-label="Descrição">?
+            <span class="etiqueta-balao">{{ linha.description|linebreaksbr }}</span>
+        </span>
+    {% endif %}
     {% if com_valor and linha.value %}<span class="etiqueta-valor">{{ linha.value }}</span>{% endif %}
     {% if com_dano %}
         <span class="etiqueta-campos">

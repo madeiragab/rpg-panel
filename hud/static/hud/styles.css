@@ -1687,3 +1687,87 @@ a:hover { color: var(--accent-soft); }
    ele subia para a 1 e aparecia acima delas. */
 .hud-layout > .largura-total { grid-column: 1 / -1; grid-row: 3; }
 .hud-layout > .player-view-notice { grid-row: 1; }
+
+/* ------------------------------------------------ o inventário de ponta a ponta -- */
+/* Com o inventário atravessando a página, um slot de 140px vira um quadrado
+   enorme; o que interessa ali é caber muitos e reconhecer a figura. */
+.inventory-grid { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+.inventory-slot { padding: 6px; }
+.slot-label { font-size: 0.68rem; }
+.inventory-grid-wrap { max-height: 320px; }
+
+/* O mostrador vira uma linha: figura de um lado, nome e descrição do outro. */
+.selected-item-display {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    text-align: left;
+}
+.selected-item-figure { width: 140px; max-width: 140px; flex: none; }
+.selected-item-texto { flex: 1; min-width: 0; display: grid; gap: 6px; align-content: start; }
+.selected-item-descricao {
+    margin: 0;
+    max-height: 130px;
+    overflow-y: auto;
+    color: var(--muted);
+    font-size: 0.85rem;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+    .selected-item-display { flex-direction: column; }
+    .selected-item-figure { width: 100%; max-width: 180px; }
+}
+
+/* --------------------------------------- a descrição da habilidade no "?" -- */
+/* Numa lista de dez habilidades, dez parágrafos abertos ao mesmo tempo viram
+   parede: a descrição fica atrás da interrogação e aparece ao passar o mouse
+   (ou ao focar pelo teclado). */
+.etiqueta-ajuda {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: var(--muted);
+    cursor: help;
+}
+.etiqueta-ajuda:hover,
+.etiqueta-ajuda:focus-visible { border-color: var(--accent); color: var(--accent-soft); outline: none; }
+
+.etiqueta-balao {
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 8px);
+    z-index: 60;
+    width: max-content;
+    max-width: 260px;
+    padding: 9px 11px;
+    transform: translateX(-50%);
+    border: 1px solid var(--accent);
+    border-radius: 9px;
+    background: rgba(10, 6, 7, 0.98);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.7);
+    color: var(--text);
+    font-size: 0.8rem;
+    font-weight: 400;
+    line-height: 1.45;
+    text-align: left;
+    white-space: normal;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.14s ease;
+}
+.etiqueta-ajuda:hover .etiqueta-balao,
+.etiqueta-ajuda:focus-visible .etiqueta-balao { opacity: 1; visibility: visible; }
+
+/* O balão não pode ser cortado pela rolagem da lista de habilidades. */
+.tags-wrap { overflow: visible; max-height: none; }
+.tags-wrap.rolagem { max-height: 46vh; overflow-y: auto; }

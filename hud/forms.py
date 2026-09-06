@@ -227,10 +227,16 @@ class NPCSkillForm(forms.ModelForm):
 class NPCAbilityForm(forms.ModelForm):
     class Meta:
         model = NPCAbility
-        fields = ["name", "damage", "order"]
-        labels = {"name": "Nome", "damage": "Dano", "order": "Ordem"}
+        fields = ["name", "damage", "description", "order"]
+        labels = {
+            "name": "Nome",
+            "damage": "Dano",
+            "description": "Descrição",
+            "order": "Ordem",
+        }
         widgets = {
             "damage": forms.TextInput(attrs={"placeholder": "Ex.: 2d6+3"}),
+            "description": forms.Textarea(attrs={"rows": 2, "placeholder": "O que a habilidade faz"}),
             "order": forms.HiddenInput(),
         }
 
@@ -359,10 +365,16 @@ class CharacterSkillForm(forms.ModelForm):
 class CharacterAbilityForm(forms.ModelForm):
     class Meta:
         model = CharacterAbility
-        fields = ["name", "damage", "order"]
-        labels = {"name": "Nome", "damage": "Dano", "order": "Ordem"}
+        fields = ["name", "damage", "description", "order"]
+        labels = {
+            "name": "Nome",
+            "damage": "Dano",
+            "description": "Descrição",
+            "order": "Ordem",
+        }
         widgets = {
             "damage": forms.TextInput(attrs={"placeholder": "Ex.: 2d6+3"}),
+            "description": forms.Textarea(attrs={"rows": 2, "placeholder": "O que a habilidade faz"}),
             "order": forms.HiddenInput(),
         }
 
@@ -387,10 +399,16 @@ class EnemySkillForm(forms.ModelForm):
 class EnemyAbilityForm(forms.ModelForm):
     class Meta:
         model = EnemyAbility
-        fields = ["name", "damage", "order"]
-        labels = {"name": "Nome", "damage": "Dano", "order": "Ordem"}
+        fields = ["name", "damage", "description", "order"]
+        labels = {
+            "name": "Nome",
+            "damage": "Dano",
+            "description": "Descrição",
+            "order": "Ordem",
+        }
         widgets = {
             "damage": forms.TextInput(attrs={"placeholder": "Ex.: 2d6+3"}),
+            "description": forms.Textarea(attrs={"rows": 2, "placeholder": "O que a habilidade faz"}),
             "order": forms.HiddenInput(),
         }
 

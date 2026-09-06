@@ -145,7 +145,10 @@
         <div id="npc-inventory" style="display: none; margin-top: 12px;">
             <div class="selected-item-display">
                 <div class="selected-item-figure empty" id="selected-figure"></div>
-                <div class="selected-item-name" id="selected-name">Selecione um item</div>
+                <div class="selected-item-texto">
+                    <div class="selected-item-name" id="selected-name">Selecione um item</div>
+                    <p class="selected-item-descricao" id="selected-description">Passe o mouse por um slot para ler a descrição.</p>
+                </div>
             </div>
             {% if is_master %}
             <div class="list-inline" style="margin-bottom: 8px;">
@@ -154,7 +157,7 @@
             <div id="item-picker" class="panel-card" style="display: none; padding: 8px;">
                 <div class="item-pool" id="item-pool">
                     {% for item in items %}
-                        <div class="item-chip" data-item-id="{{ item.pk }}" data-item-image="{% if item.image %}{{ item.image.url }}{% endif %}">
+                        <div class="item-chip" data-item-id="{{ item.pk }}" data-item-description="{{ item.description|default_if_none:'' }}" data-item-image="{% if item.image %}{{ item.image.url }}{% endif %}">
                             <span class="item-thumb{% if not item.image %} empty{% endif %}" data-portrait-frame
                                   data-zoom="{{ item.image_zoom }}" data-focus-x="{{ item.image_focus_x|unlocalize }}" data-focus-y="{{ item.image_focus_y|unlocalize }}">
                                 {% if item.image %}<img src="{{ item.image.url }}" alt="{{ item.name }}">{% endif %}</span>
@@ -167,7 +170,7 @@
             </div>
             {% endif %}
             <div class="inventory-grid-wrap">
-                <div class="inventory-grid" id="inventory-grid" aria-live="polite" style="width: 100%; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));">
+                <div class="inventory-grid" id="inventory-grid" aria-live="polite" style="width: 100%; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));">
                     {% for slot in slots %}
                         <button
                             type="button"
@@ -176,6 +179,7 @@
                             data-slot-id="{{ slot.pk }}"
                             data-assign-url="{% url 'assign_npc_slot' npc.pk slot.pk %}"
                             data-item-name="{{ slot.item.name|default:'Vazio' }}"
+                        data-item-description="{{ slot.item.description|default_if_none:'' }}"
                             data-item-image="{% if slot.item and slot.item.image %}{{ slot.item.image.url }}{% endif %}">
                             <div class="slot-figure{% if not slot.item or not slot.item.image %} empty{% endif %}" data-portrait-frame
                                  data-zoom="{{ slot.item.image_zoom|default:100 }}" data-focus-x="{{ slot.item.image_focus_x|default:0.5|unlocalize }}" data-focus-y="{{ slot.item.image_focus_y|default:0.5|unlocalize }}">

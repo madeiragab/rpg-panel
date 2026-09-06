@@ -813,10 +813,18 @@ def _item_no_slot(item: Item | None) -> dict[str, Any]:
     depois de recarregar a página.
     """
     if item is None:
-        return {"itemName": "Vazio", "itemImage": "", "itemZoom": 100, "itemFocusX": 0.5, "itemFocusY": 0.5}
+        return {
+            "itemName": "Vazio",
+            "itemImage": "",
+            "itemDescription": "",
+            "itemZoom": 100,
+            "itemFocusX": 0.5,
+            "itemFocusY": 0.5,
+        }
     return {
         "itemName": item.name,
         "itemImage": item.image.url if item.image else "",
+        "itemDescription": item.description,
         "itemZoom": item.image_zoom,
         "itemFocusX": item.image_focus_x,
         "itemFocusY": item.image_focus_y,
@@ -1036,6 +1044,7 @@ def update_sheet_line(request: HttpRequest, tipo: str, pk: int) -> JsonResponse:
     linha.name = nome[:80]
     if "damage" in campos:
         linha.damage = request.POST.get("damage", "").strip()[:60]
+        linha.description = request.POST.get("description", "").strip()[:1000]
         # Os campos extras chegam como JSON porque são uma lista de pares de
         # tamanho livre; em campos soltos do POST a ordem se perderia.
         try:
@@ -1058,6 +1067,7 @@ def update_sheet_line(request: HttpRequest, tipo: str, pk: int) -> JsonResponse:
             "name": linha.name,
             "value": getattr(linha, "value", ""),
             "damage": getattr(linha, "damage", ""),
+            "description": getattr(linha, "description", ""),
             "extras": getattr(linha, "extras", []),
         }
     )

@@ -139,6 +139,7 @@
     caixa.innerHTML =
       '<label>Nome<input type="text" data-campo="name"></label>' +
       '<label>Dano<input type="text" data-campo="damage" placeholder="Ex.: 2d6+3"></label>' +
+      '<label>Descrição<textarea data-campo="description" rows="3" placeholder="O que a habilidade faz"></textarea></label>' +
       '<div data-extras></div>' +
       '<div class="editor-acoes">' +
       '<button type="button" class="hud-button ghost" data-mais>+ campo</button>' +
@@ -148,6 +149,7 @@
 
     caixa.querySelector('[data-campo="name"]').value = etiqueta.dataset.nome || '';
     caixa.querySelector('[data-campo="damage"]').value = etiqueta.dataset.dano || '';
+    caixa.querySelector('[data-campo="description"]').value = etiqueta.dataset.descricao || '';
 
     const listaExtras = caixa.querySelector('[data-extras]');
 
@@ -175,6 +177,7 @@
       const corpo = new URLSearchParams();
       corpo.append('name', caixa.querySelector('[data-campo="name"]').value);
       corpo.append('damage', caixa.querySelector('[data-campo="damage"]').value);
+      corpo.append('description', caixa.querySelector('[data-campo="description"]').value);
       const pares = [];
       listaExtras.querySelectorAll('.editor-extra').forEach((linha) => {
         const rotulo = linha.querySelector('[data-rotulo]').value.trim();
@@ -193,6 +196,7 @@
           // só o que mudou.
           etiqueta.dataset.nome = dados.name;
           etiqueta.dataset.dano = dados.damage;
+          etiqueta.dataset.descricao = dados.description || '';
           etiqueta.dataset.extras = JSON.stringify(dados.extras || []);
           etiqueta.querySelector('.etiqueta-nome').textContent = dados.name;
           const campos = etiqueta.querySelector('.etiqueta-campos');

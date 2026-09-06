@@ -102,7 +102,7 @@
         </div>
         
         {% if is_master %}
-        <div style="margin-bottom: 20px;">
+        <div class="so-editando" style="margin-bottom: 20px;">
             <button id="add-bar-btn" class="hud-button" onclick="showAddBarForm()" style="width: 100%;">+ Adicionar Barra</button>
             <div id="add-bar-form" style="display: none; margin-top: 12px; padding: 16px; background: var(--panel); border-radius: 8px;">
                 <input type="text" id="bar-name" placeholder="Nome (ex: Vida, Mana, Sanidade)" style="width: 100%; padding: 8px; margin-bottom: 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text);">
@@ -195,13 +195,16 @@
         </div>
         <div class="selected-item-display" id="selected-item-display">
             <div class="selected-item-figure empty" id="selected-figure"></div>
-            <div class="selected-item-name" id="selected-name">Selecione um item</div>
+            <div class="selected-item-texto">
+                <div class="selected-item-name" id="selected-name">Selecione um item</div>
+                <p class="selected-item-descricao" id="selected-description">Passe o mouse por um slot para ler a descrição.</p>
+            </div>
         </div>
         {% if is_master %}
         <div id="item-picker" class="panel-card" style="display: none; padding: 8px;">
             <div class="item-pool" id="item-pool">
                 {% for item in items %}
-                    <div class="item-chip" data-item-id="{{ item.pk }}" data-item-image="{% if item.image %}{{ item.image.url }}{% endif %}">
+                    <div class="item-chip" data-item-id="{{ item.pk }}" data-item-description="{{ item.description|default_if_none:'' }}" data-item-image="{% if item.image %}{{ item.image.url }}{% endif %}">
                         <span class="item-thumb{% if not item.image %} empty{% endif %}" data-portrait-frame
                               data-zoom="{{ item.image_zoom }}" data-focus-x="{{ item.image_focus_x|unlocalize }}" data-focus-y="{{ item.image_focus_y|unlocalize }}">
                             {% if item.image %}<img src="{{ item.image.url }}" alt="{{ item.name }}">{% endif %}</span>
@@ -222,6 +225,7 @@
                         data-slot-id="{{ slot.pk }}"
                         data-assign-url="{% url 'assign_slot' character.pk slot.pk %}"
                         data-item-name="{{ slot.item.name|default:'Vazio' }}"
+                        data-item-description="{{ slot.item.description|default_if_none:'' }}"
                         data-item-image="{% if slot.item and slot.item.image %}{{ slot.item.image.url }}{% endif %}">
                         <div class="slot-figure{% if not slot.item or not slot.item.image %} empty{% endif %}" data-portrait-frame
                              data-zoom="{{ slot.item.image_zoom|default:100 }}" data-focus-x="{{ slot.item.image_focus_x|default:0.5|unlocalize }}" data-focus-y="{{ slot.item.image_focus_y|default:0.5|unlocalize }}">

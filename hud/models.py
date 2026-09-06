@@ -272,6 +272,7 @@ class HabilidadeComCampos(models.Model):
 
     name = models.CharField(max_length=80)
     damage = models.CharField(max_length=60, blank=True)
+    description = models.TextField(blank=True)
     extras = models.JSONField(default=list, blank=True)
     order = models.PositiveIntegerField(default=0)
 
