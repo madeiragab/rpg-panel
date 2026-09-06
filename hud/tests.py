@@ -2540,3 +2540,62 @@ class DoisEnquadramentosTests(TestCase):
 
         self.assertNotIn('data-portrait-alvos', sem_foto)
         self.assertIn('data-portrait-alvos', com_foto)
+
+
+@SEM_REDIRECT_HTTPS
+class DescricaoDoSlotTests(TestCase):
+    """A descricao viaja com o item, senao o slot fica mudo ate recarregar."""
+
+    def setUp(self):
+        self.mestre = make_user('mestre')
+        self.jogador = make_user('jogador')
+        self.campanha = Campaign.objects.create(name='Ossos', master=self.mestre)
+        self.campanha.players.add(self.jogador)
+        self.personagem = Character.objects.create(
+            name='Kai', created_by=self.mestre, campaign=self.campanha,
+            assigned_to=self.jogador,
+        )
+        self.item = Item.objects.create(
+            name='Adaga', campaign=self.campanha, description='Corta e envenena.'
+        )
+        self.slot = self.personagem.slots.first()
+        self.client.force_login(self.mestre)
+
+    def test_a_resposta_do_slot_traz_a_descricao(self):
+        dados = self.client.post(
+            reverse('assign_slot', args=[self.personagem.pk, self.slot.pk]),
+            {'item_id': self.item.pk},
+        ).json()
+
+        self.assertEqual(dados['itemDescription'], 'Corta e envenena.')
+
+    def test_esvaziar_o_slot_limpa_a_descricao(self):
+        self.slot.item = self.item
+        self.slot.save()
+
+        dados = self.client.post(
+            reverse('assign_slot', args=[self.personagem.pk, self.slot.pk])
+        ).json()
+
+        self.assertEqual(dados['itemDescription'], '')
+
+    def test_item_sem_descricao_devolve_vazio_em_vez_de_none(self):
+        """None viraria a string 'None' no dataset do slot."""
+        mudo = Item.objects.create(name='Pedra', campaign=self.campanha)
+
+        dados = self.client.post(
+            reverse('assign_slot', args=[self.personagem.pk, self.slot.pk]),
+            {'item_id': mudo.pk},
+        ).json()
+
+        self.assertEqual(dados['itemDescription'], '')
+
+    def test_o_slot_ja_nasce_com_a_descricao_no_html(self):
+        self.slot.item = self.item
+        self.slot.save()
+
+        html = self.client.get(
+            reverse('character_detail', args=[self.personagem.pk])
+        ).content.decode()
+
+        self.assertIn('data-item-description="Corta e envenena."', html)

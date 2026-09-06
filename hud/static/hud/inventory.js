@@ -77,6 +77,10 @@
         // Update slot dataset
         slot.dataset.itemName = data.itemName || 'Vazio';
         slot.dataset.itemImage = data.itemImage || '';
+        // A descrição mora no proprio slot, e e dela que o hover vive: sem esta
+        // linha, todo slot preenchido por aqui ficava mudo até a página
+        // recarregar.
+        slot.dataset.itemDescription = data.itemDescription || '';
 
         // Update slot UI
         desenharMoldura(slot.querySelector('.slot-figure'), data);
@@ -115,7 +119,7 @@
   /* Passar o mouse mostra o item sem mexer nele: o clique num slot cheio tira
      o item, entao inspecionar por clique custaria caro. */
   const selectedDescription = document.getElementById('selected-description');
-  const SEM_ITEM = 'Passe o mouse por um slot para ler a descricao.';
+  const SEM_ITEM = 'Passe o mouse por um slot para ler a descrição.';
 
   function espiar(elemento) {
     const nome = elemento.dataset.itemName;
@@ -142,7 +146,7 @@
 
   function updateSelected(img, name, descricao) {
     if (selectedDescription) {
-      selectedDescription.textContent = descricao || (img || name ? 'Sem descricao.' : SEM_ITEM);
+      selectedDescription.textContent = descricao || (img || name ? 'Sem descrição.' : SEM_ITEM);
     }
     if (selectedName) selectedName.textContent = name || 'Vazio';
     if (selectedFigure) {
