@@ -580,7 +580,11 @@ class StickyNote(PecaDoQuadro):
     """
 
     INCLINACAO_MAXIMA = 6
-    LIMITE_DO_TEXTO = 500
+    # Não é um limite de escrita, é um freio contra abuso. Quinhentos caracteres
+    # eram: um mestre que colava a profecia inteira batia neles no meio da
+    # sessão e perdia o resto sem aviso. Vinte mil são umas cinco páginas — quem
+    # chegar lá não está escrevendo um post-it, está tentando encher o banco.
+    LIMITE_DO_TEXTO = 20000
     CORES = ["#f2e06a", "#f3a6b8", "#a8dfa0", "#9fd2f0"]
 
     # O tamanho fica no banco pelo mesmo motivo da cor e da inclinação: o quadro

@@ -19,7 +19,13 @@
        redimensionar, e a peça se ajusta a ele (width: auto no CSS). Assim o
        post-it que o mestre esticou está esticado para a mesa toda.
     {% endcomment %}
-    <textarea class="post-it-texto" maxlength="500"
+    {% comment %}
+       Sem `maxlength`. O corte do modelo é um freio contra abuso — vinte mil
+       caracteres, umas cinco páginas — e não um limite de escrita; pôr o número
+       aqui faria o navegador parar de aceitar tecla no meio de uma frase, que é
+       exatamente o que a pessoa não pode descobrir escrevendo.
+    {% endcomment %}
+    <textarea class="post-it-texto"
               style="width: {{ peca.width }}px; height: {{ peca.height }}px;"
               data-salvar-url="{% url 'update_sticky_note' peca.pk %}"
               placeholder="Clique e escreva…"
