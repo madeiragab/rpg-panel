@@ -28,6 +28,22 @@ O clique do mestre nos controles conta como esse gesto — quem aperta ▶ entra
 
 Não dá para contornar; é regra do navegador, não escolha do projeto.
 
+### Mas só uma vez por aba
+
+O painel recarrega a página inteira a cada clique — abrir uma ficha, voltar para a campanha — e o player vai junto. Cobrar o clique de novo em cada uma delas seria cobrar o tempo todo, porque uma sessão de RPG é justamente andar de ficha em ficha.
+
+Então o "estou no áudio" fica no `sessionStorage`, que é a memória com o prazo certo: sobrevive à navegação dentro da aba e morre junto com ela. Voltar ao painel amanhã não começa a tocar música sozinho, e duas mesas abertas lado a lado não se atrapalham.
+
+Quando o navegador ainda assim recusa o som — o Chrome costuma liberar num site onde a pessoa já ouviu música, o Firefox costuma não —, o aviso pede um clique em qualquer lugar da página, e é isso mesmo que resolve: o primeiro clique em qualquer canto do painel vale como gesto, e a conferida do segundo seguinte entra tocando.
+
+## Recolher esconde tudo, menos o vídeo
+
+O widget recolhido some com a lista, os controles e a roda. O player fica, pequeno.
+
+Não é decoração. `display: none` no corpo inteiro levava o iframe junto, e **iframe que não é renderizado não toca**: minimizar a trilha matava o áudio da mesa inteira do lado de quem minimizou. De quebra, o vídeo visível é o que os Termos do YouTube exigem — era só por sorte que a gaveta fechada não os violava também.
+
+Abrir e fechar é preferência, e fica no `localStorage`: quem abriu a trilha não quer ela fechada de novo em cada página. A chave guarda o *aberto*, e não o recolhido — sem chave nenhuma vale o padrão do template, que é nascer recolhida, e guardar o contrário faria "sem preferência" e "prefiro fechado" ficarem indistinguíveis.
+
 ## Quem está ouvindo
 
 Entrar no áudio põe o **personagem** da pessoa numa roda de retratos dentro do widget. É a resposta ao clique: você clica, e se vê ali.

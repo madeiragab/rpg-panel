@@ -58,9 +58,43 @@
   let player = null;
   let playerPronto = false;
 
+  /* A trilha tem que atravessar a troca de página.
+   *
+   * Cada clique no painel — abrir uma ficha, voltar para a campanha — recarrega
+   * a página inteira e leva o player junto. Sem memória, a pessoa saía do áudio
+   * a cada navegação e tinha que clicar de novo; numa sessão de RPG, que é
+   * andar de ficha em ficha, isso é o tempo todo.
+   *
+   * `sessionStorage` é a memória com o prazo certo: ela sobrevive à navegação
+   * dentro da aba e morre junto com a aba. Assim voltar para o painel amanhã
+   * não começa a tocar música sozinho — e é por aba, então duas mesas abertas
+   * lado a lado não se atrapalham.
+   *
+   * Isto está num try: aba anônima e navegador com armazenamento bloqueado
+   * lançam no acesso, e uma trilha que não lembra é muito melhor do que um
+   * player que não carrega. */
+  const CHAVE_OUVINDO = `trilha:ouvindo:${CAMPANHA}`;
+  const CHAVE_ABERTO = `trilha:aberto:${CAMPANHA}`;
+
+  function lembrar(deposito, chave, ligado) {
+    try {
+      if (ligado) deposito.setItem(chave, '1');
+      else deposito.removeItem(chave);
+    } catch (erro) { /* sem memória: o player continua, só esquece */ }
+  }
+
+  function lembrado(deposito, chave) {
+    try {
+      return deposito.getItem(chave) === '1';
+    } catch (erro) {
+      return false;
+    }
+  }
+
   // A pessoa está no áudio agora. É o que libera o som — o navegador exige um
   // clique humano antes do primeiro play — e é o que põe o retrato dela na roda.
-  let ouvindo = false;
+  // Já vem ligado quando a página anterior desta aba estava no áudio.
+  let ouvindo = lembrado(sessionStorage, CHAVE_OUVINDO);
 
   let recebidoEm = 0;     // performance.now() de quando este estado chegou
   let ultimoSeek = 0;
@@ -531,6 +565,7 @@
   function entrar() {
     if (ouvindo) return;
     ouvindo = true;
+    lembrar(sessionStorage, CHAVE_OUVINDO, true);
     mostrarAviso('');
     desenhar();
     // O play tem que sair de dentro do clique, antes de qualquer `await`: o
@@ -542,8 +577,10 @@
   function sair() {
     ouvindo = false;
     paradoDesde = 0;
-    // O gesto continua dado: voltar depois não pede clique novo. O que sai é o
-    // som e o retrato da roda.
+    lembrar(sessionStorage, CHAVE_OUVINDO, false);
+    // Sair é decisão da pessoa, e ela vale para as próximas páginas também: sem
+    // apagar a memória aqui, a navegação seguinte a colocaria de volta no áudio
+    // que ela acabou de deixar.
     if (playerPronto && player.pauseVideo) player.pauseVideo();
     desenhar();
     comErro(() => mandarPresenca(false));
@@ -567,19 +604,21 @@
      `keepalive` é o que deixa o pedido sair de uma página que está morrendo;
      sem ele o navegador cancela a saída no meio. Se falhar, não faz mal: o
      `last_seen` velho tira a pessoa da roda sozinho. */
-  window.addEventListener('pagehide', () => {
-    if (!ouvindo || !token) return;
-    fetch(endereco('/audio/presence/'), {
-      method: 'POST',
-      keepalive: true,
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ listening: false }),
-    }).catch(() => {});
-  });
-
   // ----------------------------------------------------------------- controles
 
-  elemento('pa-topo').addEventListener('click', () => raiz.classList.toggle('recolhido'));
+  /* Abrir e fechar a gaveta é preferência, e preferência atravessa a sessão —
+     por isso `localStorage` aqui, e `sessionStorage` para o "estou no áudio".
+     Quem abriu a trilha não quer ela fechada de novo em cada página.
+
+     A chave guarda o **aberto**, e não o recolhido: sem chave nenhuma vale o
+     que o template mandou, que é nascer recolhida. Guardar o contrário faria a
+     ausência de preferência e a preferência "fechado" ficarem indistinguíveis. */
+  if (lembrado(localStorage, CHAVE_ABERTO)) raiz.classList.remove('recolhido');
+
+  elemento('pa-topo').addEventListener('click', () => {
+    raiz.classList.toggle('recolhido');
+    lembrar(localStorage, CHAVE_ABERTO, !raiz.classList.contains('recolhido'));
+  });
 
   elemento('pa-mudo').addEventListener('click', () => {
     mudo = !mudo;
@@ -690,4 +729,19 @@
     if (document.visibilityState !== 'visible') return;
     buscar();
   });
+
+  /* O primeiro clique da página nova destrava o som.
+   *
+   * Quem atravessa a troca de página volta no áudio sem clicar em nada, e aí
+   * depende de o navegador aceitar tocar sem gesto — o Chrome costuma aceitar
+   * num site onde a pessoa já ouviu música antes, o Firefox costuma não. Quando
+   * não aceita, a conferida de cada segundo tenta e falha em silêncio até
+   * aparecer um gesto qualquer.
+   *
+   * Este ouvinte transforma o primeiro clique em qualquer lugar do painel —
+   * abrir uma aba, mexer numa barra — no gesto que faltava, sem que a pessoa
+   * precise achar o botão da trilha. É o que o aviso manda fazer. */
+  document.addEventListener('click', () => {
+    if (ouvindo) conferirDesvio();
+  }, { capture: true });
 })();

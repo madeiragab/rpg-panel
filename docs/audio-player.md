@@ -41,6 +41,41 @@ audio too, so there are never two buttons to press.
 
 There is no way around it; it is a browser rule, not a project choice.
 
+### But only once per tab
+
+The panel reloads the whole page on every click — opening a sheet, going back to
+the campaign — and the player goes with it. Asking for the click again on each
+one would be asking constantly, because an RPG session is precisely walking from
+sheet to sheet.
+
+So "I am in the audio" lives in `sessionStorage`, the storage with the right
+lifetime: it survives navigation inside the tab and dies with it. Coming back to
+the panel tomorrow does not start playing music on its own, and two tables open
+side by side do not interfere.
+
+When the browser refuses the sound anyway — Chrome usually allows it on a site
+where the person has played media before, Firefox usually does not — the notice
+asks for a click anywhere on the page, and that is exactly what fixes it: the
+first click in any corner of the panel counts as the gesture, and the next
+second's check starts playing.
+
+## Collapsing hides everything but the video
+
+The collapsed widget drops the list, the controls and the listener row. The
+player stays, small.
+
+That is not decoration. `display: none` on the whole body took the iframe with
+it, and **an iframe that is not rendered does not play**: minimising the
+soundtrack killed the audio for whoever minimised it. As a bonus, a visible
+player is what the YouTube Terms require — it was only luck that the closed
+drawer did not violate them too.
+
+Opening and closing is a preference, and it lives in `localStorage`: whoever
+opened the soundtrack does not want it shut again on every page. The key stores
+the *open* state, not the collapsed one — with no key at all the template's
+default wins, which is to start collapsed, and storing the opposite would make
+"no preference" and "prefers closed" indistinguishable.
+
 ## Who is listening
 
 Joining the audio puts the person's **character** into a row of portraits inside

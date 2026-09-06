@@ -26,7 +26,16 @@
   }
   #player-audio .pa-titulo { font-weight: 600; letter-spacing: 0.02em; }
   #player-audio .pa-corpo { padding: 10px; }
-  #player-audio.recolhido .pa-corpo { display: none; }
+  /* Recolhido esconde tudo **menos o vídeo**.
+     O `display: none` no corpo inteiro levava o iframe junto, e iframe que não
+     é renderizado não toca: minimizar a trilha matava o áudio da mesa. Some com
+     a lista, os controles e a roda; o player fica, pequeno.
+     De quebra é o que os Termos do YouTube pedem — o player tem que estar à
+     vista, e era só por sorte que o widget recolhido não os violava também. */
+  #player-audio.recolhido { width: 168px; }
+  #player-audio.recolhido .pa-corpo { padding: 6px; }
+  #player-audio.recolhido .pa-corpo > *:not(.pa-video) { display: none; }
+  #player-audio.recolhido .pa-video { margin-bottom: 0; }
   #player-audio .pa-video {
     width: 100%; aspect-ratio: 16 / 9; background: #000;
     border-radius: 8px; overflow: hidden; margin-bottom: 8px;
