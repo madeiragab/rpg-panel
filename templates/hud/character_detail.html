@@ -8,13 +8,13 @@
     <div class="character-navbar-inner">
         {% for char in campaign_characters %}
         <a href="{% url 'character_detail' char.pk %}{% if not is_master %}?mode=player{% endif %}" class="character-nav-item {% if char.id == character.id %}active{% endif %}" title="{{ char.name }}">
-            <span class="character-nav-avatar" style="background:{% if char.image %}url('{{ char.image.url }}'){% else %}#ffffff{% endif %}; background-size: cover; background-position: {% widthratio char.image_focus_x 1 100 %}% {% widthratio char.image_focus_y 1 100 %}%;"></span>
+            <span class="character-nav-avatar" style="background:{% if char.image %}url('{{ char.image.url }}'){% else %}#241a1c{% endif %}; background-size: cover; background-position: {% widthratio char.image_focus_x 1 100 %}% {% widthratio char.image_focus_y 1 100 %}%;"></span>
             <span class="character-nav-name">{{ char.name }}</span>
         </a>
         {% endfor %}
         {% for npc in visible_npcs %}
         <a href="{% url 'npc_detail' npc.pk %}{% if not is_master %}?mode=player{% endif %}" class="character-nav-item" title="{{ npc.name }}">
-            <span class="character-nav-avatar" style="background:{% if npc.image %}url('{{ npc.image.url }}'){% else %}#888888{% endif %}; background-size: cover; background-position: {% widthratio npc.image_focus_x 1 100 %}% {% widthratio npc.image_focus_y 1 100 %}%;"></span>
+            <span class="character-nav-avatar" style="background:{% if npc.image %}url('{{ npc.image.url }}'){% else %}#2e2224{% endif %}; background-size: cover; background-position: {% widthratio npc.image_focus_x 1 100 %}% {% widthratio npc.image_focus_y 1 100 %}%;"></span>
             <span class="character-nav-name">{{ npc.name }}</span>
         </a>
         {% endfor %}
@@ -32,7 +32,7 @@
         <a href="{% url 'home' %}" class="hud-button ghost">Voltar</a>
     {% endif %}
 </div>
-<div class="hud-layout" {% if campaign and campaign.banner %}style="background-image: linear-gradient(rgba(12, 15, 26, 0.85), rgba(12, 15, 26, 0.85)), url('{{ campaign.banner.url }}'); background-size: cover; background-attachment: fixed; background-position: center;"{% endif %}>
+<div class="hud-layout" {% if campaign and campaign.banner %}style="background-image: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.85)), url('{{ campaign.banner.url }}'); background-size: cover; background-attachment: fixed; background-position: center;"{% endif %}>
     {% if not is_master %}
         <div class="player-view-notice">
             <p>📖 Você está visualizando este personagem em modo leitura</p>
@@ -65,14 +65,14 @@
             <h1 class="panel-title">{{ character.name }}</h1>
             {% if character.assigned_to %}
                 <div class="list-inline" style="gap: 8px; align-items: center;">
-                    <span class="mini-thumb" style="width:36px;height:36px;border-radius:50%;border:1px solid var(--border); background:{% if character.assigned_to.profile.avatar %}url('{{ character.assigned_to.profile.avatar.url }}'){% else %}#ffffff{% endif %}; background-size: cover; background-position: center;"></span>
+                    <span class="mini-thumb" style="width:36px;height:36px;border-radius:50%;border:1px solid var(--border); background:{% if character.assigned_to.profile.avatar %}url('{{ character.assigned_to.profile.avatar.url }}'){% else %}#241a1c{% endif %}; background-size: cover; background-position: center;"></span>
                     <span class="muted">{{ character.assigned_to.username }}</span>
                     {% if is_master and character.campaign %}
                         <button id="toggle-player-select" type="button" class="hud-button ghost" style="padding:2px 6px; font-size:14px;">▼</button>
                     {% endif %}
                 </div>
                 {% if is_master and character.campaign %}
-                <div id="player-select-panel" style="display:none; margin-top:8px; padding:8px; background:rgba(20,26,42,0.4); border-radius:8px;">
+                <div id="player-select-panel" style="display:none; margin-top:8px; padding:8px; background:rgba(18,12,13,0.4); border-radius:8px;">
                     <form method="post" class="panel-form compact">
                         {% csrf_token %}
                         <input type="hidden" name="form_type" value="change_player">
@@ -145,7 +145,7 @@
         
         <div class="attributes-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px;">
             {% for attr in character.attributes.all %}
-                <div class="attribute-box" style="background: rgba(20,26,42,0.4); padding: 8px; border-radius: 6px; text-align: center;">
+                <div class="attribute-box" style="background: rgba(18,12,13,0.4); padding: 8px; border-radius: 6px; text-align: center;">
                     <div style="font-size: 0.75rem; color: var(--muted); text-transform: uppercase;">{{ attr.name }}</div>
                     <div style="font-size: 1.1rem; font-weight: 600; color: var(--text);">{{ attr.value }}</div>
                 </div>

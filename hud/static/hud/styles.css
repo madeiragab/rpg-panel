@@ -1,43 +1,48 @@
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600&family=Space+Grotesk:wght@400;500;600&display=swap');
 
+/* Preto de fundo, vermelho de detalhe. Três tons de vermelho e não um só:
+   --accent é o traço normal, --accent-2 fecha os degradês por baixo (escuro
+   demais para texto ou hover), e --accent-soft é o que clareia no hover. Sem
+   o terceiro, passar o mouse escureceria o link em vez de acender. */
 :root {
-    --bg: #0c0f1a;
-    --panel: rgba(20, 26, 42, 0.78);
-    --panel-strong: rgba(25, 32, 54, 0.82);
-    --border: #27314a;
-    --accent: #70e0ff;
-    --accent-2: #5cf29c;
-    --text: #e7ecf7;
-    --muted: #8ea0c2;
-    --danger: #ff7b7b;
-    --shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
+    --bg: #000000;
+    --panel: rgba(18, 12, 13, 0.82);
+    --panel-strong: rgba(26, 16, 18, 0.88);
+    --border: #3a1c21;
+    --accent: #e11d2e;
+    --accent-2: #8a0f1a;
+    --accent-soft: #ff5f6d;
+    --text: #ececec;
+    --muted: #9b8b8d;
+    --danger: #ff3b3b;
+    --shadow: 0 12px 36px rgba(0, 0, 0, 0.6);
 }
 body.hud-body {
     margin: 0;
     min-height: 100vh;
     font-family: 'Space Grotesk', 'Segoe UI', sans-serif;
     color: var(--text);
-    background: radial-gradient(circle at 20% 20%, rgba(112, 224, 255, 0.08), transparent 25%),
-        radial-gradient(circle at 80% 10%, rgba(92, 242, 156, 0.08), transparent 20%),
-        radial-gradient(circle at 50% 90%, rgba(112, 224, 255, 0.08), transparent 25%),
+    background: radial-gradient(circle at 20% 20%, rgba(225, 29, 46, 0.08), transparent 25%),
+        radial-gradient(circle at 80% 10%, rgba(138, 15, 26, 0.08), transparent 20%),
+        radial-gradient(circle at 50% 90%, rgba(225, 29, 46, 0.08), transparent 25%),
         var(--bg);
 }
 
 a { color: var(--accent); text-decoration: none; }
-a:hover { color: var(--accent-2); }
+a:hover { color: var(--accent-soft); }
 
 .topbar {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 14px 24px;
-    background: linear-gradient(90deg, rgba(112, 224, 255, 0.18), rgba(92, 242, 156, 0.18));
+    background: linear-gradient(90deg, rgba(225, 29, 46, 0.18), rgba(138, 15, 26, 0.18));
     border-bottom: 1px solid var(--border);
     backdrop-filter: blur(6px);
 }
 
 .character-navbar {
-    background: linear-gradient(90deg, rgba(112, 224, 255, 0.12), rgba(92, 242, 156, 0.12));
+    background: linear-gradient(90deg, rgba(225, 29, 46, 0.12), rgba(138, 15, 26, 0.12));
     border-bottom: 1px solid var(--border);
     padding: 12px 24px;
     overflow-x: auto;
@@ -56,7 +61,7 @@ a:hover { color: var(--accent-2); }
     gap: 8px;
     padding: 8px 12px;
     border-radius: 8px;
-    background: rgba(20, 26, 42, 0.4);
+    background: rgba(18, 12, 13, 0.4);
     border: 1px solid var(--border);
     text-decoration: none;
     color: var(--text);
@@ -65,14 +70,14 @@ a:hover { color: var(--accent-2); }
 }
 
 .character-nav-item:hover {
-    background: rgba(20, 26, 42, 0.6);
+    background: rgba(18, 12, 13, 0.6);
     border-color: var(--accent);
 }
 
 .character-nav-item.active {
-    background: rgba(112, 224, 255, 0.2);
+    background: rgba(225, 29, 46, 0.2);
     border-color: var(--accent);
-    box-shadow: 0 0 12px rgba(112, 224, 255, 0.3);
+    box-shadow: 0 0 12px rgba(225, 29, 46, 0.3);
 }
 
 .character-nav-avatar {
@@ -102,7 +107,7 @@ a:hover { color: var(--accent-2); }
 }
 
 .topnav a { padding: 6px 10px; border-radius: 6px; transition: background 0.2s; }
-.topnav a:hover { background: rgba(112, 224, 255, 0.12); }
+.topnav a:hover { background: rgba(225, 29, 46, 0.12); }
 
 .logout-form { margin: 0; }
 .logout-form button {
@@ -124,8 +129,8 @@ a:hover { color: var(--accent-2); }
 }
 
 .panel-card {
-    background: rgba(20, 26, 42, 0.25);
-    border: 1px solid rgba(39, 49, 74, 0.7);
+    background: rgba(18, 12, 13, 0.25);
+    border: 1px solid rgba(58, 28, 33, 0.7);
     border-radius: 14px;
     padding: 18px;
     box-shadow: var(--shadow);
@@ -152,13 +157,13 @@ a:hover { color: var(--accent-2); }
 
 .hud-button {
     background: linear-gradient(90deg, var(--accent), var(--accent-2));
-    color: #031019;
+    color: #fff5f5;
     border: none;
     border-radius: 10px;
     padding: 10px 14px;
     font-weight: 600;
     cursor: pointer;
-    box-shadow: 0 6px 14px rgba(112, 224, 255, 0.2);
+    box-shadow: 0 6px 14px rgba(225, 29, 46, 0.2);
 }
 
 .hud-button.ghost {
@@ -169,7 +174,7 @@ a:hover { color: var(--accent-2); }
 
 .hud-button.danger {
     background: var(--danger);
-    color: #031019;
+    color: #1a0003;
 }
 
 .grid.two-column {
@@ -244,7 +249,7 @@ a:hover { color: var(--accent-2); }
     border-radius: 14px;
     border: 1px solid var(--border);
     background: var(--panel-strong);
-    box-shadow: 0 10px 24px rgba(0,0,0,0.38), 0 0 0 2px rgba(112, 224, 255, 0.14);
+    box-shadow: 0 10px 24px rgba(0,0,0,0.38), 0 0 0 2px rgba(225, 29, 46, 0.14);
 }
 /* Sem o JS a foto ainda preenche a moldura pelo centro: o object-fit é o
    fallback, e o script troca width/height/left/top pelos números do
@@ -272,7 +277,7 @@ a:hover { color: var(--accent-2); }
     width: 100%;
     max-width: 280px;
 }
-.portrait-controls input[type="range"] { flex: 1; min-width: 0; accent-color: var(--accent, #70e0ff); }
+.portrait-controls input[type="range"] { flex: 1; min-width: 0; accent-color: var(--accent, #e11d2e); }
 .portrait-controls .hud-button { padding: 4px 10px; font-size: 0.8rem; }
 
 .stat-grid {
@@ -301,7 +306,7 @@ a:hover { color: var(--accent-2); }
 }
 
 .chip {
-    background: rgba(112, 224, 255, 0.12);
+    background: rgba(225, 29, 46, 0.12);
     border: 1px solid var(--border);
     padding: 2px 8px;
     border-radius: 999px;
@@ -328,12 +333,12 @@ a:hover { color: var(--accent-2); }
 
 .skill-tag:hover, .ability-tag:hover {
     border-color: var(--accent);
-    background: rgba(112, 224, 255, 0.06);
+    background: rgba(225, 29, 46, 0.06);
 }
 
 .skill-value {
-    background: rgba(112, 224, 255, 0.18);
-    border: 1px solid rgba(112, 224, 255, 0.3);
+    background: rgba(225, 29, 46, 0.18);
+    border: 1px solid rgba(225, 29, 46, 0.3);
     padding: 2px 8px;
     border-radius: 6px;
     font-size: 0.8rem;
@@ -377,7 +382,7 @@ a:hover { color: var(--accent-2); }
     gap: 10px;
     padding: 14px;
     border-radius: 12px;
-    background: rgba(112, 224, 255, 0.06);
+    background: rgba(225, 29, 46, 0.06);
     border: 1px solid var(--border);
     margin-bottom: 12px;
 }
@@ -392,7 +397,7 @@ a:hover { color: var(--accent-2); }
     background-size: contain;
     background-repeat: no-repeat;
     background-position: center;
-    box-shadow: 0 6px 16px rgba(0,0,0,0.28), 0 0 0 2px rgba(112, 224, 255, 0.12);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.28), 0 0 0 2px rgba(225, 29, 46, 0.12);
     margin: 0 auto;
 }
 
@@ -422,7 +427,7 @@ a:hover { color: var(--accent-2); }
 }
 
 .inventory-slot:hover { border-color: var(--accent); transform: translateY(-1px); }
-.inventory-slot.drag-over { border-color: var(--accent-2); box-shadow: 0 0 0 2px rgba(112, 224, 255, 0.18); }
+.inventory-slot.drag-over { border-color: var(--accent-2); box-shadow: 0 0 0 2px rgba(225, 29, 46, 0.18); }
 .slot-label { display: block; color: var(--muted); font-size: 0.75rem; }
 
 .slot-figure {
@@ -441,7 +446,7 @@ a:hover { color: var(--accent-2); }
 .selected-display {
     padding: 12px;
     border-radius: 10px;
-    background: rgba(112, 224, 255, 0.08);
+    background: rgba(225, 29, 46, 0.08);
     border: 1px solid var(--border);
     margin-bottom: 12px;
 }
@@ -452,7 +457,7 @@ a:hover { color: var(--accent-2); }
 .item-chip {
     padding: 8px 10px;
     border-radius: 10px;
-    background: rgba(92, 242, 156, 0.12);
+    background: rgba(138, 15, 26, 0.12);
     border: 1px solid var(--border);
     cursor: grab;
     display: inline-flex;
@@ -555,23 +560,23 @@ a:hover { color: var(--accent-2); }
 }
 
 .role-button-master {
-    border-color: #ff7b7b;
-    background: linear-gradient(135deg, rgba(255, 123, 123, 0.12), rgba(255, 100, 100, 0.06));
+    border-color: #ff3b3b;
+    background: linear-gradient(135deg, rgba(255, 59, 59, 0.12), rgba(255, 59, 59, 0.06));
 }
 
 .role-button-master:hover {
-    border-color: #ff5555;
-    box-shadow: 0 20px 48px rgba(255, 123, 123, 0.3);
+    border-color: #ff6b6b;
+    box-shadow: 0 20px 48px rgba(255, 59, 59, 0.3);
 }
 
 .role-button-player {
-    border-color: #5cf29c;
-    background: linear-gradient(135deg, rgba(92, 242, 156, 0.12), rgba(92, 242, 156, 0.06));
+    border-color: #8a0f1a;
+    background: linear-gradient(135deg, rgba(138, 15, 26, 0.12), rgba(138, 15, 26, 0.06));
 }
 
 .role-button-player:hover {
-    border-color: #4de884;
-    box-shadow: 0 20px 48px rgba(92, 242, 156, 0.3);
+    border-color: #c0121f;
+    box-shadow: 0 20px 48px rgba(138, 15, 26, 0.3);
 }
 
 .role-icon {
@@ -656,7 +661,7 @@ a:hover { color: var(--accent-2); }
 .form-group textarea:focus {
     outline: none;
     border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(112, 224, 255, 0.12);
+    box-shadow: 0 0 0 3px rgba(225, 29, 46, 0.12);
 }
 
 .campaigns-grid {
@@ -676,7 +681,7 @@ a:hover { color: var(--accent-2); }
 
 .campaign-card:hover {
     border-color: var(--accent);
-    box-shadow: 0 12px 32px rgba(112, 224, 255, 0.2);
+    box-shadow: 0 12px 32px rgba(225, 29, 46, 0.2);
 }
 
 .campaign-banner {
@@ -719,7 +724,7 @@ a:hover { color: var(--accent-2); }
 
 .player-campaigns-section {
     background: var(--panel);
-    border: 1px solid rgba(92, 242, 156, 0.3);
+    border: 1px solid rgba(138, 15, 26, 0.3);
     border-radius: 14px;
     padding: 20px;
     margin-top: 24px;
@@ -763,7 +768,7 @@ a:hover { color: var(--accent-2); }
 .character-card:hover {
     border-color: var(--accent);
     transform: translateY(-4px);
-    box-shadow: 0 12px 28px rgba(112, 224, 255, 0.2);
+    box-shadow: 0 12px 28px rgba(225, 29, 46, 0.2);
 }
 
 .character-card-image {
@@ -812,8 +817,8 @@ a:hover { color: var(--accent-2); }
 
 .player-view-notice {
     grid-column: 1 / -1;
-    background: rgba(92, 242, 156, 0.15);
-    border: 1px solid rgba(92, 242, 156, 0.4);
+    background: rgba(138, 15, 26, 0.15);
+    border: 1px solid rgba(138, 15, 26, 0.4);
     border-radius: 10px;
     padding: 12px;
     text-align: center;
@@ -869,30 +874,30 @@ a:hover { color: var(--accent-2); }
     padding: 40px;
     border-radius: 16px;
     border: 2px solid;
-    background: rgba(112, 224, 255, 0.05);
+    background: rgba(225, 29, 46, 0.05);
     backdrop-filter: blur(10px);
     cursor: pointer;
     transition: all 0.3s ease;
 }
 
 .role-button-master {
-    border-color: #ff7b7b;
+    border-color: #ff3b3b;
 }
 
 .role-button-master:hover {
-    border-color: #ff5555;
-    background: rgba(255, 123, 123, 0.1);
-    box-shadow: 0 0 30px rgba(255, 123, 123, 0.3);
+    border-color: #ff6b6b;
+    background: rgba(255, 59, 59, 0.1);
+    box-shadow: 0 0 30px rgba(255, 59, 59, 0.3);
 }
 
 .role-button-player {
-    border-color: #5cf29c;
+    border-color: #8a0f1a;
 }
 
 .role-button-player:hover {
-    border-color: #3fcc6f;
-    background: rgba(92, 242, 156, 0.1);
-    box-shadow: 0 0 30px rgba(92, 242, 156, 0.3);
+    border-color: #a30f1a;
+    background: rgba(138, 15, 26, 0.1);
+    box-shadow: 0 0 30px rgba(138, 15, 26, 0.3);
 }
 
 .role-icon {
@@ -924,7 +929,7 @@ a:hover { color: var(--accent-2); }
 
 .campaign-card:hover {
     border-color: var(--accent);
-    box-shadow: 0 0 30px rgba(112, 224, 255, 0.2);
+    box-shadow: 0 0 30px rgba(225, 29, 46, 0.2);
 }
 
 .campaign-banner {

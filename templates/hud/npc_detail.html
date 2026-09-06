@@ -13,7 +13,7 @@
         <a href="{% url 'home' %}" class="hud-button ghost">Voltar</a>
     {% endif %}
 </div>
-<div class="hud-layout" {% if campaign and campaign.banner %}style="background-image: linear-gradient(rgba(12, 15, 26, 0.85), rgba(12, 15, 26, 0.85)), url('{{ campaign.banner.url }}'); background-size: cover; background-attachment: fixed; background-position: center;"{% endif %}>
+<div class="hud-layout" {% if campaign and campaign.banner %}style="background-image: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.85)), url('{{ campaign.banner.url }}'); background-size: cover; background-attachment: fixed; background-position: center;"{% endif %}>
     {% if not is_master %}
         <div class="player-view-notice">
             <p>📖 Você está visualizando este NPC em modo leitura</p>
@@ -90,7 +90,7 @@
 
         <div class="attributes-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px;">
             {% for attr in npc.attributes.all %}
-                <div class="attribute-box" style="background: rgba(20,26,42,0.4); padding: 8px; border-radius: 6px; text-align: center;">
+                <div class="attribute-box" style="background: rgba(18,12,13,0.4); padding: 8px; border-radius: 6px; text-align: center;">
                     <div style="font-size: 0.75rem; color: var(--muted); text-transform: uppercase;">{{ attr.name }}</div>
                     <div style="font-size: 1.1rem; font-weight: 600; color: var(--text);">{{ attr.value }}</div>
                 </div>
@@ -129,7 +129,7 @@
                 <label for="bar-max">Valor máximo</label>
                 <input type="number" id="bar-max" value="100" min="1" />
                 <label for="bar-color">Cor</label>
-                <input type="color" id="bar-color" value="#70e0ff" />
+                <input type="color" id="bar-color" value="#e11d2e" />
                 <button type="button" class="hud-button ghost" onclick="addNPCBar()">Adicionar</button>
             </form>
         {% endif %}
