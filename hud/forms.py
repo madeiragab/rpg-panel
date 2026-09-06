@@ -93,12 +93,18 @@ def encolher_imagem(arquivo, lado_maximo: int):
     encheria de preto todo desenho recortado, que é justamente o tipo de
     imagem que mais chega numa ficha.
     """
-    formato = getattr(getattr(arquivo, "image", None), "format", None)
-    if formato is None or formato.upper() in FORMATOS_QUE_NAO_ENCOLHEM:
+    # O formato sai do proprio Pillow, e nao do `.image` que o forms.ImageField
+    # pendura no arquivo depois de validar: assim a funcao serve sozinha, sem
+    # depender de ter passado por um formulario antes.
+    arquivo.seek(0)
+    try:
+        imagem = Image.open(arquivo)
+    except OSError:
+        return None
+    formato = (imagem.format or "").upper()
+    if not formato or formato in FORMATOS_QUE_NAO_ENCOLHEM:
         return None
 
-    arquivo.seek(0)
-    imagem = Image.open(arquivo)
     imagem = ImageOps.exif_transpose(imagem)  # foto de celular vem deitada
     if max(imagem.size) <= lado_maximo:
         return None
@@ -106,8 +112,8 @@ def encolher_imagem(arquivo, lado_maximo: int):
     imagem.thumbnail((lado_maximo, lado_maximo), Image.LANCZOS)
     memoria = BytesIO()
     extras = {}
-    if formato.upper() in QUALIDADE:
-        extras["quality"] = QUALIDADE[formato.upper()]
+    if formato in QUALIDADE:
+        extras["quality"] = QUALIDADE[formato]
     imagem.save(memoria, format=formato, **extras)
     return ContentFile(memoria.getvalue(), name=arquivo.name)
 
