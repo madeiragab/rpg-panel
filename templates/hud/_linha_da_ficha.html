@@ -1,18 +1,34 @@
+{% load hud_filters %}
 {% comment %}
    Uma perícia, habilidade ou atributo. Fora do modo de edição é só a etiqueta;
-   com o lápis ligado, ela ganha os botões de reescrever e apagar.
+   com o lápis ligado, ela ganha o par reescrever/apagar.
 
-   Parâmetros: linha, tipo (a chave em LINHAS_DA_FICHA), classe, com_valor,
-   pode_editar.
+   A habilidade mostra o dano ao lado do nome e os campos que a pessoa criou
+   depois dele — é a mesma etiqueta, com mais coisas dentro.
+
+   Parâmetros: linha, tipo, classe, com_valor, com_dano, pode_editar.
 {% endcomment %}
-<span class="etiqueta {{ classe }}" data-linha data-nome="{{ linha.name }}" data-valor="{{ linha.value|default_if_none:'' }}">
+<span class="etiqueta {{ classe }}" data-linha
+      data-nome="{{ linha.name }}"
+      data-valor="{{ linha.value|default_if_none:'' }}"
+      data-dano="{{ linha.damage|default_if_none:'' }}"
+      data-extras="{{ linha.extras|json_puro }}">
     <span class="etiqueta-nome">{{ linha.name }}</span>
     {% if com_valor and linha.value %}<span class="etiqueta-valor">{{ linha.value }}</span>{% endif %}
+    {% if com_dano %}
+        <span class="etiqueta-campos">
+            {% if linha.damage %}<span class="etiqueta-campo"><b>dano</b>{{ linha.damage }}</span>{% endif %}
+            {% for par in linha.extras %}
+                <span class="etiqueta-campo"><b>{{ par.0 }}</b>{{ par.1 }}</span>
+            {% endfor %}
+        </span>
+    {% endif %}
     {% if pode_editar %}
         <span class="etiqueta-acoes so-editando">
             <button type="button" class="etiqueta-botao" title="Reescrever"
                     data-editar-linha="{% url 'update_sheet_line' tipo linha.pk %}"
-                    data-com-valor="{{ com_valor|yesno:'1,' }}">✏️</button>
+                    data-com-valor="{{ com_valor|yesno:'1,' }}"
+                    data-com-dano="{{ com_dano|yesno:'1,' }}">✏️</button>
             <button type="button" class="etiqueta-botao apagar" title="Apagar"
                     data-apagar-linha="{% url 'delete_sheet_line' tipo linha.pk %}">×</button>
         </span>

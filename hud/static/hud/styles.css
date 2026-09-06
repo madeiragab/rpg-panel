@@ -1557,3 +1557,104 @@ a:hover { color: var(--accent-soft); }
     .peca { width: 150px; }
     .peca.polaroid, .peca.post-it { width: 140px; }
 }
+
+/* ------------------------------------------------- as colunas da ficha -- */
+/* Perícias | Personagem e vida | Atributos e habilidades, e o inventário
+   embaixo ocupando a largura das três. */
+.hud-layout > .largura-total { grid-column: 1 / -1; }
+
+/* A coluna tinha altura travada em `calc(100vh - 100px)` e rolava por dentro.
+   Com a foto em cima das barras isso corta a ficha ao meio em tela baixa; a
+   rolagem passa a ser da página, e só o que estoura de verdade rola sozinho. */
+.column { max-height: none; }
+
+/* Lista comprida rola dentro do próprio bloco em vez de esticar a coluna. */
+.tags-wrap,
+.attributes-grid,
+#bars-container {
+    max-height: 46vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+.tags-wrap::-webkit-scrollbar,
+.attributes-grid::-webkit-scrollbar,
+#bars-container::-webkit-scrollbar,
+.quadro::-webkit-scrollbar { width: 10px; height: 10px; }
+.tags-wrap::-webkit-scrollbar-thumb,
+.attributes-grid::-webkit-scrollbar-thumb,
+#bars-container::-webkit-scrollbar-thumb,
+.quadro::-webkit-scrollbar-thumb {
+    background: rgba(225, 29, 46, 0.4);
+    border-radius: 999px;
+}
+
+/* Texto que não cabe quebra em vez de furar a caixa. */
+.etiqueta,
+.attribute-box,
+.peca-nome,
+.selected-item-name { overflow-wrap: anywhere; }
+.attribute-valor { line-height: 1.2; }
+
+/* --------------------------------------------------- o quadro que cresce -- */
+/* `resize` dá a alça nativa do navegador: o mestre estica o quadro até caber o
+   que ele quer, e não há alça própria para manter. */
+.quadro {
+    resize: vertical;
+    overflow: auto;
+    min-height: 68vh;
+}
+
+/* ------------------------------------------- habilidade com seus campos -- */
+.etiqueta.ability-tag { align-items: flex-start; flex-wrap: wrap; }
+.etiqueta-campos { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.etiqueta-campo {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: rgba(225, 29, 46, 0.14);
+    font-size: 0.74rem;
+    color: var(--text);
+}
+.etiqueta-campo b {
+    font-size: 0.64rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    font-weight: 600;
+}
+
+.editor-habilidade {
+    display: grid;
+    gap: 8px;
+    width: 100%;
+    margin: 6px 0 10px;
+    padding: 12px;
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    background: var(--panel-strong);
+}
+.editor-habilidade label { display: grid; gap: 4px; font-size: 0.78rem; color: var(--muted); }
+.editor-habilidade input {
+    padding: 7px 9px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    color: var(--text);
+}
+.editor-extra { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; margin-top: 6px; }
+.editor-acoes { display: flex; flex-wrap: wrap; gap: 6px; }
+.editor-acoes .hud-button { padding: 6px 11px; font-size: 0.8rem; }
+
+/* ------------------------------------------------ arrastar para ordenar -- */
+.editando [data-reordenavel] [data-linha] { cursor: grab; }
+[data-reordenavel] [data-linha].arrastando { opacity: 0.4; }
+.editando [data-reordenavel]::after {
+    content: "arraste para reordenar";
+    grid-column: 1 / -1;
+    font-size: 0.68rem;
+    color: var(--muted);
+    text-align: center;
+    letter-spacing: 0.05em;
+}

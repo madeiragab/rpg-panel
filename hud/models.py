@@ -256,6 +256,46 @@ class Character(RetratoEnquadrado, PecaDoQuadro):
         self.slots.filter(position__gt=self.inventory_capacity).delete()
 
 
+class HabilidadeComCampos(models.Model):
+    """Uma habilidade e o que ela faz.
+
+    Dano é campo de primeira classe porque é o que se olha primeiro numa mesa
+    de combate — e o resto varia demais entre sistemas para virar coluna:
+    alcance, custo, recarga, tipo, teste. Esses moram em `extras`, na ordem em
+    que a pessoa criou, e não numa tabela nova por ficha.
+
+    `extras` é uma lista de pares e não um dicionário: dicionário perderia a
+    ordem, e a ordem é a única organização que a pessoa deu aos campos dela.
+    """
+
+    LIMITE_DE_CAMPOS = 12
+
+    name = models.CharField(max_length=80)
+    damage = models.CharField(max_length=60, blank=True)
+    extras = models.JSONField(default=list, blank=True)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        abstract = True
+        ordering = ["order", "name"]
+
+    def clamp_extras(self) -> None:
+        """Deixa em `extras` só pares de texto, aparados e em número sensato."""
+        limpos = []
+        for par in self.extras if isinstance(self.extras, list) else []:
+            if not isinstance(par, (list, tuple)) or len(par) != 2:
+                continue
+            rotulo = str(par[0]).strip()[:40]
+            valor = str(par[1]).strip()[:80]
+            if rotulo:
+                limpos.append([rotulo, valor])
+        self.extras = limpos[: self.LIMITE_DE_CAMPOS]
+
+    def save(self, *args, **kwargs):  # type: ignore[override]
+        self.clamp_extras()
+        return super().save(*args, **kwargs)
+
+
 class CharacterSkill(models.Model):
     character = models.ForeignKey(Character, on_delete=models.CASCADE, related_name="skills")
     name = models.CharField(max_length=80)
@@ -269,13 +309,11 @@ class CharacterSkill(models.Model):
         return f"{self.character.name}: {self.name}"
 
 
-class CharacterAbility(models.Model):
+class CharacterAbility(HabilidadeComCampos):
     character = models.ForeignKey(Character, on_delete=models.CASCADE, related_name="abilities")
-    name = models.CharField(max_length=80)
-    order = models.PositiveIntegerField(default=0)
 
-    class Meta:
-        ordering = ["order", "name"]
+    class Meta(HabilidadeComCampos.Meta):
+        abstract = False
 
     def __str__(self) -> str:  # pragma: no cover - simple display
         return f"{self.character.name}: {self.name}"
@@ -322,13 +360,11 @@ class NPCSkill(models.Model):
         return f"{self.npc.name}: {self.name}"
 
 
-class NPCAbility(models.Model):
+class NPCAbility(HabilidadeComCampos):
     npc = models.ForeignKey(NPC, on_delete=models.CASCADE, related_name="abilities")
-    name = models.CharField(max_length=80)
-    order = models.PositiveIntegerField(default=0)
 
-    class Meta:
-        ordering = ["order", "name"]
+    class Meta(HabilidadeComCampos.Meta):
+        abstract = False
 
     def __str__(self) -> str:  # pragma: no cover - simple display
         return f"{self.npc.name}: {self.name}"
@@ -418,13 +454,11 @@ class EnemySkill(models.Model):
         return f"{self.enemy.name}: {self.name}"
 
 
-class EnemyAbility(models.Model):
+class EnemyAbility(HabilidadeComCampos):
     enemy = models.ForeignKey(Enemy, on_delete=models.CASCADE, related_name="abilities")
-    name = models.CharField(max_length=80)
-    order = models.PositiveIntegerField(default=0)
 
-    class Meta:
-        ordering = ["order", "name"]
+    class Meta(HabilidadeComCampos.Meta):
+        abstract = False
 
     def __str__(self) -> str:  # pragma: no cover - simple display
         return f"{self.enemy.name}: {self.name}"

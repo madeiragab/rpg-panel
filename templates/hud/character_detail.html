@@ -44,7 +44,7 @@
         <h2 class="panel-title">Perícias / Proficiências</h2>
         <div class="tags-wrap">
             {% for skill in character.skills.all %}
-                {% include "hud/_linha_da_ficha.html" with linha=skill tipo="character-skill" classe="skill-tag" com_valor=True pode_editar=is_master %}
+                {% include "hud/_linha_da_ficha.html" with linha=skill tipo="character-skill" classe="skill-tag" com_valor=True com_dano=False pode_editar=is_master %}
             {% empty %}
                 <span class="muted" data-vazio>Sem perícias cadastradas.</span>
             {% endfor %}
@@ -58,6 +58,7 @@
             </form>
         {% endif %}
     </section>
+
 
     <section class="panel-card column">
         <div class="character-header">
@@ -92,6 +93,8 @@
                 {% endif %}
             {% endif %}
         </div>
+        {% if is_master %}{% url 'update_character_framing' character.pk as url_enquadrar %}{% endif %}
+        {% include "hud/_retrato.html" with retrato=character imagem=character.image alt=character.name url_salvar=url_enquadrar dica="Retrato do personagem (opcional)" %}
         <div id="bars-container" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px;">
             {% for bar in character.bars.all %}
                 {% include "hud/_barra_da_ficha.html" with bar=bar fn_mod="modifyBar" fn_del="deleteBar" pode_editar=True pode_apagar=is_master %}
@@ -112,10 +115,21 @@
             </div>
         </div>
         {% endif %}
-        {% if is_master %}{% url 'update_character_framing' character.pk as url_enquadrar %}{% endif %}
-        {% include "hud/_retrato.html" with retrato=character imagem=character.image alt=character.name url_salvar=url_enquadrar dica="Retrato do personagem (opcional)" %}
         
-        <div class="attributes-grid">
+        
+        {% if is_master %}
+            <form method="post" enctype="multipart/form-data" class="panel-form compact so-editando">
+                {% csrf_token %}
+                <input type="hidden" name="form_type" value="character">
+                {{ character_form.as_p }}
+                <button type="submit" class="hud-button">Atualizar atributos</button>
+            </form>
+        {% endif %}
+
+
+    <section class="panel-card column">
+        <h2 class="panel-title">Atributos</h2>
+        <div class="attributes-grid" data-reordenavel="character-attribute" data-reordenar-url="{% url 'reorder_sheet_lines' 'character-attribute' %}">
             {% for attr in character.attributes.all %}
                 <div class="attribute-box" data-linha data-nome="{{ attr.name }}" data-valor="{{ attr.value }}">
                     <div class="attribute-nome">{{ attr.name }}</div>
@@ -150,21 +164,11 @@
                 <button type="submit" class="hud-button ghost" style="margin-top: 8px;">+ Atributo</button>
             </form>
         {% endif %}
-        
-        {% if is_master %}
-            <form method="post" enctype="multipart/form-data" class="panel-form compact so-editando">
-                {% csrf_token %}
-                <input type="hidden" name="form_type" value="character">
-                {{ character_form.as_p }}
-                <button type="submit" class="hud-button">Atualizar atributos</button>
-            </form>
-        {% endif %}
-
         <div class="abilities ability-box">
             <h3 class="panel-subtitle">Habilidades</h3>
             <div class="tags-wrap">
                 {% for ability in character.abilities.all %}
-                    {% include "hud/_linha_da_ficha.html" with linha=ability tipo="character-ability" classe="ability-tag" com_valor=False pode_editar=is_master %}
+                    {% include "hud/_linha_da_ficha.html" with linha=ability tipo="character-ability" classe="ability-tag" com_valor=False com_dano=True pode_editar=is_master %}
                 {% empty %}
                     <span class="muted" data-vazio>Sem habilidades cadastradas.</span>
                 {% endfor %}
@@ -180,7 +184,7 @@
         </div>
     </section>
 
-    <section class="panel-card column">
+    <section class="panel-card column largura-total">
         <div class="panel-subtitle" style="display: flex; align-items: center; gap: 10px;">
             <span>Inventário ({{ character.slots.count }}/{{ character.inventory_capacity }})</span>
             {% if is_master %}

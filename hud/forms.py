@@ -1,4 +1,8 @@
+from io import BytesIO
+
 from django import forms
+from django.core.files.base import ContentFile
+from PIL import Image, ImageOps
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 
@@ -62,30 +66,71 @@ class UserSelectWithAvatarWidget(forms.Select):
 
 # O navegador manda o content_type que quiser; quem diz o formato de verdade é
 # o Pillow, que o forms.ImageField já roda para validar. Por isso a conferência
-# olha image.format, e não o cabeçalho do upload. O GIF entra na lista inteiro:
-# nada aqui reabre nem regrava o arquivo, então a animação chega intacta.
+# olha image.format, e não o cabeçalho do upload.
 FORMATOS_DE_RETRATO = {"JPEG", "PNG", "WEBP", "GIF", "AVIF"}
 ACCEPT_DE_RETRATO = "image/jpeg,image/png,image/webp,image/gif,image/avif"
-LIMITE_DO_RETRATO = 15 * 1024 * 1024
+
+# Não há teto de bytes: o que interessa é a resolução, e ela é resolvida
+# encolhendo em vez de recusando. Uma arte de 6000px não fica melhor numa
+# moldura de 280 — só custa banda em toda página que mostra aquela ficha.
+LADO_MAXIMO_DA_FICHA = 1600
+LADO_MAXIMO_DO_ITEM = 640
+LADO_MAXIMO_DO_AVATAR = 640
+
+# Um GIF animado não sobrevive a um resize ingênuo: o Pillow reabriria só o
+# primeiro quadro e a animação morreria no caminho. Ele passa como está.
+FORMATOS_QUE_NAO_ENCOLHEM = {"GIF"}
+
+# Formatos com perda aceitam qualidade; PNG ignora o parâmetro.
+QUALIDADE = {"JPEG": 90, "WEBP": 90, "AVIF": 80}
+
+
+def encolher_imagem(arquivo, lado_maximo: int):
+    """Devolve a imagem reduzida, ou None se ela já cabia.
+
+    O formato é o mesmo da entrada e o modo também: um PNG com fundo
+    transparente sai PNG com fundo transparente. Converter para RGB aqui
+    encheria de preto todo desenho recortado, que é justamente o tipo de
+    imagem que mais chega numa ficha.
+    """
+    formato = getattr(getattr(arquivo, "image", None), "format", None)
+    if formato is None or formato.upper() in FORMATOS_QUE_NAO_ENCOLHEM:
+        return None
+
+    arquivo.seek(0)
+    imagem = Image.open(arquivo)
+    imagem = ImageOps.exif_transpose(imagem)  # foto de celular vem deitada
+    if max(imagem.size) <= lado_maximo:
+        return None
+
+    imagem.thumbnail((lado_maximo, lado_maximo), Image.LANCZOS)
+    memoria = BytesIO()
+    extras = {}
+    if formato.upper() in QUALIDADE:
+        extras["quality"] = QUALIDADE[formato.upper()]
+    imagem.save(memoria, format=formato, **extras)
+    return ContentFile(memoria.getvalue(), name=arquivo.name)
+
+
+def conferir_e_encolher(imagem, lado_maximo: int):
+    """Recusa formato que não serve, e encolhe o que veio grande demais."""
+    formato = getattr(getattr(imagem, "image", None), "format", None)
+    # Sem upload novo o campo devolve o arquivo que já estava salvo, e esse
+    # não tem .image — não há o que reconferir nem o que encolher.
+    if formato is None:
+        return imagem
+    if formato.upper() not in FORMATOS_DE_RETRATO:
+        raise forms.ValidationError("Escolha uma imagem JPG, PNG, WEBP, GIF ou AVIF.")
+    return encolher_imagem(imagem, lado_maximo) or imagem
 
 
 class RetratoMixin:
     """Regras da imagem de ficha, iguais para personagem e NPC."""
 
+    LADO_MAXIMO = LADO_MAXIMO_DA_FICHA
+
     def clean_image(self):
-        imagem = self.cleaned_data.get("image")
-        # Sem upload novo o campo devolve o arquivo que já estava salvo, e esse
-        # não tem .image — não há o que reconferir.
-        formato = getattr(getattr(imagem, "image", None), "format", None)
-        if formato is None:
-            return imagem
-        if formato.upper() not in FORMATOS_DE_RETRATO:
-            raise forms.ValidationError(
-                "Escolha uma imagem JPG, PNG, WEBP, GIF ou AVIF."
-            )
-        if imagem.size > LIMITE_DO_RETRATO:
-            raise forms.ValidationError("A imagem pode ter no máximo 15 MB.")
-        return imagem
+        return conferir_e_encolher(self.cleaned_data.get("image"), self.LADO_MAXIMO)
 
     def save(self, commit=True):
         ficha = super().save(commit=False)
@@ -132,13 +177,16 @@ class CharacterForm(RetratoMixin, forms.ModelForm):
             self.fields["assigned_to"].label_from_instance = lambda obj: obj.username
 
 
-class ItemForm(forms.ModelForm):
+class ItemForm(RetratoMixin, forms.ModelForm):
+    LADO_MAXIMO = LADO_MAXIMO_DO_ITEM
+
     class Meta:
         model = Item
         fields = ["name", "image", "description"]
         labels = {"name": "Nome", "image": "Imagem (upload)", "description": "Descrição"}
         widgets = {
             "description": forms.Textarea(attrs={"rows": 3, "placeholder": "Detalhes, efeitos, usos..."}),
+            "image": forms.ClearableFileInput(attrs={"accept": ACCEPT_DE_RETRATO}),
         }
 
 
@@ -173,8 +221,12 @@ class NPCSkillForm(forms.ModelForm):
 class NPCAbilityForm(forms.ModelForm):
     class Meta:
         model = NPCAbility
-        fields = ["name", "order"]
-        labels = {"name": "Nome", "order": "Ordem"}
+        fields = ["name", "damage", "order"]
+        labels = {"name": "Nome", "damage": "Dano", "order": "Ordem"}
+        widgets = {
+            "damage": forms.TextInput(attrs={"placeholder": "Ex.: 2d6+3"}),
+            "order": forms.HiddenInput(),
+        }
 
 
 class CharacterAttributeForm(forms.ModelForm):
@@ -224,6 +276,9 @@ class RegistrationForm(forms.Form):
             validate_password(senha, candidato)
         return cleaned
 
+    def clean_imagem(self):
+        return conferir_e_encolher(self.cleaned_data.get("imagem"), LADO_MAXIMO_DO_AVATAR)
+
     def save(self):
         cleaned = self.cleaned_data
         base_username = (cleaned.get("apelido") or cleaned["email"].split("@")[0]).strip()
@@ -270,6 +325,9 @@ class ProfileEditForm(forms.Form):
             validate_password(senha, self.user)
         return cleaned
 
+    def clean_imagem(self):
+        return conferir_e_encolher(self.cleaned_data.get("imagem"), LADO_MAXIMO_DO_AVATAR)
+
     def save(self):
         cleaned = self.cleaned_data
         self.user.email = cleaned.get("email")
@@ -295,8 +353,12 @@ class CharacterSkillForm(forms.ModelForm):
 class CharacterAbilityForm(forms.ModelForm):
     class Meta:
         model = CharacterAbility
-        fields = ["name", "order"]
-        labels = {"name": "Nome", "order": "Ordem"}
+        fields = ["name", "damage", "order"]
+        labels = {"name": "Nome", "damage": "Dano", "order": "Ordem"}
+        widgets = {
+            "damage": forms.TextInput(attrs={"placeholder": "Ex.: 2d6+3"}),
+            "order": forms.HiddenInput(),
+        }
 
 
 class EnemyForm(RetratoMixin, forms.ModelForm):
@@ -319,11 +381,17 @@ class EnemySkillForm(forms.ModelForm):
 class EnemyAbilityForm(forms.ModelForm):
     class Meta:
         model = EnemyAbility
-        fields = ["name", "order"]
-        labels = {"name": "Nome", "order": "Ordem"}
+        fields = ["name", "damage", "order"]
+        labels = {"name": "Nome", "damage": "Dano", "order": "Ordem"}
+        widgets = {
+            "damage": forms.TextInput(attrs={"placeholder": "Ex.: 2d6+3"}),
+            "order": forms.HiddenInput(),
+        }
 
 
 class PolaroidForm(RetratoMixin, forms.ModelForm):
+    LADO_MAXIMO = LADO_MAXIMO_DA_FICHA
+
     class Meta:
         model = Polaroid
         fields = ["image", "caption"]

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 from datetime import timedelta
+import json
+
 from math import isfinite
 from random import randint
 
@@ -735,7 +737,8 @@ def character_detail(request: HttpRequest, pk: int) -> HttpResponse:
                 CharacterAttribute.objects.create(
                     character=character,
                     name=name,
-                    value=value
+                    value=value,
+                    order=character.attributes.count(),
                 )
                 messages.success(request, "Atributo adicionado.")
                 return redirect("character_detail", pk=character.pk)
@@ -990,13 +993,13 @@ def update_polaroid_framing(request: HttpRequest, polaroid_id: int) -> JsonRespo
 # quem edita é sempre o mestre da mesa daquela ficha.
 LINHAS_DA_FICHA = {
     "character-skill": (CharacterSkill, "character", ("name", "value")),
-    "character-ability": (CharacterAbility, "character", ("name",)),
+    "character-ability": (CharacterAbility, "character", ("name", "damage")),
     "character-attribute": (CharacterAttribute, "character", ("name", "value")),
     "npc-skill": (NPCSkill, "npc", ("name", "value")),
-    "npc-ability": (NPCAbility, "npc", ("name",)),
+    "npc-ability": (NPCAbility, "npc", ("name", "damage")),
     "npc-attribute": (NPCAttribute, "npc", ("name", "value")),
     "enemy-skill": (EnemySkill, "enemy", ("name", "value")),
-    "enemy-ability": (EnemyAbility, "enemy", ("name",)),
+    "enemy-ability": (EnemyAbility, "enemy", ("name", "damage")),
     "enemy-attribute": (EnemyAttribute, "enemy", ("name", "value")),
 }
 
@@ -1031,6 +1034,15 @@ def update_sheet_line(request: HttpRequest, tipo: str, pk: int) -> JsonResponse:
         return JsonResponse({"ok": False, "erro": "O nome não pode ficar vazio."}, status=400)
 
     linha.name = nome[:80]
+    if "damage" in campos:
+        linha.damage = request.POST.get("damage", "").strip()[:60]
+        # Os campos extras chegam como JSON porque são uma lista de pares de
+        # tamanho livre; em campos soltos do POST a ordem se perderia.
+        try:
+            extras = json.loads(request.POST.get("extras", "[]"))
+        except (TypeError, ValueError):
+            return JsonResponse({"ok": False, "erro": "Campos inválidos."}, status=400)
+        linha.extras = extras if isinstance(extras, list) else []
     if "value" in campos:
         # Atributo exige valor; perícia aceita em branco. O modelo é quem sabe:
         # o campo de perícia é blank=True e o de atributo não.
@@ -1040,7 +1052,15 @@ def update_sheet_line(request: HttpRequest, tipo: str, pk: int) -> JsonResponse:
         linha.value = valor
     linha.save()
 
-    return JsonResponse({"ok": True, "name": linha.name, "value": getattr(linha, "value", "")})
+    return JsonResponse(
+        {
+            "ok": True,
+            "name": linha.name,
+            "value": getattr(linha, "value", ""),
+            "damage": getattr(linha, "damage", ""),
+            "extras": getattr(linha, "extras", []),
+        }
+    )
 
 
 @login_required
@@ -1050,6 +1070,36 @@ def delete_sheet_line(request: HttpRequest, tipo: str, pk: int) -> JsonResponse:
     if linha is None:
         return JsonResponse({"ok": False, "erro": "Sem permissão"}, status=403)
     linha.delete()
+    return JsonResponse({"ok": True})
+
+
+@login_required
+@require_POST
+def reorder_sheet_lines(request: HttpRequest, tipo: str) -> JsonResponse:
+    """Grava a nova ordem depois de um arraste.
+
+    Chega a lista inteira de ids na ordem em que ficaram, e não "essa subiu
+    uma": duas pessoas arrastando ao mesmo tempo com movimentos relativos
+    acabariam com ordens diferentes das que cada uma viu.
+    """
+    registro = LINHAS_DA_FICHA.get(tipo)
+    if registro is None:
+        return JsonResponse({"ok": False, "erro": "Tipo desconhecido"}, status=400)
+
+    try:
+        ids = [int(x) for x in json.loads(request.POST.get("ids", "[]"))]
+    except (TypeError, ValueError):
+        return JsonResponse({"ok": False, "erro": "Ordem inválida"}, status=400)
+
+    modelo = registro[0]
+    linhas = []
+    for posicao, pk in enumerate(ids):
+        linha, _ = _linha_do_mestre(request, tipo, pk)
+        if linha is None:
+            return JsonResponse({"ok": False, "erro": "Sem permissão"}, status=403)
+        linha.order = posicao
+        linhas.append(linha)
+    modelo.objects.bulk_update(linhas, ["order"])
     return JsonResponse({"ok": True})
 
 
@@ -1354,9 +1404,7 @@ def npc_detail(request: HttpRequest, pk: int) -> HttpResponse:
             value = request.POST.get("attribute-value", "").strip()
             if name and value:
                 NPCAttribute.objects.create(
-                    npc=npc,
-                    name=name,
-                    value=value
+                    npc=npc, name=name, value=value, order=npc.attributes.count()
                 )
                 messages.success(request, "Atributo adicionado.")
                 return redirect("npc_detail", pk=npc.pk)
@@ -1523,7 +1571,9 @@ def enemy_detail(request: HttpRequest, pk: int) -> HttpResponse:
             name = request.POST.get("attribute-name", "").strip()
             value = request.POST.get("attribute-value", "").strip()
             if name and value:
-                EnemyAttribute.objects.create(enemy=enemy, name=name, value=value)
+                EnemyAttribute.objects.create(
+                    enemy=enemy, name=name, value=value, order=enemy.attributes.count()
+                )
                 messages.success(request, "Atributo adicionado.")
                 return redirect("enemy_detail", pk=enemy.pk)
             messages.error(request, "Nome e valor do atributo são obrigatórios.")

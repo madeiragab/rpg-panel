@@ -17,6 +17,7 @@ urlpatterns = [
     path("polaroids/<int:polaroid_id>/framing/", views.update_polaroid_framing, name="update_polaroid_framing"),
     path("sheet-lines/<str:tipo>/<int:pk>/", views.update_sheet_line, name="update_sheet_line"),
     path("sheet-lines/<str:tipo>/<int:pk>/delete/", views.delete_sheet_line, name="delete_sheet_line"),
+    path("sheet-lines/<str:tipo>/reorder/", views.reorder_sheet_lines, name="reorder_sheet_lines"),
     path("characters/", views.character_list, name="character_list"),
     path("characters/<int:pk>/", views.character_detail, name="character_detail"),
     path("npcs/<int:pk>/", views.npc_detail, name="npc_detail"),

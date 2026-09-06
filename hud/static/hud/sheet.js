@@ -84,6 +84,11 @@
       return;
     }
 
+    if (editar.dataset.comDano) {
+      abrirEditorDeHabilidade(linha, editar.dataset.editarLinha);
+      return;
+    }
+
     const nome = prompt('Nome:', linha.dataset.nome || '');
     if (nome === null) return;
     const corpo = new URLSearchParams();
@@ -109,4 +114,164 @@
       })
       .catch(() => alert('Não foi possível falar com o servidor.'));
   });
+
+  /* ------------------------------------------------ o editor da habilidade -- */
+
+  /* Perícia e atributo têm dois campos e cabem num prompt. Habilidade não: tem
+     nome, dano e quantos campos a pessoa quiser criar, e um prompt por campo
+     seria insuportável. Então ela abre uma caixinha embaixo da etiqueta. */
+  function abrirEditorDeHabilidade(etiqueta, url) {
+    if (etiqueta.nextElementSibling && etiqueta.nextElementSibling.classList.contains('editor-habilidade')) {
+      etiqueta.nextElementSibling.remove();
+      return;
+    }
+    document.querySelectorAll('.editor-habilidade').forEach((e) => e.remove());
+
+    let extras = [];
+    try {
+      extras = JSON.parse(etiqueta.dataset.extras || '[]');
+    } catch (e) {
+      extras = [];
+    }
+
+    const caixa = document.createElement('div');
+    caixa.className = 'editor-habilidade';
+    caixa.innerHTML =
+      '<label>Nome<input type="text" data-campo="name"></label>' +
+      '<label>Dano<input type="text" data-campo="damage" placeholder="Ex.: 2d6+3"></label>' +
+      '<div data-extras></div>' +
+      '<div class="editor-acoes">' +
+      '<button type="button" class="hud-button ghost" data-mais>+ campo</button>' +
+      '<button type="button" class="hud-button" data-salvar>Salvar</button>' +
+      '<button type="button" class="hud-button ghost" data-cancelar>Cancelar</button>' +
+      '</div>';
+
+    caixa.querySelector('[data-campo="name"]').value = etiqueta.dataset.nome || '';
+    caixa.querySelector('[data-campo="damage"]').value = etiqueta.dataset.dano || '';
+
+    const listaExtras = caixa.querySelector('[data-extras]');
+
+    function novaLinha(rotulo, valor) {
+      const linha = document.createElement('div');
+      linha.className = 'editor-extra';
+      linha.innerHTML =
+        '<input type="text" data-rotulo placeholder="campo">' +
+        '<input type="text" data-valor placeholder="valor">' +
+        '<button type="button" class="etiqueta-botao apagar" data-tirar title="Tirar campo">×</button>';
+      linha.querySelector('[data-rotulo]').value = rotulo || '';
+      linha.querySelector('[data-valor]').value = valor || '';
+      linha.querySelector('[data-tirar]').addEventListener('click', () => linha.remove());
+      listaExtras.appendChild(linha);
+      return linha;
+    }
+
+    extras.forEach((par) => novaLinha(par[0], par[1]));
+    caixa.querySelector('[data-mais]').addEventListener('click', () => {
+      novaLinha('', '').querySelector('[data-rotulo]').focus();
+    });
+    caixa.querySelector('[data-cancelar]').addEventListener('click', () => caixa.remove());
+
+    caixa.querySelector('[data-salvar]').addEventListener('click', () => {
+      const corpo = new URLSearchParams();
+      corpo.append('name', caixa.querySelector('[data-campo="name"]').value);
+      corpo.append('damage', caixa.querySelector('[data-campo="damage"]').value);
+      const pares = [];
+      listaExtras.querySelectorAll('.editor-extra').forEach((linha) => {
+        const rotulo = linha.querySelector('[data-rotulo]').value.trim();
+        if (rotulo) pares.push([rotulo, linha.querySelector('[data-valor]').value]);
+      });
+      corpo.append('extras', JSON.stringify(pares));
+
+      mandar(url, corpo)
+        .then(({ ok, dados }) => {
+          if (!ok || !dados.ok) {
+            alert(dados.erro || 'Não foi possível salvar.');
+            return;
+          }
+          // Redesenhar a etiqueta à mão duplicaria o template; recarregar a
+          // ficha inteira era o que estamos tirando. O meio-termo é reescrever
+          // só o que mudou.
+          etiqueta.dataset.nome = dados.name;
+          etiqueta.dataset.dano = dados.damage;
+          etiqueta.dataset.extras = JSON.stringify(dados.extras || []);
+          etiqueta.querySelector('.etiqueta-nome').textContent = dados.name;
+          const campos = etiqueta.querySelector('.etiqueta-campos');
+          if (campos) {
+            const pedacos = [];
+            if (dados.damage) pedacos.push(['dano', dados.damage]);
+            (dados.extras || []).forEach((par) => pedacos.push(par));
+            campos.textContent = '';
+            pedacos.forEach((par) => {
+              const chip = document.createElement('span');
+              chip.className = 'etiqueta-campo';
+              const rotulo = document.createElement('b');
+              rotulo.textContent = par[0];
+              chip.appendChild(rotulo);
+              chip.appendChild(document.createTextNode(par[1]));
+              campos.appendChild(chip);
+            });
+          }
+          caixa.remove();
+        })
+        .catch(() => alert('Não foi possível falar com o servidor.'));
+    });
+
+    etiqueta.insertAdjacentElement('afterend', caixa);
+    caixa.querySelector('[data-campo="name"]').focus();
+  }
+
+  /* --------------------------------------------- arrastar para reordenar -- */
+
+  /* Vai a lista inteira de ids na ordem em que ficaram, e não "essa subiu uma":
+     duas pessoas arrastando ao mesmo tempo com movimentos relativos acabariam
+     com ordens diferentes das que cada uma viu. */
+  function ligarReordenacao(grade) {
+    const url = grade.dataset.reordenarUrl;
+    if (!url) return;
+    let arrastada = null;
+
+    grade.querySelectorAll('[data-linha]').forEach((caixa) => {
+      caixa.draggable = true;
+      caixa.addEventListener('dragstart', (e) => {
+        if (!ficha.classList.contains('editando')) {
+          e.preventDefault();
+          return;
+        }
+        arrastada = caixa;
+        caixa.classList.add('arrastando');
+        e.dataTransfer.effectAllowed = 'move';
+        // O Firefox não começa o arraste sem algum dado carregado.
+        e.dataTransfer.setData('text/plain', '');
+      });
+      caixa.addEventListener('dragend', () => {
+        caixa.classList.remove('arrastando');
+        arrastada = null;
+        guardarOrdem();
+      });
+      caixa.addEventListener('dragover', (e) => {
+        if (!arrastada || arrastada === caixa) return;
+        e.preventDefault();
+        const meio = caixa.getBoundingClientRect();
+        const depois = e.clientY > meio.top + meio.height / 2
+          || (e.clientX > meio.left + meio.width / 2 && Math.abs(e.clientY - (meio.top + meio.height / 2)) < meio.height / 2);
+        caixa.parentNode.insertBefore(arrastada, depois ? caixa.nextSibling : caixa);
+      });
+    });
+
+    function guardarOrdem() {
+      const ids = [];
+      grade.querySelectorAll('[data-linha]').forEach((caixa) => {
+        const botao = caixa.querySelector('[data-apagar-linha]');
+        if (!botao) return;
+        const partes = botao.dataset.apagarLinha.split('/').filter(Boolean);
+        ids.push(Number(partes[partes.length - 2]));
+      });
+      if (!ids.length) return;
+      const corpo = new URLSearchParams();
+      corpo.append('ids', JSON.stringify(ids));
+      mandar(url, corpo).catch(() => {});
+    }
+  }
+
+  document.querySelectorAll('[data-reordenavel]').forEach(ligarReordenacao);
 })();

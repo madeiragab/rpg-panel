@@ -25,7 +25,7 @@
         <h2 class="panel-title">Perícias / Proficiências</h2>
         <div class="tags-wrap">
             {% for skill in npc.skills.all %}
-                {% include "hud/_linha_da_ficha.html" with linha=skill tipo="npc-skill" classe="skill-tag" com_valor=True pode_editar=is_master %}
+                {% include "hud/_linha_da_ficha.html" with linha=skill tipo="npc-skill" classe="skill-tag" com_valor=True com_dano=False pode_editar=is_master %}
             {% empty %}
                 <span class="muted" data-vazio>Sem perícias cadastradas.</span>
             {% endfor %}
@@ -49,16 +49,40 @@
             {% endif %}
         </div>
         
+        {% if is_master %}{% url 'update_npc_framing' npc.pk as url_enquadrar %}{% endif %}
         <div id="bars-container" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px;">
             {% for bar in npc.bars.all %}
                 {% include "hud/_barra_da_ficha.html" with bar=bar fn_mod="modifyNPCBar" fn_del="deleteNPCBar" pode_editar=is_master pode_apagar=is_master %}
             {% endfor %}
         </div>
 
-        {% if is_master %}{% url 'update_npc_framing' npc.pk as url_enquadrar %}{% endif %}
         {% include "hud/_retrato.html" with retrato=npc imagem=npc.image alt=npc.name url_salvar=url_enquadrar dica="Retrato do NPC (opcional)" %}
 
-        <div class="attributes-grid">
+
+            <form method="post" enctype="multipart/form-data" class="panel-form compact so-editando" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">
+                {% csrf_token %}
+                <input type="hidden" name="form_type" value="npc">
+                {{ npc_form.as_p }}
+                <button type="submit" class="hud-button">Atualizar informações</button>
+            </form>
+
+            <form method="post" class="panel-form so-editando" id="add-bar-form" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">
+                {% csrf_token %}
+                <h3 class="panel-subtitle">Adicionar Barra</h3>
+                <label for="bar-name">Nome da barra</label>
+                <input type="text" id="bar-name" placeholder="Ex.: Sanidade, Karma..." />
+                <label for="bar-max">Valor máximo</label>
+                <input type="number" id="bar-max" value="100" min="1" />
+                <label for="bar-color">Cor</label>
+                <input type="color" id="bar-color" value="#e11d2e" />
+                <button type="button" class="hud-button ghost" onclick="addNPCBar()">Adicionar</button>
+            </form>
+        {% endif %}
+    </section>
+
+    <section class="panel-card column">
+        <h2 class="panel-title">Atributos</h2>
+        <div class="attributes-grid" data-reordenavel="npc-attribute" data-reordenar-url="{% url 'reorder_sheet_lines' 'npc-attribute' %}">
             {% for attr in npc.attributes.all %}
                 <div class="attribute-box" data-linha data-nome="{{ attr.name }}" data-valor="{{ attr.value }}">
                     <div class="attribute-nome">{{ attr.name }}</div>
@@ -93,32 +117,10 @@
                 <button type="submit" class="hud-button ghost" style="margin-top: 8px;">+ Atributo</button>
             </form>
 
-            <form method="post" enctype="multipart/form-data" class="panel-form compact so-editando" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">
-                {% csrf_token %}
-                <input type="hidden" name="form_type" value="npc">
-                {{ npc_form.as_p }}
-                <button type="submit" class="hud-button">Atualizar informações</button>
-            </form>
-
-            <form method="post" class="panel-form so-editando" id="add-bar-form" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">
-                {% csrf_token %}
-                <h3 class="panel-subtitle">Adicionar Barra</h3>
-                <label for="bar-name">Nome da barra</label>
-                <input type="text" id="bar-name" placeholder="Ex.: Sanidade, Karma..." />
-                <label for="bar-max">Valor máximo</label>
-                <input type="number" id="bar-max" value="100" min="1" />
-                <label for="bar-color">Cor</label>
-                <input type="color" id="bar-color" value="#e11d2e" />
-                <button type="button" class="hud-button ghost" onclick="addNPCBar()">Adicionar</button>
-            </form>
-        {% endif %}
-    </section>
-
-    <section class="panel-card column">
         <h2 class="panel-title">Habilidades</h2>
         <div class="tags-wrap">
             {% for ability in npc.abilities.all %}
-                {% include "hud/_linha_da_ficha.html" with linha=ability tipo="npc-ability" classe="ability-tag" com_valor=False pode_editar=is_master %}
+                {% include "hud/_linha_da_ficha.html" with linha=ability tipo="npc-ability" classe="ability-tag" com_valor=False com_dano=True pode_editar=is_master %}
             {% empty %}
                 <span class="muted" data-vazio>Sem habilidades cadastradas.</span>
             {% endfor %}
@@ -133,7 +135,7 @@
         {% endif %}
     </section>
 
-    <section class="panel-card column">
+    <section class="panel-card column largura-total">
         <div class="list-inline" style="justify-content: space-between; align-items: center;">
             <h2 class="panel-title" style="margin: 0;">Inventário</h2>
             <button type="button" class="hud-button ghost" id="toggle-npc-inventory" aria-expanded="false" style="padding: 4px 12px; font-size: 18px;">+</button>
