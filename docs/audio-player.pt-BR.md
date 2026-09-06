@@ -38,11 +38,17 @@ A ficha vem antes do avatar porque numa sessão as pessoas *são* os personagens
 
 `AudioListener` guarda campanha, pessoa e `last_seen`. Não há campo "está ouvindo".
 
-O motivo é que o navegador não tem como avisar que fechou de um jeito confiável: aba que cai, notebook que dorme, internet que some. Um interruptor gravado no banco deixaria gente ouvindo para sempre numa mesa que acabou. Então quem está no áudio repete "ainda estou aqui" a cada 15 segundos, e quem passa de **45 segundos** sem dizer some da roda sozinho. A linha continua no banco; ela é que para de contar.
+O motivo é que o navegador não tem como avisar que fechou de um jeito confiável: aba que cai, notebook que dorme, internet que some. Um interruptor gravado no banco deixaria gente ouvindo para sempre numa mesa que acabou. Então quem está no áudio repete "ainda estou aqui", e quem passa de **45 segundos** sem dizer some da roda sozinho. A linha continua no banco; ela é que para de contar.
 
 Aba que fecha ainda tenta avisar na hora, com um `fetch` de `keepalive` — é o que deixa um pedido sair de uma página que está morrendo. Quando não dá, o `last_seen` velho resolve.
 
-O batimento de presença **não** vira evento de Pusher. Seis pessoas batendo a cada 15 segundos seriam 1.400 empurrões por hora para dizer que nada mudou. Só entrada e saída são publicadas; o resto o polling já traz.
+### O batimento é o próprio polling
+
+Não há um temporizador separado para a presença. Quem está no áudio busca o estado pelo endereço da presença, que devolve o mesmo corpo e carimba o `last_seen` de quebra — uma requisição onde havia duas.
+
+Numa mesa de seis pessoas isso é a diferença entre 60 e 36 pedidos por minuto. Num host de plano grátis essa conta é a que decide se o painel fica de pé no meio da sessão, e por isso ela vem antes da elegância de ter um endereço para cada coisa.
+
+O batimento também **não** vira evento de Pusher: seriam mais de 2.000 empurrões por hora para dizer que nada mudou. Só entrada e saída são publicadas.
 
 ## Sincronização
 

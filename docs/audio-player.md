@@ -61,17 +61,25 @@ revealed yet.
 The reason is that browsers have no reliable way to say they closed: tabs die,
 laptops sleep, connections drop. A switch written to the database would leave
 people listening forever at a table that ended. So whoever is in the audio
-repeats "still here" every 15 seconds, and anyone past **45 seconds** without
-saying so drops out of the row on their own. The row stays in the database; it
-just stops counting.
+repeats "still here", and anyone past **45 seconds** without saying so drops out
+of the row on their own. The row stays in the database; it just stops counting.
 
 A closing tab still tries to say so immediately, with a `keepalive` fetch — that
 is what lets a request leave a page that is dying. When it cannot, the stale
 `last_seen` handles it.
 
-Presence heartbeats do **not** become Pusher events. Six people beating every 15
-seconds would be 1,400 pushes an hour to say nothing changed. Only joins and
-leaves are published; polling brings the rest.
+### The heartbeat is the polling
+
+There is no separate timer for presence. Whoever is in the audio fetches state
+from the presence endpoint, which returns the same body and stamps `last_seen`
+along the way — one request where there were two.
+
+At a table of six that is the difference between 60 and 36 requests a minute. On
+a free-tier host that arithmetic is what decides whether the panel stays up
+mid-session, and that comes before the elegance of one endpoint per concern.
+
+Heartbeats do **not** become Pusher events either: it would be over 2,000 pushes
+an hour to say nothing changed. Only joins and leaves are published.
 
 ## Synchronisation
 
