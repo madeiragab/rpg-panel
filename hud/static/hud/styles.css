@@ -243,7 +243,7 @@ a:hover { color: var(--accent-soft); }
 /* Vale para qualquer moldura, não só o retrato da ficha: o slot do inventário
    e o avatar da barra de cima usam as mesmas regras. */
 [data-portrait-frame] { position: relative; overflow: hidden; }
-/* Sem o JS a imagem ainda preenche a moldura pelo centro: o object-fit é o
+/* Sem o JS a imagem ainda aparece inteira e centrada: o object-fit é o
    fallback, e o script troca width/height/left/top pelos números do
    enquadramento assim que roda. */
 [data-portrait-frame] img {
@@ -253,11 +253,13 @@ a:hover { color: var(--accent-soft); }
     width: 100%;
     height: 100%;
     max-width: none;
-    object-fit: cover;
+    object-fit: contain;
     display: block;
     user-select: none;
     -webkit-user-drag: none;
 }
+/* O que é redondo enche e corta: tarja dentro de um círculo fica pior. */
+[data-portrait-frame][data-encaixe="preencher"] img { object-fit: cover; }
 [data-portrait-frame] img[hidden] { display: none; }
 [data-portrait-frame].editavel { cursor: grab; touch-action: none; }
 [data-portrait-frame].arrastando { cursor: grabbing; }

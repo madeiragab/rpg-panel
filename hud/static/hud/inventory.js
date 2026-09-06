@@ -99,6 +99,7 @@
         moldura.appendChild(foto);
       }
       moldura.classList.remove('empty');
+      moldura.dataset.encaixe = moldura.dataset.encaixe || 'inteira';
       moldura.dataset.zoom = String(data.itemZoom ?? 100);
       moldura.dataset.focusX = String(data.itemFocusX ?? 0.5);
       moldura.dataset.focusY = String(data.itemFocusY ?? 0.5);

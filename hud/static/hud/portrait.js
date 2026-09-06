@@ -31,13 +31,22 @@
     };
   }
 
+  /* Duas maneiras de a imagem entrar na moldura, e a escolha é do lugar:
+
+     `inteira` põe a imagem toda dentro — é o padrão, porque um retrato de
+     corpo inteiro cortado no peito não serve para nada, e quem quiser
+     encher a moldura tem o zoom para isso.
+
+     `preencher` enche e corta, e vale para o que é redondo: um avatar com
+     tarja em volta dentro de um círculo fica pior do que cortado. */
   function tamanho(moldura, foto) {
     const { zoom } = estado(moldura);
-    const cobre = Math.max(
-      moldura.clientWidth / foto.naturalWidth,
-      moldura.clientHeight / foto.naturalHeight,
-    );
-    const fator = cobre * (zoom / 100);
+    const largura = moldura.clientWidth / foto.naturalWidth;
+    const altura = moldura.clientHeight / foto.naturalHeight;
+    const base = moldura.dataset.encaixe === 'preencher'
+      ? Math.max(largura, altura)
+      : Math.min(largura, altura);
+    const fator = base * (zoom / 100);
     return { l: foto.naturalWidth * fator, a: foto.naturalHeight * fator };
   }
 

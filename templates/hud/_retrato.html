@@ -19,6 +19,7 @@
          data-zoom="{{ retrato.image_zoom }}"
          data-focus-x="{{ retrato.image_focus_x|unlocalize }}"
          data-focus-y="{{ retrato.image_focus_y|unlocalize }}"
+         data-encaixe="{% if 'redondo' in classe %}preencher{% else %}inteira{% endif %}"
          {% if url_salvar and imagem %}data-save-url="{{ url_salvar }}"{% endif %}>
         {% if imagem %}<img src="{{ imagem.url }}" alt="{{ alt|default:'' }}">{% endif %}
     </div>
@@ -30,7 +31,7 @@
             <button type="button" data-portrait-center class="hud-button ghost"
                     title="Voltar ao enquadramento inicial">centrar</button>
         </div>
-        <div class="portrait-hint muted">Arraste a imagem para escolher o pedaço que aparece.</div>
+        <div class="portrait-hint muted">A imagem entra inteira. Aproxime com o zoom e arraste para escolher o pedaço.</div>
     {% elif dica %}
         <div class="portrait-hint muted">{{ dica }}</div>
     {% endif %}
