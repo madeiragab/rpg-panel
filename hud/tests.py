@@ -30,7 +30,11 @@ from hud.forms import (
 from hud.models import (
     Campaign,
     Character,
+    CharacterAbility,
+    CharacterAttribute,
+    CharacterSkill,
     Enemy,
+    EnemyAttribute,
     EnemyBar,
     InventorySlot,
     Item,
@@ -1926,3 +1930,198 @@ class SemRecarregarTests(TestCase):
 
         self.assertContains(pagina, 'data-card="item"')
         self.assertIn('data-card="item"', html_novo)
+
+
+@SEM_REDIRECT_HTTPS
+@SEM_MANIFESTO
+class LinhasDaFichaTests(TestCase):
+    """Pericia, habilidade e atributo agora tambem se reescrevem e se apagam."""
+
+    def setUp(self):
+        self.mestre = make_user('mestre')
+        self.jogador = make_user('jogador')
+        self.campanha = Campaign.objects.create(name='Ossos', master=self.mestre)
+        self.campanha.players.add(self.jogador)
+        self.personagem = Character.objects.create(
+            name='Kai', created_by=self.mestre, campaign=self.campanha,
+            assigned_to=self.jogador,
+        )
+        self.pericia = CharacterSkill.objects.create(
+            character=self.personagem, name='Furtividade', value='+4'
+        )
+        self.atributo = CharacterAttribute.objects.create(
+            character=self.personagem, name='Forca', value='12'
+        )
+        self.habilidade = CharacterAbility.objects.create(
+            character=self.personagem, name='Golpe duplo'
+        )
+
+    def test_mestre_reescreve_pericia(self):
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.post(
+            reverse('update_sheet_line', args=['character-skill', self.pericia.pk]),
+            {'name': 'Acrobacia', 'value': '+6'},
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        self.pericia.refresh_from_db()
+        self.assertEqual(self.pericia.name, 'Acrobacia')
+        self.assertEqual(self.pericia.value, '+6')
+
+    def test_mestre_reescreve_atributo(self):
+        self.client.force_login(self.mestre)
+
+        self.client.post(
+            reverse('update_sheet_line', args=['character-attribute', self.atributo.pk]),
+            {'name': 'Destreza', 'value': '15'},
+        )
+
+        self.atributo.refresh_from_db()
+        self.assertEqual(self.atributo.name, 'Destreza')
+        self.assertEqual(self.atributo.value, '15')
+
+    def test_mestre_reescreve_habilidade(self):
+        self.client.force_login(self.mestre)
+
+        self.client.post(
+            reverse('update_sheet_line', args=['character-ability', self.habilidade.pk]),
+            {'name': 'Golpe triplo'},
+        )
+
+        self.habilidade.refresh_from_db()
+        self.assertEqual(self.habilidade.name, 'Golpe triplo')
+
+    def test_nome_vazio_e_recusado(self):
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.post(
+            reverse('update_sheet_line', args=['character-skill', self.pericia.pk]),
+            {'name': '   ', 'value': '+6'},
+        )
+
+        self.assertEqual(resposta.status_code, 400)
+        self.pericia.refresh_from_db()
+        self.assertEqual(self.pericia.name, 'Furtividade')
+
+    def test_pericia_aceita_valor_em_branco_e_atributo_nao(self):
+        """O modelo e quem sabe: o value da pericia e blank=True, o do atributo nao."""
+        self.client.force_login(self.mestre)
+
+        ok = self.client.post(
+            reverse('update_sheet_line', args=['character-skill', self.pericia.pk]),
+            {'name': 'Furtividade', 'value': ''},
+        )
+        recusado = self.client.post(
+            reverse('update_sheet_line', args=['character-attribute', self.atributo.pk]),
+            {'name': 'Forca', 'value': ''},
+        )
+
+        self.assertEqual(ok.status_code, 200)
+        self.assertEqual(recusado.status_code, 400)
+
+    def test_jogador_dono_da_ficha_nao_reescreve(self):
+        self.client.force_login(self.jogador)
+
+        resposta = self.client.post(
+            reverse('update_sheet_line', args=['character-skill', self.pericia.pk]),
+            {'name': 'Invadida', 'value': '+9'},
+        )
+
+        self.assertEqual(resposta.status_code, 403)
+        self.pericia.refresh_from_db()
+        self.assertEqual(self.pericia.name, 'Furtividade')
+
+    def test_mestre_de_outra_mesa_nao_reescreve(self):
+        outro = make_user('outro')
+        self.client.force_login(outro)
+
+        resposta = self.client.post(
+            reverse('update_sheet_line', args=['character-skill', self.pericia.pk]),
+            {'name': 'Invadida'},
+        )
+
+        self.assertEqual(resposta.status_code, 403)
+
+    def test_mestre_apaga_cada_uma(self):
+        self.client.force_login(self.mestre)
+
+        for tipo, obj in (
+            ('character-skill', self.pericia),
+            ('character-attribute', self.atributo),
+            ('character-ability', self.habilidade),
+        ):
+            self.client.post(reverse('delete_sheet_line', args=[tipo, obj.pk]))
+
+        self.assertEqual(self.personagem.skills.count(), 0)
+        self.assertEqual(self.personagem.attributes.count(), 0)
+        self.assertEqual(self.personagem.abilities.count(), 0)
+
+    def test_jogador_nao_apaga(self):
+        self.client.force_login(self.jogador)
+
+        resposta = self.client.post(
+            reverse('delete_sheet_line', args=['character-skill', self.pericia.pk])
+        )
+
+        self.assertEqual(resposta.status_code, 403)
+        self.assertEqual(self.personagem.skills.count(), 1)
+
+    def test_tipo_desconhecido_e_403(self):
+        """Tipo fora da tabela nao vira consulta nenhuma."""
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.post(
+            reverse('update_sheet_line', args=['character-inventario', 1]),
+            {'name': 'x'},
+        )
+
+        self.assertEqual(resposta.status_code, 403)
+
+    def test_get_e_recusado(self):
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.get(
+            reverse('update_sheet_line', args=['character-skill', self.pericia.pk])
+        )
+
+        self.assertEqual(resposta.status_code, 405)
+
+    def test_linha_de_npc_e_de_inimigo_seguem_a_mesma_rota(self):
+        npc = NPC.objects.create(
+            name='Vulto', created_by=self.mestre, campaign=self.campanha
+        )
+        inimigo = Enemy.objects.create(
+            name='Cerbero', created_by=self.mestre, campaign=self.campanha
+        )
+        pericia_npc = NPCSkill.objects.create(npc=npc, name='Rastrear')
+        atributo_inimigo = EnemyAttribute.objects.create(
+            enemy=inimigo, name='Furia', value='8'
+        )
+        self.client.force_login(self.mestre)
+
+        self.client.post(
+            reverse('update_sheet_line', args=['npc-skill', pericia_npc.pk]),
+            {'name': 'Farejar', 'value': '+2'},
+        )
+        self.client.post(
+            reverse('delete_sheet_line', args=['enemy-attribute', atributo_inimigo.pk])
+        )
+
+        pericia_npc.refresh_from_db()
+        self.assertEqual(pericia_npc.name, 'Farejar')
+        self.assertEqual(inimigo.attributes.count(), 0)
+
+    def test_a_ficha_traz_o_lapis_para_o_mestre_e_nao_para_o_jogador(self):
+        self.client.force_login(self.mestre)
+        do_mestre = self.client.get(
+            reverse('character_detail', args=[self.personagem.pk])
+        )
+
+        self.client.force_login(self.jogador)
+        do_jogador = self.client.get(
+            reverse('character_detail', args=[self.personagem.pk])
+        )
+
+        self.assertContains(do_mestre, 'id="alternar-edicao"')
+        self.assertNotContains(do_jogador, 'id="alternar-edicao"')

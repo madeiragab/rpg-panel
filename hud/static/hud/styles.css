@@ -1358,3 +1358,202 @@ a:hover { color: var(--accent-soft); }
 }
 .recem-chegado { animation: recem-chegado 0.28s ease-out; }
 .peca.recem-chegado { animation: none; outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* ==========================================================================
+   Acabamento: modo de edição, etiquetas, campo de imagem e telas estreitas
+   ========================================================================== */
+
+/* ------------------------------------------------------- modo de edição -- */
+/* A ficha vivia com todos os formulários abertos ao mesmo tempo. Agora eles só
+   aparecem com o lápis ligado — fora disso, a ficha é só a ficha. */
+.so-editando { display: none !important; }
+.editando .so-editando { display: revert !important; }
+.editando .panel-form.so-editando { display: grid !important; }
+.editando .portrait-controls.so-editando { display: flex !important; }
+.editando .etiqueta-acoes.so-editando { display: inline-flex !important; }
+
+.lapis {
+    flex: none;
+    padding: 6px 10px;
+    font-size: 1rem;
+    line-height: 1;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: border-color 0.2s ease, background 0.2s ease;
+}
+.lapis:hover { border-color: var(--accent); }
+.lapis.ligado { border-color: var(--accent); background: rgba(225, 29, 46, 0.16); }
+
+/* Enquanto o lápis está ligado, a coluna avisa que está aberta para mexer. */
+.editando .panel-card { border-color: rgba(225, 29, 46, 0.35); }
+
+.character-header { gap: 10px; flex-wrap: wrap; }
+
+/* ------------------------------------------------------------ etiquetas -- */
+.etiqueta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.04);
+    font-size: 0.85rem;
+    line-height: 1.4;
+}
+.etiqueta-valor {
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: rgba(225, 29, 46, 0.18);
+    color: var(--accent-soft);
+    font-weight: 600;
+    font-size: 0.78rem;
+}
+.etiqueta-acoes { display: none; gap: 2px; margin-left: 2px; }
+.etiqueta-botao {
+    padding: 0 4px;
+    font-size: 0.78rem;
+    line-height: 1.4;
+    color: var(--muted);
+    background: none;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.etiqueta-botao:hover { color: var(--text); background: rgba(255, 255, 255, 0.08); }
+.etiqueta-botao.apagar:hover { color: #1a0003; background: var(--danger); }
+
+.tags-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* ------------------------------------------------------------ atributos -- */
+.attributes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 8px;
+    margin-top: 12px;
+}
+.attribute-box {
+    position: relative;
+    padding: 10px 8px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.03);
+    text-align: center;
+}
+.attribute-nome { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.attribute-valor { font-size: 1.15rem; font-weight: 600; color: var(--text); margin-top: 2px; }
+.attribute-box .etiqueta-acoes { position: absolute; top: 3px; right: 3px; }
+
+/* ------------------------------------------------------- campo de imagem -- */
+/* O padrão do Django é "Atualmente: /media/x.png [ ] Limpar / Alterar:" em
+   texto corrido. Aqui vira um botão, o nome do arquivo e um "remover". */
+.campo-imagem {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.campo-imagem-botao {
+    display: inline-flex;
+    align-items: center;
+    padding: 7px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.campo-imagem-botao:hover { border-color: var(--accent); color: var(--accent-soft); }
+/* O input continua no documento porque é ele que o navegador sabe abrir; só
+   não aparece. `display: none` tiraria a acessibilidade por teclado junto. */
+.campo-imagem-botao input[type="file"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+.campo-imagem-nome {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.8rem;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.campo-imagem-remover {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 9px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    font-size: 0.78rem;
+    color: var(--muted);
+    cursor: pointer;
+}
+.campo-imagem-remover:hover { border-color: var(--danger); color: var(--danger); }
+.campo-imagem-remover input { accent-color: var(--danger); }
+
+/* ------------------------------------------------------------ formulário -- */
+.panel-form p { margin: 0 0 10px; display: grid; gap: 5px; }
+.panel-form p > label { font-size: 0.82rem; color: var(--muted); }
+.panel-form textarea {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    background: var(--panel-strong);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: inherit;
+    resize: vertical;
+}
+.panel-form input:focus,
+.panel-form select:focus,
+.panel-form textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(225, 29, 46, 0.18);
+}
+.panel-form .errorlist {
+    margin: 0 0 6px;
+    padding-left: 16px;
+    color: var(--danger);
+    font-size: 0.8rem;
+}
+
+/* ------------------------------------------------------- telas estreitas -- */
+@media (max-width: 900px) {
+    .content { padding-left: 14px; padding-right: 14px; }
+    .column { max-height: none; }
+    .quadro { min-height: 60vh; }
+}
+
+@media (max-width: 640px) {
+    .panel-title { font-size: 1.15rem; }
+    .panel-form.compact { grid-template-columns: 1fr; }
+    .attributes-grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
+    .portrait-thumb { max-width: 100%; }
+    .portrait-controls { max-width: 100%; }
+    .character-navbar-inner { gap: 8px; }
+    .campaign-tabs { overflow-x: auto; flex-wrap: nowrap; }
+    .campaign-tabs .tab-button { white-space: nowrap; }
+    .items-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+    .list-inline { flex-wrap: wrap; }
+    .hud-button { padding: 9px 12px; }
+}
+
+/* A moldura de retrato num celular não precisa dos 280px fixos, mas também não
+   pode encher a tela inteira. */
+@media (max-width: 420px) {
+    .portrait-thumb:not(.minusculo):not(.pequeno):not(.medio) { max-width: 220px; }
+    .peca { width: 150px; }
+    .peca.polaroid, .peca.post-it { width: 140px; }
+}

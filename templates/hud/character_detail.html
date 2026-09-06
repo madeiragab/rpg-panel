@@ -33,7 +33,7 @@
         <a href="{% url 'home' %}" class="hud-button ghost">Voltar</a>
     {% endif %}
 </div>
-<div class="hud-layout" {% if campaign and campaign.banner %}style="background-image: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.85)), url('{{ campaign.banner.url }}'); background-size: cover; background-attachment: fixed; background-position: center;"{% endif %}>
+<div class="hud-layout" data-ficha {% if campaign and campaign.banner %}style="background-image: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.85)), url('{{ campaign.banner.url }}'); background-size: cover; background-attachment: fixed; background-position: center;"{% endif %}>
     {% if not is_master %}
         <div class="player-view-notice">
             <p>📖 Você está visualizando este personagem em modo leitura</p>
@@ -44,15 +44,13 @@
         <h2 class="panel-title">Perícias / Proficiências</h2>
         <div class="tags-wrap">
             {% for skill in character.skills.all %}
-                <span class="skill-tag">
-                    {{ skill.name }}{% if skill.value %} <span class="skill-value">{{ skill.value }}</span>{% endif %}
-                </span>
+                {% include "hud/_linha_da_ficha.html" with linha=skill tipo="character-skill" classe="skill-tag" com_valor=True pode_editar=is_master %}
             {% empty %}
-                <span class="muted">Sem perícias cadastradas.</span>
+                <span class="muted" data-vazio>Sem perícias cadastradas.</span>
             {% endfor %}
         </div>
         {% if is_master %}
-            <form method="post" class="panel-form compact">
+            <form method="post" class="panel-form compact so-editando">
                 {% csrf_token %}
                 <input type="hidden" name="form_type" value="skill">
                 {{ skill_form.as_p }}
@@ -64,6 +62,10 @@
     <section class="panel-card column">
         <div class="character-header">
             <h1 class="panel-title">{{ character.name }}</h1>
+            {% if is_master %}
+                <button type="button" id="alternar-edicao" class="lapis"
+                        aria-pressed="false" title="Editar a ficha">✏️</button>
+            {% endif %}
             {% if character.assigned_to %}
                 <div class="list-inline" style="gap: 8px; align-items: center;">
                     {% include "hud/_retrato.html" with retrato=character.assigned_to.profile imagem=character.assigned_to.profile.avatar alt=character.assigned_to.username classe="redondo pequeno" url_salvar="" dica="" %}
@@ -74,7 +76,7 @@
                 </div>
                 {% if is_master and character.campaign %}
                 <div id="player-select-panel" style="display:none; margin-top:8px; padding:8px; background:rgba(18,12,13,0.4); border-radius:8px;">
-                    <form method="post" class="panel-form compact">
+                    <form method="post" class="panel-form compact so-editando">
                         {% csrf_token %}
                         <input type="hidden" name="form_type" value="change_player">
                         <label for="new-player">Reatribuir para:</label>
@@ -113,17 +115,26 @@
         {% if is_master %}{% url 'update_character_framing' character.pk as url_enquadrar %}{% endif %}
         {% include "hud/_retrato.html" with retrato=character imagem=character.image alt=character.name url_salvar=url_enquadrar dica="Retrato do personagem (opcional)" %}
         
-        <div class="attributes-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px;">
+        <div class="attributes-grid">
             {% for attr in character.attributes.all %}
-                <div class="attribute-box" style="background: rgba(18,12,13,0.4); padding: 8px; border-radius: 6px; text-align: center;">
-                    <div style="font-size: 0.75rem; color: var(--muted); text-transform: uppercase;">{{ attr.name }}</div>
-                    <div style="font-size: 1.1rem; font-weight: 600; color: var(--text);">{{ attr.value }}</div>
+                <div class="attribute-box" data-linha data-nome="{{ attr.name }}" data-valor="{{ attr.value }}">
+                    <div class="attribute-nome">{{ attr.name }}</div>
+                    <div class="attribute-valor">{{ attr.value }}</div>
+                    {% if is_master %}
+                        <div class="etiqueta-acoes so-editando">
+                            <button type="button" class="etiqueta-botao" title="Reescrever"
+                                    data-editar-linha="{% url 'update_sheet_line' 'character-attribute' attr.pk %}"
+                                    data-com-valor="1">✏️</button>
+                            <button type="button" class="etiqueta-botao apagar" title="Apagar"
+                                    data-apagar-linha="{% url 'delete_sheet_line' 'character-attribute' attr.pk %}">×</button>
+                        </div>
+                    {% endif %}
                 </div>
             {% endfor %}
         </div>
         
         {% if is_master %}
-            <form method="post" class="panel-form compact" style="margin-top: 12px;">
+            <form method="post" class="panel-form compact so-editando" style="margin-top: 12px;">
                 {% csrf_token %}
                 <input type="hidden" name="form_type" value="attribute">
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
@@ -141,7 +152,7 @@
         {% endif %}
         
         {% if is_master %}
-            <form method="post" enctype="multipart/form-data" class="panel-form compact">
+            <form method="post" enctype="multipart/form-data" class="panel-form compact so-editando">
                 {% csrf_token %}
                 <input type="hidden" name="form_type" value="character">
                 {{ character_form.as_p }}
@@ -153,13 +164,13 @@
             <h3 class="panel-subtitle">Habilidades</h3>
             <div class="tags-wrap">
                 {% for ability in character.abilities.all %}
-                    <span class="ability-tag">{{ ability.name }}</span>
+                    {% include "hud/_linha_da_ficha.html" with linha=ability tipo="character-ability" classe="ability-tag" com_valor=False pode_editar=is_master %}
                 {% empty %}
-                    <span class="muted">Sem habilidades cadastradas.</span>
+                    <span class="muted" data-vazio>Sem habilidades cadastradas.</span>
                 {% endfor %}
             </div>
             {% if is_master %}
-                <form method="post" class="panel-form compact">
+                <form method="post" class="panel-form compact so-editando">
                     {% csrf_token %}
                     <input type="hidden" name="form_type" value="ability">
                     {{ ability_form.as_p }}

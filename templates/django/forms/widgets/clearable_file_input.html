@@ -1,0 +1,24 @@
+{% comment %}
+   O campo de imagem do site inteiro.
+
+   O padrão do Django escreve "Atualmente: <link> / Limpar / Alterar" em texto
+   corrido, e no meio de um formulário isso fica solto e feio. Aqui vira um
+   botão só, com o nome do arquivo ao lado e a remoção como um botão de
+   verdade — o <input> continua lá, escondido, porque é ele que o navegador
+   sabe abrir.
+{% endcomment %}
+<div class="campo-imagem" data-campo-imagem>
+    <label class="campo-imagem-botao">
+        <input type="file" name="{{ widget.name }}"{% include "django/forms/widgets/attrs.html" %}>
+        <span>{% if widget.is_initial %}Trocar imagem{% else %}Escolher imagem{% endif %}</span>
+    </label>
+    <span class="campo-imagem-nome" data-nome-do-arquivo>
+        {% if widget.is_initial %}{{ widget.value }}{% else %}Nenhum arquivo escolhido{% endif %}
+    </span>
+    {% if widget.is_initial and not widget.required %}
+        <label class="campo-imagem-remover">
+            <input type="checkbox" name="{{ widget.checkbox_name }}" id="{{ widget.checkbox_id }}">
+            <span>remover</span>
+        </label>
+    {% endif %}
+</div>

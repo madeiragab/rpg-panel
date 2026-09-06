@@ -77,7 +77,13 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt.token_blacklist",
     "hud",
     "api",
+    # Só para o Django procurar os templates de widget de formulário nos
+    # diretórios normais: é assim que templates/django/forms/widgets/ passa a
+    # valer, e é lá que o campo de imagem do site é desenhado.
+    "django.forms",
 ]
+
+FORM_RENDERER = "django.forms.renderers.TemplatesSetting"
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",

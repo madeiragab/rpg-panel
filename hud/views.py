@@ -40,11 +40,15 @@ from .forms import (
 from .models import (
     Campaign,
     Character,
+    CharacterAbility,
     CharacterAttribute,
     CharacterBar,
+    CharacterSkill,
     Enemy,
+    EnemyAbility,
     EnemyAttribute,
     EnemyBar,
+    EnemySkill,
     InventorySlot,
     Item,
     NPC,
@@ -974,6 +978,79 @@ def update_polaroid_framing(request: HttpRequest, polaroid_id: int) -> JsonRespo
     polaroid.image_zoom, polaroid.image_focus_x, polaroid.image_focus_y = dados
     polaroid.save(update_fields=["image_zoom", "image_focus_x", "image_focus_y"])
     return JsonResponse({"success": True})
+
+
+# ------------------------------------------------ as linhas soltas da ficha --
+# Perícia, habilidade e atributo eram só de escrever: entravam e ficavam. São
+# nove modelos (três tipos × três fichas) e a diferença entre eles cabe nesta
+# tabela, então um par de rotas atende os nove em vez de dezoito views quase
+# iguais.
+#
+# `dono` é o caminho da linha até a campanha, e é por ele que a permissão sai:
+# quem edita é sempre o mestre da mesa daquela ficha.
+LINHAS_DA_FICHA = {
+    "character-skill": (CharacterSkill, "character", ("name", "value")),
+    "character-ability": (CharacterAbility, "character", ("name",)),
+    "character-attribute": (CharacterAttribute, "character", ("name", "value")),
+    "npc-skill": (NPCSkill, "npc", ("name", "value")),
+    "npc-ability": (NPCAbility, "npc", ("name",)),
+    "npc-attribute": (NPCAttribute, "npc", ("name", "value")),
+    "enemy-skill": (EnemySkill, "enemy", ("name", "value")),
+    "enemy-ability": (EnemyAbility, "enemy", ("name",)),
+    "enemy-attribute": (EnemyAttribute, "enemy", ("name", "value")),
+}
+
+
+def _linha_do_mestre(request: HttpRequest, tipo: str, pk: int):
+    """A linha, se quem pede for o mestre da campanha dela. Senão, None."""
+    registro = LINHAS_DA_FICHA.get(tipo)
+    if registro is None:
+        return None, None
+    modelo, dono, campos = registro
+    linha = get_object_or_404(modelo, pk=pk)
+    ficha = getattr(linha, dono)
+    campanha = ficha.campaign
+    if campanha:
+        if campanha.master != request.user:
+            return None, None
+    elif getattr(ficha, "created_by", None) != request.user:
+        return None, None
+    return linha, campos
+
+
+@login_required
+@require_POST
+def update_sheet_line(request: HttpRequest, tipo: str, pk: int) -> JsonResponse:
+    """Reescreve uma linha da ficha no lugar."""
+    linha, campos = _linha_do_mestre(request, tipo, pk)
+    if linha is None:
+        return JsonResponse({"ok": False, "erro": "Sem permissão"}, status=403)
+
+    nome = request.POST.get("name", "").strip()
+    if not nome:
+        return JsonResponse({"ok": False, "erro": "O nome não pode ficar vazio."}, status=400)
+
+    linha.name = nome[:80]
+    if "value" in campos:
+        # Atributo exige valor; perícia aceita em branco. O modelo é quem sabe:
+        # o campo de perícia é blank=True e o de atributo não.
+        valor = request.POST.get("value", "").strip()[:40]
+        if not valor and not linha._meta.get_field("value").blank:
+            return JsonResponse({"ok": False, "erro": "O valor não pode ficar vazio."}, status=400)
+        linha.value = valor
+    linha.save()
+
+    return JsonResponse({"ok": True, "name": linha.name, "value": getattr(linha, "value", "")})
+
+
+@login_required
+@require_POST
+def delete_sheet_line(request: HttpRequest, tipo: str, pk: int) -> JsonResponse:
+    linha, _ = _linha_do_mestre(request, tipo, pk)
+    if linha is None:
+        return JsonResponse({"ok": False, "erro": "Sem permissão"}, status=403)
+    linha.delete()
+    return JsonResponse({"ok": True})
 
 
 @login_required

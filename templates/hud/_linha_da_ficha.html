@@ -1,0 +1,20 @@
+{% comment %}
+   Uma perícia, habilidade ou atributo. Fora do modo de edição é só a etiqueta;
+   com o lápis ligado, ela ganha os botões de reescrever e apagar.
+
+   Parâmetros: linha, tipo (a chave em LINHAS_DA_FICHA), classe, com_valor,
+   pode_editar.
+{% endcomment %}
+<span class="etiqueta {{ classe }}" data-linha data-nome="{{ linha.name }}" data-valor="{{ linha.value|default_if_none:'' }}">
+    <span class="etiqueta-nome">{{ linha.name }}</span>
+    {% if com_valor and linha.value %}<span class="etiqueta-valor">{{ linha.value }}</span>{% endif %}
+    {% if pode_editar %}
+        <span class="etiqueta-acoes so-editando">
+            <button type="button" class="etiqueta-botao" title="Reescrever"
+                    data-editar-linha="{% url 'update_sheet_line' tipo linha.pk %}"
+                    data-com-valor="{{ com_valor|yesno:'1,' }}">✏️</button>
+            <button type="button" class="etiqueta-botao apagar" title="Apagar"
+                    data-apagar-linha="{% url 'delete_sheet_line' tipo linha.pk %}">×</button>
+        </span>
+    {% endif %}
+</span>

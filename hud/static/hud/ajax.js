@@ -105,3 +105,19 @@
     ligarTodos: (raiz) => (raiz || document).querySelectorAll('form[data-ajax]').forEach(ligar),
   };
 })();
+
+/* O nome do arquivo escolhido aparece ao lado do botão. Sem isto o campo de
+   imagem não dá sinal nenhum de que alguma coisa foi escolhida — o <input>
+   está escondido, e é ele que normalmente mostraria o nome. */
+(() => {
+  document.addEventListener('change', (e) => {
+    const entrada = e.target;
+    if (!entrada.matches || !entrada.matches('.campo-imagem input[type=file]')) return;
+    const campo = entrada.closest('[data-campo-imagem]');
+    const nome = campo && campo.querySelector('[data-nome-do-arquivo]');
+    if (!nome) return;
+    nome.textContent = entrada.files && entrada.files[0]
+      ? entrada.files[0].name
+      : 'Nenhum arquivo escolhido';
+  });
+})();
