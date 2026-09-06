@@ -70,8 +70,16 @@
 
   // ---------------------------------------------------------------- utilidades
 
+  /* O erro precisa aparecer com a gaveta fechada.
+   *
+   * O widget nasce recolhido, e o aviso mora lá no fim do corpo: um player
+   * quebrado ficava quebrado em silêncio, e quem estava na mesa só sabia que
+   * "não funcionou". A barra do topo assume a cor e a marca do erro, que é o
+   * único pedaço que está sempre à vista. */
   function mostrarAviso(texto) {
     aviso.textContent = texto || '';
+    raiz.classList.toggle('com-erro', !!texto);
+    if (texto) estadoCurto.textContent = '⚠';
   }
 
   async function pegarToken() {
@@ -145,10 +153,14 @@
   function desenhar() {
     const atual = faixaAtual();
     agora.textContent = nomeDaFaixa(atual);
-    const simbolo = tocandoAgora() ? '▶' : '⏸';
-    estadoCurto.textContent = ouvintes.length
-      ? `${simbolo} ${ouvintes.length}👤`
-      : simbolo;
+    if (raiz.classList.contains('com-erro')) {
+      estadoCurto.textContent = '⚠';
+    } else {
+      const simbolo = tocandoAgora() ? '▶' : '⏸';
+      estadoCurto.textContent = ouvintes.length
+        ? `${simbolo} ${ouvintes.length}👤`
+        : simbolo;
+    }
 
     botaoEntrar.hidden = ouvindo;
     botaoSair.hidden = !ouvindo;
