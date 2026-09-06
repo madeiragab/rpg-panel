@@ -39,6 +39,7 @@ from hud.models import (
     InventorySlot,
     Item,
     NPC,
+    NPCSkill,
     PasswordResetToken,
     Polaroid,
     StickyNote,
