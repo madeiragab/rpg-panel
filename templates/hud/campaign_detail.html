@@ -219,6 +219,7 @@
             </div>
 
             <div class="quadro" id="quadro" data-move-url="{% url 'move_board_piece' campaign.pk %}"
+                 data-campanha="{{ campaign.pk }}"
                  data-barras-url="{% url 'bar_state' %}?scope=campaign&amp;pk={{ campaign.pk }}">
                 {% for peca in board_characters %}
                     {% url 'character_detail' peca.pk as url_ficha %}
@@ -363,6 +364,9 @@ document.querySelectorAll('.tab-button').forEach(button => {
         // consegue posicionar nada com isso. Agora que a aba abriu, elas
         // ganham a medida de verdade e se recolocam.
         if (window.hudPortrait) window.hudPortrait.prepararTodas();
+        // Pelo mesmo motivo: o quadro so sabe onde comeca depois de aparecer,
+        // e e desse ponto que ele calcula quanto falta ate o fim da tela.
+        if (window.hudQuadro) window.hudQuadro.ajustarAltura();
     });
 });
 

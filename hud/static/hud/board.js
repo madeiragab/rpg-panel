@@ -256,11 +256,100 @@
     if (vazio) vazio.remove();
   }
 
+  /* ------------------------------------------- a altura do quadro -- */
+
+  /* O quadro enche a tela sozinho.
+   *
+   * Antes ele tinha uma altura fixa em `vh` e uma alça de `resize` para o resto,
+   * e a alça era ruim de usar por um motivo estrutural: ela fica na borda de
+   * baixo, então esticar empurra a alça para fora da tela e a rolagem assume no
+   * meio do arrasto. Dava para crescer meia tela por vez, soltando e repetindo.
+   *
+   * Medir é melhor do que adivinhar: `vh` não sabe quanto o título, as abas e o
+   * texto de ajuda comeram acima do quadro, e essa altura muda de tela para
+   * tela. `getBoundingClientRect().top` sabe.
+   *
+   * A alça continua ali para quem quiser um quadro maior que a tela — e agora a
+   * altura escolhida fica guardada. É preferência de quem olha, não do quadro:
+   * a posição das peças é fração, então o arranjo é o mesmo em qualquer altura,
+   * e cada um pode ver a mesa no tamanho que couber no monitor dele. */
+  const CHAVE_ALTURA = `quadro:altura:${quadro.dataset.campanha || 'x'}`;
+  const RESPIRO_ABAIXO = 16;
+  const ALTURA_MINIMA = 320;
+
+  let alturaQueAplicamos = 0;
+
+  function alturaGuardada() {
+    try {
+      return Number(localStorage.getItem(CHAVE_ALTURA)) || 0;
+    } catch (erro) {
+      return 0;
+    }
+  }
+
+  function guardarAltura(px) {
+    try {
+      localStorage.setItem(CHAVE_ALTURA, String(px));
+    } catch (erro) { /* sem memória: o quadro continua, só esquece */ }
+  }
+
+  function aplicarAltura(px) {
+    alturaQueAplicamos = Math.round(px);
+    // O `min-height` do CSS é o que segura o quadro sem JS. Daqui em diante
+    // quem manda é a medida, e um piso em `vh` só brigaria com ela numa tela
+    // baixa — devolvendo a rolagem que este código existe para tirar.
+    quadro.style.minHeight = '0px';
+    quadro.style.height = `${alturaQueAplicamos}px`;
+  }
+
+  /* Quanto sobra do começo do quadro até o fim do painel.
+   *
+   * A conta é contra o painel rolável, e não contra a janela, porque só ela é
+   * estável: medir `window.innerHeight - rect.top` daria uma altura diferente
+   * conforme o painel estivesse rolado — o quadro cresceria ao rolar para baixo
+   * e sobraria ao voltar. Somar o `scrollTop` desfaz a rolagem da conta e
+   * devolve a posição do quadro dentro do painel, que não muda. */
+  function espacoDisponivel() {
+    const painel = quadro.closest('.content');
+    if (!painel) return window.innerHeight - quadro.getBoundingClientRect().top;
+    const dentro = quadro.getBoundingClientRect().top
+      - painel.getBoundingClientRect().top
+      + painel.scrollTop;
+    return painel.clientHeight - dentro;
+  }
+
+  function ajustarAltura() {
+    const escolhida = alturaGuardada();
+    if (escolhida) {
+      aplicarAltura(escolhida);
+      return;
+    }
+    // Aba fechada não tem medida: `offsetParent` nulo é o sinal disso, e um
+    // quadro de altura zero não volta sozinho. É o clique na aba que chama
+    // isto de novo, aí sim com a medida de verdade.
+    if (!quadro.offsetParent) return;
+    aplicarAltura(Math.max(espacoDisponivel() - RESPIRO_ABAIXO, ALTURA_MINIMA));
+  }
+
+  if ('ResizeObserver' in window) {
+    new ResizeObserver(() => {
+      const agora = Math.round(quadro.offsetHeight);
+      if (!agora) return;
+      // Um pixel de diferença é arredondamento nosso, não escolha de ninguém.
+      if (Math.abs(agora - alturaQueAplicamos) <= 1) return;
+      alturaQueAplicamos = agora;
+      guardarAltura(agora);
+    }).observe(quadro);
+  }
+
+  window.addEventListener('resize', ajustarAltura);
+  ajustarAltura();
+
   quadro.querySelectorAll('.peca').forEach(ligarArraste);
   quadro.querySelectorAll('[data-barra-url]').forEach(ligarBotaoDeBarra);
   quadro.querySelectorAll('[data-abrir-barra]').forEach(ligarAbrirBarra);
   quadro.querySelectorAll('.post-it-texto').forEach(ligarPostIt);
   quadro.querySelectorAll('[data-enquadrar]').forEach(ligarEnquadrar);
 
-  window.hudQuadro = { registrar };
+  window.hudQuadro = { registrar, ajustarAltura };
 })();
