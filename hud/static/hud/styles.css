@@ -1681,3 +1681,9 @@ a:hover { color: var(--accent-soft); }
         grid-row: auto;
     }
 }
+
+/* O inventário vai para a linha de baixo, e não para a primeira linha vazia
+   que o grid encontrar: as três colunas moram na linha 2, e sem dizer a linha
+   ele subia para a 1 e aparecia acima delas. */
+.hud-layout > .largura-total { grid-column: 1 / -1; grid-row: 3; }
+.hud-layout > .player-view-notice { grid-row: 1; }
