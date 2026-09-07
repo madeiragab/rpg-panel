@@ -126,20 +126,29 @@ WSGI_APPLICATION = "rpg_panel.wsgi.application"
 #
 # O painel escreve o tempo inteiro durante uma sessão: a posição da trilha, a
 # presença de quem está no áudio, a vida que o jogador acabou de perder. No
-# modo padrão (`journal_mode=DELETE`) uma escrita tranca o banco inteiro, e o
-# leitor que chegar no meio dela leva "database is locked" na cara — que na
-# tela vira um erro vermelho no meio do combate.
+# modo padrão uma escrita tranca o banco inteiro, e o leitor que chegar no meio
+# dela leva "database is locked" na cara — que na tela vira um erro vermelho no
+# meio do combate.
 #
-# `WAL` deixa leitura e escrita andarem juntas; o `timeout` manda esperar a vez
-# em vez de desistir na hora; e `IMMEDIATE` pega o cadeado no começo da
-# transação, e não no meio, que é o que evita duas escritas se encontrarem já
-# comprometidas e uma ter que morrer.
+# **Nada de WAL aqui, e o motivo não é gosto.** O WAL resolveria isto melhor do
+# que tudo que sobrou nesta configuração, e foi o que tentamos primeiro: ele
+# deixa leitura e escrita andarem juntas. Só que ele é implementado com memória
+# compartilhada num arquivo `-shm` ao lado do banco, e memória compartilhada não
+# existe em sistema de arquivos de rede — que é onde o PythonAnywhere guarda o
+# home. Ligado lá, o `migrate` morre com `disk I/O error` no meio.
+#
+# Sobra o que funciona em rede: o `timeout` manda o cliente esperar a vez em vez
+# de desistir na hora, e o `IMMEDIATE` pega o cadeado no começo da transação, e
+# não no meio, que é o que evita duas escritas se encontrarem já comprometidas e
+# uma ter que morrer. Os dois são do lado do cliente e não dependem de `mmap`.
+#
+# Quem for mover isto para um disco de verdade — ou para o Postgres, que é a
+# saída certa se a mesa crescer — pode reconsiderar o WAL.
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": BASE_DIR / "db.sqlite3",
         "OPTIONS": {
-            "init_command": "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;",
             "transaction_mode": "IMMEDIATE",
             "timeout": 20,
         },
