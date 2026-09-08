@@ -1,3 +1,4 @@
+{% load l10n %}
 {% comment %}
    Uma barra da ficha. Os nomes das funções chegam por parâmetro porque
    personagem, NPC e inimigo têm três conjuntos de rotas, e é só nisso que as
@@ -7,23 +8,41 @@
    na peça do quadro, e o id sozinho não distingue a barra 3 de um
    personagem da barra 3 de um inimigo.
 
+   O trilho tem dois pedaços. O primeiro é a vida de verdade, na cor da barra.
+   O segundo é o que passou do máximo — a vida temporária que a habilidade deu
+   — e vai na cor oposta: um naco mais claro da mesma cor se leria como "mais
+   do mesmo", que é justamente o contrário do que ele quer dizer. Com 15/12 o
+   trilho passa a valer 15, os 12 ocupam 80% dele e os 3 de sobra o resto.
+
+   As duas larguras passam pelo |unlocalize de propósito: com LANGUAGE_CODE
+   pt-br o template escreveria "80,0%", e o CSS não lê vírgula.
+
+   O `data-linha` é o que deixa a barra ser arrastada, e a ordem não é enfeite:
+   a primeira barra é a vida, e é ela que escolhe o retrato do personagem.
+
    Parâmetros: bar, tipo, fn_mod, fn_del, pode_editar, pode_apagar.
 {% endcomment %}
-<div class="character-bar" data-bar-kind="{{ tipo }}" data-bar-id="{{ bar.id }}" style="display: flex; align-items: center; gap: 12px;">
-    <span style="font-weight: 600; min-width: 80px; color: var(--text);">{{ bar.name }}</span>
+<div class="character-bar" data-bar-kind="{{ tipo }}" data-bar-id="{{ bar.id }}"
+     data-linha data-linha-id="{{ bar.id }}">
+    <span class="bar-nome">{{ bar.name }}</span>
     {% if pode_editar %}
-        <button class="hud-button ghost" onclick="{{ fn_mod }}({{ bar.id }}, 'decrease')" style="padding: 4px 8px; font-size: 16px;">−</button>
+        <button class="hud-button ghost bar-passo" onclick="{{ fn_mod }}({{ bar.id }}, 'decrease')">−</button>
     {% endif %}
-    <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
-        <span class="bar-display" style="font-size: 0.9rem; color: var(--muted);" data-current="{{ bar.current }}" data-max="{{ bar.max_value }}">{{ bar.current }} / {{ bar.max_value }}</span>
-        <div style="width: 100%; height: 10px; background: rgba(255, 255, 255, 0.1); border-radius: 5px; overflow: hidden;">
-            <div class="bar-fill" style="height: 100%; background: {{ bar.color }}; width: {% widthratio bar.current bar.max_value 100 %}%; transition: width 0.3s ease;"></div>
+    <div class="bar-corpo">
+        <span class="bar-display" data-current="{{ bar.current }}" data-max="{{ bar.max_value }}">{{ bar.current }} / {{ bar.max_value }}</span>
+        <div class="bar-trilho">
+            <span class="bar-fill" style="background: {{ bar.color }}; width: {{ bar.fatia_base|unlocalize }}%;"></span>
+            <span class="bar-extra" style="background: {{ bar.cor_do_excedente }}; width: {{ bar.fatia_excedente|unlocalize }}%;"
+                  title="Acima do máximo"></span>
         </div>
     </div>
     {% if pode_editar %}
-        <button class="hud-button ghost" onclick="{{ fn_mod }}({{ bar.id }}, 'increase')" style="padding: 4px 8px; font-size: 16px;">+</button>
+        <button class="hud-button ghost bar-passo" onclick="{{ fn_mod }}({{ bar.id }}, 'increase')">+</button>
     {% endif %}
     {% if pode_apagar %}
-        <button class="hud-button danger" onclick="{{ fn_del }}({{ bar.id }})" style="padding: 4px 8px; font-size: 12px;">×</button>
+        <button type="button" class="etiqueta-botao so-editando" title="Reescrever a barra"
+                data-editar-barra="{% url 'update_bar' tipo bar.id %}"
+                data-nome="{{ bar.name }}" data-maximo="{{ bar.max_value }}" data-cor="{{ bar.color }}">✏️</button>
+        <button class="hud-button danger bar-passo" onclick="{{ fn_del }}({{ bar.id }})">×</button>
     {% endif %}
 </div>

@@ -76,6 +76,26 @@ face. The crop lives in the database rather than in the uploader's browser
 because the player has to see the sheet framed the way the master chose.
 Replacing the photo resets all three: the crop belonged to the old image.
 
+### The character's three portraits
+
+Only `Character` has `image_ferido` and `image_grave` — the same person with a different face. They are fields on the sheet rather than a second sheet with the name, bars and inventory duplicated.
+
+Which of the three shows is **not a field**: it comes from health, and health is the **first bar on the sheet**. `estado_do_retrato` divides `current` by `max_value` of `barra_de_vida`: up to a quarter is `GRAVE`, up to a half is `FERIDO`, anything above that is `INTEIRO`. Storing the state in a column would mean keeping it current on every damage click across three different routes, and the first one to forget would leave the face lying about the bar right below it.
+
+There is no field saying "this bar is health" because there would be no way to fill it in for sheets that already exist — and because the order is already a choice the master makes on screen: they drag the bar that counts to the top. A sheet with no bars stays `INTEIRO`.
+
+`retrato_atual` picks the image for the state and **falls back upward** when it is missing: `GRAVE` uses the wounded art, and wounded uses the whole portrait. So a single upload is enough, and an old sheet stays exactly as it was. `NPC` and `Enemy` carry the same property returning plain `image`, so board pieces go through one template without knowing who has states.
+
+The **framing is shared** by all three: they are portraits of the same person, almost always in the same shape, and three sets of zoom and focus point (plus three more for the card) would add eight columns and another on-screen selector to solve a problem that has not shown up yet.
+
+### Bars: health can go past the maximum
+
+`CharacterBar`, `NPCBar` and `EnemyBar` are the same table three times (`name`, `current`, `max_value`, `color`, `order`) and share the `BarraDeFicha` mixin — a mixin of properties rather than an abstract model, because the three tables already exist with these columns and turning them into inheritance would touch migrations without changing a single row.
+
+`current` is **not capped by `max_value`**. The ability that grants temporary hit points leaves the character at 15/12, and clamping at 12 would erase exactly what it did. The track shows the difference in two pieces: at 15/12 it now stands for 15, the 12 of real health take 80% of it (`fatia_base`) and the 3 of overflow take the rest (`fatia_excedente`). The floor is still zero.
+
+The overflow uses the colour returned by `cor_oposta()`: the bar's hue rotated 180 degrees, with a floor on saturation and lightness. It is **another colour, not another shade of the same one** — a lighter red chunk on a red bar reads as "more of the same", which is the opposite of what it means; and without the floor the opposite of a grey would be another grey, lost inside the track.
+
 Three invariants are enforced in `save()`:
 
 - **`clamp_stats()`** — `hp_current` and `sp_current` can never exceed their

@@ -89,11 +89,22 @@ capacity, so shrinking an inventory never leaves orphan positions.
   JavaScript — all of them are `@require_POST` except the search:
   `search_players`, `assign_slot`, `modify_hp`, `modify_sp`, `modify_bar`,
   `add_character_bar`, `delete_bar`, `add_npc_bar`, `modify_npc_bar`,
-  `delete_npc_bar`, `toggle_character_visibility`, `toggle_npc_visibility`.
+  `delete_npc_bar`, `toggle_character_visibility`, `toggle_npc_visibility`, `update_bar`, `reorder_bars`.
 
 Multi-form pages (like `character_detail`, which edits the sheet, skills,
 abilities and attributes) dispatch on a hidden `form_type` field and use
 Django form `prefix`es to keep field names from colliding.
+
+## Signing in
+
+`AUTHENTICATION_BACKENDS` points at `hud.autenticacao.UsuarioOuEmailBackend`, which accepts **either a username or an email** in the same field. The reason is registration: `username` is derived from the nickname — or from the part of the email before the `@` when there is no nickname — and gains a trailing number when that name is already taken. Someone who signed up as "gabriel" may have become "gabriel2" without ever seeing it, and then cannot get in. The email they know by heart.
+
+The backend subclasses `ModelBackend`: password checking, inactive accounts and permissions are unchanged. Only the account lookup differs — username first, then `email__iexact`. Two details:
+
+- **A duplicated email does not work.** Django does not require unique emails, and with two accounts on the same address there is no way to tell whose password was typed. The email is refused there and sign-in stays on the username — picking one of the two would drop the person into the wrong account.
+- **A missing account pays for the hash too.** Without it, a nonexistent account answers instantly while an existing one takes as long as a password check: you could tell an account exists just by looking at the clock.
+
+The `accounts/login/` route is declared before `include("django.contrib.auth.urls")` only to swap in `LoginForm`, which labels the field "Nome de usuário ou email". A field that silently accepts an email does not help — nobody tries it.
 
 ## Password reset
 

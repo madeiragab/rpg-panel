@@ -224,17 +224,101 @@
     caixa.querySelector('[data-campo="name"]').focus();
   }
 
+  /* ------------------------------------------------ reescrever a barra ---- */
+
+  /* Nome, máximo e cor de uma barra, no lugar. O formulário de criar barra já
+     pede os três; sem isto, mudar qualquer um deles obrigava a apagar a barra
+     e criar outra — perdendo o valor atual junto.
+
+     O valor atual não entra aqui de propósito: ele tem os botões de mais e
+     menos, e é o que mais muda durante a sessão. */
+  function abrirEditorDeBarra(lapis) {
+    const barra = lapis.closest('.character-bar');
+    if (!barra) return;
+    if (barra.nextElementSibling && barra.nextElementSibling.classList.contains('editor-habilidade')) {
+      barra.nextElementSibling.remove();
+      return;
+    }
+    document.querySelectorAll('.editor-habilidade').forEach((e) => e.remove());
+
+    const caixa = document.createElement('div');
+    caixa.className = 'editor-habilidade';
+    caixa.innerHTML =
+      '<label>Nome<input type="text" data-campo="name"></label>' +
+      '<label>Máximo<input type="number" min="1" data-campo="max"></label>' +
+      '<label>Cor<input type="color" data-campo="color"></label>' +
+      '<div class="editor-acoes">' +
+      '<button type="button" class="hud-button" data-salvar>Salvar</button>' +
+      '<button type="button" class="hud-button ghost" data-cancelar>Cancelar</button>' +
+      '</div>';
+
+    caixa.querySelector('[data-campo="name"]').value = lapis.dataset.nome || '';
+    caixa.querySelector('[data-campo="max"]').value = lapis.dataset.maximo || '';
+    caixa.querySelector('[data-campo="color"]').value = lapis.dataset.cor || '#ff4444';
+    caixa.querySelector('[data-cancelar]').addEventListener('click', () => caixa.remove());
+
+    caixa.querySelector('[data-salvar]').addEventListener('click', () => {
+      const corpo = new URLSearchParams();
+      corpo.append('name', caixa.querySelector('[data-campo="name"]').value);
+      corpo.append('max_value', caixa.querySelector('[data-campo="max"]').value);
+      corpo.append('color', caixa.querySelector('[data-campo="color"]').value);
+
+      mandar(lapis.dataset.editarBarra, corpo)
+        .then(({ ok, dados }) => {
+          if (!ok || !dados.success) {
+            alert(dados.error || 'Não foi possível salvar.');
+            return;
+          }
+          lapis.dataset.nome = dados.name;
+          lapis.dataset.maximo = String(dados.max);
+          lapis.dataset.cor = dados.color;
+
+          const nome = barra.querySelector('.bar-nome');
+          if (nome) nome.textContent = dados.name;
+          // As duas cores vêm do servidor: a oposta é conta dele, e refazê-la
+          // aqui seria a segunda cópia da mesma fórmula.
+          const cheia = barra.querySelector('.bar-fill');
+          const sobra = barra.querySelector('.bar-extra');
+          if (cheia) cheia.style.background = dados.color;
+          if (sobra) sobra.style.background = dados.cor_excedente;
+          // As larguras e o retrato saem do mesmo lugar de sempre: o máximo
+          // mudou, e com ele a fração de vida que decide a cara da ficha.
+          if (window.hudBarras) {
+            window.hudBarras.aplicarUm(
+              barra.dataset.barKind, barra.dataset.barId, dados.current, dados.max,
+            );
+          }
+          caixa.remove();
+        })
+        .catch(() => alert('Não foi possível falar com o servidor.'));
+    });
+
+    barra.insertAdjacentElement('afterend', caixa);
+    caixa.querySelector('[data-campo="name"]').focus();
+  }
+
+  ficha.addEventListener('click', (e) => {
+    const lapis = e.target.closest('[data-editar-barra]');
+    if (lapis) abrirEditorDeBarra(lapis);
+  });
+
   /* --------------------------------------------- arrastar para reordenar -- */
 
   /* Vai a lista inteira de ids na ordem em que ficaram, e não "essa subiu uma":
      duas pessoas arrastando ao mesmo tempo com movimentos relativos acabariam
      com ordens diferentes das que cada uma viu. */
+  const jaArrastaveis = new WeakSet();
+
   function ligarReordenacao(grade) {
     const url = grade.dataset.reordenarUrl;
     if (!url) return;
     let arrastada = null;
 
     grade.querySelectorAll('[data-linha]').forEach((caixa) => {
+      // Barra criada sem recarregar entra na lista depois; religar a lista
+      // inteira não pode ligar duas vezes quem já estava.
+      if (jaArrastaveis.has(caixa)) return;
+      jaArrastaveis.add(caixa);
       caixa.draggable = true;
       caixa.addEventListener('dragstart', (e) => {
         if (!ficha.classList.contains('editando')) {
@@ -265,6 +349,12 @@
     function guardarOrdem() {
       const ids = [];
       grade.querySelectorAll('[data-linha]').forEach((caixa) => {
+        // A barra diz o id na cara; a perícia e o atributo só o têm dentro da
+        // rota do botão de apagar, e é de lá que ele sai.
+        if (caixa.dataset.linhaId) {
+          ids.push(Number(caixa.dataset.linhaId));
+          return;
+        }
         const botao = caixa.querySelector('[data-apagar-linha]');
         if (!botao) return;
         const partes = botao.dataset.apagarLinha.split('/').filter(Boolean);
@@ -277,7 +367,15 @@
     }
   }
 
-  document.querySelectorAll('[data-reordenavel]').forEach(ligarReordenacao);
+  function ligarTudoQueArrasta() {
+    document.querySelectorAll('[data-reordenavel]').forEach(ligarReordenacao);
+  }
+
+  ligarTudoQueArrasta();
+
+  /* Quem cria uma barra sem recarregar a página chama isto para a barra nova
+     poder ser arrastada como as outras. */
+  window.hudFicha = { religar: ligarTudoQueArrasta };
 
   /* ------------------------------------------- os dois enquadramentos ----- */
 
@@ -287,11 +385,12 @@
      estao mexendo agora. */
   const alvos = document.querySelector('[data-portrait-alvos]');
   if (alvos) {
-    /* A moldura é a que está logo acima do seletor, e não a primeira da
-       página: um querySelector com vírgula devolve o primeiro elemento na
-       ordem do documento, e o avatar do jogador no cabeçalho vem antes do
-       retrato — era nele que o seletor estava mexendo. */
-    const caixa = alvos.previousElementSibling;
+    /* A moldura é a que está marcada como principal, e não a primeira da
+       página: o avatar do jogador no cabeçalho vem antes do retrato na ordem
+       do documento, e era nele que o seletor estava mexendo. A marca também
+       aguenta o seletor mudar de lugar no template, o que a vizinhança do
+       elemento anterior não aguentava. */
+    const caixa = document.querySelector('[data-retrato-principal]');
     const moldura = caixa && caixa.querySelector('[data-portrait-frame]');
     const controle = caixa && caixa.querySelector('[data-portrait-zoom]');
 
@@ -327,6 +426,48 @@
     alvos.dataset.atual = 'ficha';
     alvos.querySelectorAll('[data-alvo]').forEach((botao) => {
       botao.addEventListener('click', () => trocarAlvo(botao.dataset.alvo));
+    });
+  }
+
+})();
+
+    function trocarRetrato(url) {
+      const moldura = molduraDoRetrato;
+      if (!moldura) return;   // template mudou de forma; melhor não fazer nada
+      let foto = moldura.querySelector('img');
+      if (!url) {
+        if (foto) foto.remove();
+        moldura.classList.add('empty');
+        return;
+      }
+      if (!foto) {
+        /* A ficha estava sem retrato nenhum: a moldura nasceu vazia e o
+           portrait.js só liga o `load` de quem já tinha imagem. */
+        foto = document.createElement('img');
+        foto.addEventListener('load', () => {
+          if (window.hudPortrait) window.hudPortrait.posicionar(moldura);
+        });
+        moldura.appendChild(foto);
+      }
+      moldura.classList.remove('empty');
+      foto.src = url;
+      if (window.hudPortrait) window.hudPortrait.preparar(moldura);
+    }
+
+    estados.querySelectorAll('[data-estado]').forEach((botao) => {
+      botao.addEventListener('click', () => {
+        const corpo = new URLSearchParams();
+        corpo.append('estado', botao.dataset.estado);
+        mandar(estados.dataset.url, corpo)
+          .then(({ ok, dados }) => {
+            if (!ok || !dados.success) return;
+            estados.querySelectorAll('[data-estado]').forEach((b) => {
+              b.classList.toggle('ligado', b.dataset.estado === dados.estado);
+            });
+            trocarRetrato(dados.imagem);
+          })
+          .catch(() => {});
+      });
     });
   }
 })();

@@ -30,39 +30,98 @@
     );
   }
 
+  /* Onde o retrato do personagem troca de cara. As duas frações são as mesmas
+     do `estado_do_retrato` no models.py: metade da vida deixa o personagem
+     ferido, um quarto o deixa gravemente ferido. A conta existe também aqui
+     para o rosto mudar no mesmo clique que tirou a vida — sem isso ele só
+     mudaria no F5 seguinte. */
+  const FRACAO_DE_FERIDO = 0.5;
+  const FRACAO_DE_GRAVE = 0.25;
+
+  function trocarRetratoDaVida(elo, atual, teto) {
+    const moldura = document.querySelector('[data-retrato-principal] [data-portrait-frame]');
+    const foto = moldura && moldura.querySelector('img');
+    if (!foto) return;   // ficha sem retrato: não há rosto para trocar
+
+    // Vida temporária passa do máximo, e aí a fração passa de 1: ninguém fica
+    // ferido por ganhar vida.
+    const fracao = teto > 0 ? atual / teto : 1;
+    let url = elo.dataset.retratoInteiro;
+    if (fracao <= FRACAO_DE_GRAVE) url = elo.dataset.retratoGrave;
+    else if (fracao <= FRACAO_DE_FERIDO) url = elo.dataset.retratoFerido;
+
+    if (!url || foto.getAttribute('src') === url) return;
+    foto.src = url;
+    if (window.hudPortrait) window.hudPortrait.preparar(moldura);
+  }
+
+  /* As duas fatias do trilho, na mesma conta do `BarraDeFicha` do models.py.
+
+     O valor atual pode passar do máximo — a habilidade que dá vida temporária
+     deixa o personagem em 15/12 — e nesse caso o trilho passa a valer 15: os
+     12 de vida de verdade ocupam 80% dele e os 3 de sobra ocupam o resto, na
+     cor oposta que o servidor já escolheu. */
+  function fatias(atual, teto) {
+    const total = Math.max(atual, teto, 1);
+    return {
+      base: (entre(Math.min(atual, teto), 0, total) * 100) / total,
+      extra: (Math.max(atual - teto, 0) * 100) / total,
+    };
+  }
+
   function pintar(barra, atual, maximo) {
     const teto = Number(maximo) || 1;
+
+    // O elo entre a barra de vida e o retrato da ficha: ele não desenha barra
+    // nenhuma, só diz qual cara o personagem tem agora.
+    if (barra.hasAttribute('data-retrato-de-vida')) {
+      trocarRetratoDaVida(barra, Number(atual), teto);
+      return;
+    }
+
+    const { base, extra } = fatias(Number(atual), teto);
 
     // A peça do quadro.
     const valor = barra.querySelector('.peca-barra-valor');
     const cheia = barra.querySelector('.peca-barra-cheia');
+    const sobra = barra.querySelector('.peca-barra-extra');
     if (valor) {
       valor.dataset.max = String(teto);
       valor.textContent = `${atual} / ${teto}`;
     }
-    if (cheia) cheia.style.width = `${entre((atual / teto) * 100, 0, 100)}%`;
+    if (cheia) cheia.style.width = `${base}%`;
+    if (sobra) sobra.style.width = `${extra}%`;
 
     // A barra da ficha.
     const mostrador = barra.querySelector('.bar-display');
     const enchimento = barra.querySelector('.bar-fill');
+    const excedente = barra.querySelector('.bar-extra');
     if (mostrador) {
       mostrador.dataset.current = String(atual);
       mostrador.dataset.max = String(teto);
       mostrador.textContent = `${atual} / ${teto}`;
     }
-    if (enchimento) enchimento.style.width = `${entre((atual / teto) * 100, 0, 100)}%`;
+    if (enchimento) enchimento.style.width = `${base}%`;
+    if (excedente) excedente.style.width = `${extra}%`;
   }
 
   /* O que os botões chamam depois do POST: o servidor já disse o valor novo,
-     e todas as cópias daquela barra na página passam a mostrá-lo. */
+     e todas as cópias daquela barra na página passam a mostrá-lo.
+
+     O máximo vem por parâmetro sempre que dá, porque nem toda cópia da barra
+     tem um mostrador de onde tirá-lo: o elo do retrato, por exemplo, é uma
+     div vazia. Quando não vem, vale o que qualquer uma das outras diz. */
   function aplicarUm(tipo, id, atual, maximo) {
-    elementos(tipo, id).forEach((barra) => {
-      const dito = barra.querySelector('.peca-barra-valor, .bar-display');
-      const teto = maximo !== undefined && maximo !== null
-        ? maximo
-        : (dito && Number(dito.dataset.max)) || 100;
-      pintar(barra, Number(atual), teto);
-    });
+    const alvos = elementos(tipo, id);
+    let teto = maximo === undefined || maximo === null ? null : Number(maximo);
+    if (teto === null) {
+      alvos.forEach((barra) => {
+        const dito = barra.querySelector('.peca-barra-valor, .bar-display');
+        if (teto === null && dito) teto = Number(dito.dataset.max);
+      });
+      if (teto === null) teto = 100;
+    }
+    alvos.forEach((barra) => pintar(barra, Number(atual), teto));
   }
 
   const raiz = document.querySelector('[data-barras-url]');

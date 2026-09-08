@@ -100,7 +100,7 @@
           // Quem pinta é o bars.js, e é ele que sabe de todas as cópias desta
           // barra na página. O quadro só repassa o valor que voltou.
           if (window.hudBarras) {
-            window.hudBarras.aplicarUm(barra.dataset.barKind, barra.dataset.barId, data.current);
+            window.hudBarras.aplicarUm(barra.dataset.barKind, barra.dataset.barId, data.current, data.max);
           }
         })
         .catch(() => {});

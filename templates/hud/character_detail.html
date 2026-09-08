@@ -9,7 +9,7 @@
     <div class="character-navbar-inner">
         {% for char in campaign_characters %}
         <a href="{% url 'character_detail' char.pk %}{% if not is_master %}?mode=player{% endif %}" class="character-nav-item {% if char.id == character.id %}active{% endif %}" title="{{ char.name }}">
-            {% include "hud/_retrato.html" with retrato=char imagem=char.image alt=char.name classe="redondo pequeno" url_salvar="" dica="" %}
+            {% include "hud/_retrato.html" with retrato=char imagem=char.retrato_atual alt=char.name classe="redondo pequeno" url_salvar="" dica="" %}
             <span class="character-nav-name">{{ char.name }}</span>
         </a>
         {% endfor %}
@@ -111,7 +111,24 @@
             {% endif %}
         </div>
         {% if is_master %}{% url 'update_character_framing' character.pk as url_enquadrar %}{% endif %}
-        {% include "hud/_retrato.html" with retrato=character imagem=character.image alt=character.name url_salvar=url_enquadrar dica="Retrato do personagem (opcional)" %}
+        {% include "hud/_retrato.html" with retrato=character imagem=character.retrato_atual alt=character.name url_salvar=url_enquadrar dica="Retrato do personagem (opcional)" principal=True %}
+
+        {% if character.barra_de_vida and character.image %}
+            {% comment %}
+               O elo entre a primeira barra e o retrato. Ele não desenha nada:
+               carrega os três endereços de imagem e o id da barra de vida, e o
+               bars.js troca o rosto no mesmo clique que tirou a vida — metade
+               deixa o personagem ferido, um quarto o deixa gravemente ferido.
+
+               Fica fora do `_retrato.html` de propósito: aquela moldura serve
+               ao avatar do perfil e à foto do item, que não têm vida nenhuma.
+            {% endcomment %}
+            <div hidden data-retrato-de-vida
+                 data-bar-kind="character" data-bar-id="{{ character.barra_de_vida.id }}"
+                 data-retrato-inteiro="{{ character.retrato_inteiro.url }}"
+                 data-retrato-ferido="{{ character.retrato_ferido.url }}"
+                 data-retrato-grave="{{ character.retrato_grave.url }}"></div>
+        {% endif %}
 
         {% if is_master and character.image %}
             {% comment %}
@@ -132,7 +149,13 @@
                 <button type="button" data-alvo="menu">menu</button>
             </div>
         {% endif %}
-        <div id="bars-container" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px;"
+        {% comment %}
+           A ordem das barras não é enfeite: a primeira é a vida, e é ela que
+           escolhe o retrato. Arrastar (com o lápis ligado) é como se troca
+           qual delas conta.
+        {% endcomment %}
+        <div id="bars-container" class="lista-de-barras"
+             {% if is_master %}data-reordenavel="bar" data-reordenar-url="{% url 'reorder_bars' 'character' character.pk %}"{% endif %}
              data-barras-url="{% url 'bar_state' %}?scope=character&amp;pk={{ character.pk }}">
             {% for bar in character.bars.all %}
                 {% include "hud/_barra_da_ficha.html" with bar=bar tipo="character" fn_mod="modifyBar" fn_del="deleteBar" pode_editar=True pode_apagar=is_master %}
@@ -384,6 +407,8 @@
             // segunda copia do mesmo layout.
             const container = document.getElementById('bars-container');
             container.insertAdjacentHTML('beforeend', data.html);
+            // A barra que nasce agora tem que poder ser arrastada como as outras.
+            if (window.hudFicha) window.hudFicha.religar();
             document.getElementById('bar-name').value = '';
             hideAddBarForm();
         })
@@ -404,7 +429,7 @@
             // Quem pinta e o bars.js: a mesma barra pode estar em mais de um
             // lugar da pagina, e o valor que manda e o que o servidor gravou.
             if (data.success) {
-                window.hudBarras.aplicarUm('character', barId, data.current);
+                window.hudBarras.aplicarUm('character', barId, data.current, data.max);
             } else {
                 alert(data.error || 'Erro ao modificar');
             }

@@ -18,10 +18,16 @@ Including another URLconf
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
+from django.contrib.auth.views import LoginView
 from django.urls import include, path
+
+from hud.forms import LoginForm
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    # A rota de entrar vem antes do include para trocar só o formulário: o
+    # resto do `django.contrib.auth.urls` (sair, trocar senha) fica como está.
+    path("accounts/login/", LoginView.as_view(authentication_form=LoginForm), name="login"),
     path("accounts/", include("django.contrib.auth.urls")),
     # A API entra antes do `hud`, que casa a raiz e engoliria o prefixo.
     path("api/", include("api.urls")),

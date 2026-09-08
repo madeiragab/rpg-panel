@@ -303,8 +303,8 @@
                 <div class="characters-grid">
                     {% for character in characters %}
                         <div class="character-card">
-                            {% if character.image %}
-                                <div class="character-card-image" style="background-image: url('{{ character.image.url }}'); background-position: {% widthratio character.image_focus_x 1 100 %}% {% widthratio character.image_focus_y 1 100 %}%;"></div>
+                            {% if character.retrato_atual %}
+                                <div class="character-card-image" style="background-image: url('{{ character.retrato_atual.url }}'); background-position: {% widthratio character.image_focus_x 1 100 %}% {% widthratio character.image_focus_y 1 100 %}%;"></div>
                             {% else %}
                                 <div class="character-card-image empty"></div>
                             {% endif %}

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import colorsys
 import hashlib
 import secrets
 from datetime import timedelta
@@ -11,6 +12,16 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils import timezone
 
+
+# Os estados do retrato, e a fração de vida em que cada um começa. Quem manda
+# é a **primeira barra da ficha**: ela é a vida, por convenção, e é por isso
+# que as barras podem ser arrastadas — mudar qual delas vem primeiro é como se
+# escolhe qual conta para o retrato.
+ESTADO_INTEIRO = "INTEIRO"
+ESTADO_FERIDO = "FERIDO"
+ESTADO_GRAVE = "GRAVE"
+FRACAO_DE_FERIDO = 0.5
+FRACAO_DE_GRAVE = 0.25
 
 INVENTORY_ROWS = 4
 INVENTORY_COLUMNS = 4
@@ -209,6 +220,13 @@ class NPC(RetratoEnquadrado, RetratoNoMenu, PecaDoQuadro):
         self.hp_current = min(self.hp_current, self.hp_max)
         self.sp_current = min(self.sp_current, self.sp_max)
 
+    @property
+    def retrato_atual(self):
+        """O retrato, sem mais. Existe com o mesmo nome do de `Character`
+        porque as peças do quadro passam pelo mesmo template: só o personagem
+        tem estados, e o template não precisa saber disso."""
+        return self.image
+
     def save(self, *args, **kwargs):  # type: ignore[override]
         self.clamp_stats()
         self.clamp_framing()
@@ -238,6 +256,11 @@ class Character(RetratoEnquadrado, RetratoNoMenu, PecaDoQuadro):
     )
     name = models.CharField(max_length=120)
     image = models.ImageField(upload_to="characters/", null=True, blank=True)
+    # O mesmo personagem em três estados. A arte de ferido é a mesma pessoa com
+    # outra cara, e não outra ficha: por isso são campos aqui e não um modelo à
+    # parte com nome, barras e inventário repetidos.
+    image_ferido = models.ImageField(upload_to="characters/", null=True, blank=True)
+    image_grave = models.ImageField(upload_to="characters/", null=True, blank=True)
     hp_max = models.PositiveIntegerField(default=10)
     hp_current = models.PositiveIntegerField(default=10)
     sp_max = models.PositiveIntegerField(default=10)
@@ -268,6 +291,61 @@ class Character(RetratoEnquadrado, RetratoNoMenu, PecaDoQuadro):
     def clamp_stats(self) -> None:
         self.hp_current = min(self.hp_current, self.hp_max)
         self.sp_current = min(self.sp_current, self.sp_max)
+
+    # Os três retratos, cada um caindo para o de cima quando não existe. Assim
+    # dá para subir só a arte de ferido e o gravemente ferido já mostrar alguma
+    # coisa — e uma ficha antiga, que só tem o retrato normal, continua igual
+    # ao que sempre foi.
+    @property
+    def retrato_inteiro(self):
+        return self.image
+
+    @property
+    def retrato_ferido(self):
+        return self.image_ferido or self.image
+
+    @property
+    def retrato_grave(self):
+        return self.image_grave or self.image_ferido or self.image
+
+    @property
+    def barra_de_vida(self):
+        """A primeira barra da ficha, que é a vida por convenção.
+
+        Não há campo dizendo "esta é a vida" porque não haveria como preenchê-lo
+        sozinho nas fichas que já existem, e porque a ordem já é uma escolha que
+        o mestre faz na tela: ele arrasta para o topo a barra que conta.
+
+        Vai por `next(iter(...))` e não por `.first()`: com as barras já
+        carregadas — e a ficha carrega todas para desenhá-las — o `.first()`
+        faria uma segunda consulta ao banco para buscar a que já está na mão.
+        """
+        return next(iter(self.bars.all()), None)
+
+    @property
+    def estado_do_retrato(self) -> str:
+        """Inteiro, ferido ou gravemente ferido, pela barra de vida."""
+        barra = self.barra_de_vida
+        if barra is None or barra.max_value <= 0:
+            return ESTADO_INTEIRO
+        # Vida temporária passa do máximo, e nesse caso a fração passa de 1:
+        # ninguém fica ferido por ganhar vida.
+        fracao = barra.current / barra.max_value
+        if fracao <= FRACAO_DE_GRAVE:
+            return ESTADO_GRAVE
+        if fracao <= FRACAO_DE_FERIDO:
+            return ESTADO_FERIDO
+        return ESTADO_INTEIRO
+
+    @property
+    def retrato_atual(self):
+        """A imagem que vale para a vida de agora."""
+        estado = self.estado_do_retrato
+        if estado == ESTADO_GRAVE:
+            return self.retrato_grave
+        if estado == ESTADO_FERIDO:
+            return self.retrato_ferido
+        return self.retrato_inteiro
 
     def save(self, *args, **kwargs):  # type: ignore[override]
         self.clamp_stats()
@@ -352,7 +430,77 @@ class CharacterAbility(HabilidadeComCampos):
         return f"{self.character.name}: {self.name}"
 
 
-class CharacterBar(models.Model):
+def cor_oposta(cor: str) -> str:
+    """A cor do outro lado do círculo — outra cor, e não outro tom da mesma.
+
+    O pedaço que passa do máximo tem que se ler de relance como outra coisa:
+    uma barra vermelha com um naco vermelho-claro na ponta parece a mesma vida,
+    e é justamente o contrário do que ela quer dizer. Girar 180° na matiz dá
+    isso para qualquer cor que o mestre escolha, sem tabela de exceções.
+
+    Saturação e luminosidade são forçadas para baixo de um piso porque a
+    oposta de um cinza é outro cinza, e a de um quase-preto é outro
+    quase-preto: nos dois casos o naco sumiria dentro do trilho.
+    """
+    texto = (cor or "").strip().lstrip("#")
+    if len(texto) == 3:
+        texto = "".join(letra * 2 for letra in texto)
+    try:
+        vermelho, verde, azul = (int(texto[i:i + 2], 16) / 255 for i in (0, 2, 4))
+    except (ValueError, IndexError):
+        # A cor veio de um campo de texto livre; um azul serve de padrão.
+        return "#3aa0ff"
+
+    matiz, luz, saturacao = colorsys.rgb_to_hls(vermelho, verde, azul)
+    matiz = (matiz + 0.5) % 1.0
+    saturacao = max(saturacao, 0.7)
+    luz = min(max(luz, 0.5), 0.62)
+    vermelho, verde, azul = colorsys.hls_to_rgb(matiz, luz, saturacao)
+    return "#%02x%02x%02x" % (
+        round(vermelho * 255), round(verde * 255), round(azul * 255)
+    )
+
+
+class BarraDeFicha:
+    """O que toda barra sabe dizer de si, seja de personagem, NPC ou inimigo.
+
+    É um mixin de propriedades, e não uma classe abstrata de modelo: as três
+    tabelas já existem com estas colunas, e transformá-las em herança mexeria
+    nas migrações para não mudar uma linha do banco.
+
+    O valor atual pode **passar do máximo** — a habilidade que dá vida
+    temporária deixa o personagem em 15/12, e cortar em 12 apagaria justamente
+    o que a habilidade fez. O trilho estica: com 15/12 ele passa a valer 15, os
+    12 de vida de verdade ocupam 80% dele e os 3 de sobra ocupam o resto, na
+    cor oposta.
+    """
+
+    @property
+    def excedente(self) -> int:
+        """O que passou do máximo, que é a vida temporária."""
+        return max(self.current - self.max_value, 0)
+
+    @property
+    def total_na_barra(self) -> int:
+        """Quanto o trilho inteiro representa. Sem excedente, é o máximo."""
+        return max(self.current, self.max_value, 1)
+
+    @property
+    def fatia_base(self) -> float:
+        """Porcentagem do trilho ocupada pela vida de verdade."""
+        return round(max(min(self.current, self.max_value), 0) * 100 / self.total_na_barra, 2)
+
+    @property
+    def fatia_excedente(self) -> float:
+        """Porcentagem do trilho ocupada pelo que passou do máximo."""
+        return round(self.excedente * 100 / self.total_na_barra, 2)
+
+    @property
+    def cor_do_excedente(self) -> str:
+        return cor_oposta(self.color)
+
+
+class CharacterBar(BarraDeFicha, models.Model):
     character = models.ForeignKey(Character, on_delete=models.CASCADE, related_name="bars")
     name = models.CharField(max_length=80)
     current = models.IntegerField(default=0)
@@ -403,7 +551,7 @@ class NPCAbility(HabilidadeComCampos):
         return f"{self.npc.name}: {self.name}"
 
 
-class NPCBar(models.Model):
+class NPCBar(BarraDeFicha, models.Model):
     npc = models.ForeignKey(NPC, on_delete=models.CASCADE, related_name="bars")
     name = models.CharField(max_length=80)
     current = models.IntegerField(default=0)
@@ -468,6 +616,13 @@ class Enemy(RetratoEnquadrado, RetratoNoMenu, PecaDoQuadro):
     def __str__(self) -> str:  # pragma: no cover - simple display
         return self.name
 
+    @property
+    def retrato_atual(self):
+        """O retrato, sem mais. Existe com o mesmo nome do de `Character`
+        porque as peças do quadro passam pelo mesmo template: só o personagem
+        tem estados, e o template não precisa saber disso."""
+        return self.image
+
     def save(self, *args, **kwargs):  # type: ignore[override]
         self.clamp_framing()
         self.clamp_card()
@@ -498,7 +653,7 @@ class EnemyAbility(HabilidadeComCampos):
         return f"{self.enemy.name}: {self.name}"
 
 
-class EnemyBar(models.Model):
+class EnemyBar(BarraDeFicha, models.Model):
     enemy = models.ForeignKey(Enemy, on_delete=models.CASCADE, related_name="bars")
     name = models.CharField(max_length=80)
     current = models.IntegerField(default=0)

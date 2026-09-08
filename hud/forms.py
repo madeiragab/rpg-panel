@@ -3,6 +3,7 @@ from io import BytesIO
 from django import forms
 from django.core.files.base import ContentFile
 from PIL import Image, ImageOps
+from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 
@@ -26,6 +27,42 @@ from .models import (
     Polaroid,
     UserProfile,
 )
+
+
+class LoginForm(AuthenticationForm):
+    """A tela de entrar, aceitando nome de usuário ou e-mail.
+
+    Quem resolve os dois é o `UsuarioOuEmailBackend`; aqui só muda o que a
+    etiqueta promete. Um campo que diz "Nome de usuário" e aceita e-mail em
+    silêncio não ajuda ninguém — a pessoa nem tenta.
+    """
+
+    error_messages = {
+        **AuthenticationForm.error_messages,
+        "invalid_login": "Nome de usuário (ou email) e senha não conferem. "
+                         "Cuidado com maiúsculas e minúsculas na senha.",
+    }
+
+    username = forms.CharField(
+        label="Nome de usuário ou email",
+        # 254 é o tamanho do campo de e-mail do Django; o username vai até 150.
+        max_length=254,
+        widget=forms.TextInput(attrs={
+            "class": "hud-input",
+            "autofocus": True,
+            "autocomplete": "username",
+            "placeholder": "Seu usuário ou seu email",
+        }),
+    )
+    password = forms.CharField(
+        label="Senha",
+        strip=False,
+        widget=forms.PasswordInput(attrs={
+            "class": "hud-input",
+            "autocomplete": "current-password",
+            "placeholder": "Sua senha",
+        }),
+    )
 
 
 class ForgotPasswordForm(forms.Form):
@@ -134,12 +171,31 @@ def conferir_e_encolher(imagem, lado_maximo: int):
 
 
 class RetratoMixin:
-    """Regras da imagem de ficha, iguais para personagem e NPC."""
+    """Regras da imagem de ficha, iguais para personagem e NPC.
+
+    `CAMPOS_DE_IMAGEM` existe porque a ficha do personagem tem três retratos —
+    inteiro, ferido e gravemente ferido — e os três passam pela mesma peneira:
+    mesmos formatos aceitos e mesmo teto de resolução. A conferência mora no
+    `clean()` e não num `clean_<campo>` por retrato justamente para não ter que
+    escrever o mesmo método três vezes.
+    """
 
     LADO_MAXIMO = LADO_MAXIMO_DA_FICHA
+    CAMPOS_DE_IMAGEM = ("image",)
 
-    def clean_image(self):
-        return conferir_e_encolher(self.cleaned_data.get("image"), self.LADO_MAXIMO)
+    def clean(self):
+        cleaned = super().clean()
+        for campo in self.CAMPOS_DE_IMAGEM:
+            if campo not in cleaned:
+                continue  # o campo já falhou antes; não há o que encolher
+            try:
+                cleaned[campo] = conferir_e_encolher(cleaned[campo], self.LADO_MAXIMO)
+            except forms.ValidationError as erro:
+                # `add_error` põe o recado embaixo do campo certo. Deixar o
+                # ValidationError subir daqui jogaria os três retratos no mesmo
+                # aviso solto no topo do formulário.
+                self.add_error(campo, erro)
+        return cleaned
 
     def save(self, commit=True):
         ficha = super().save(commit=False)
@@ -166,16 +222,29 @@ class CampaignForm(forms.ModelForm):
 
 
 class CharacterForm(RetratoMixin, forms.ModelForm):
+    CAMPOS_DE_IMAGEM = ("image", "image_ferido", "image_grave")
+
     class Meta:
         model = Character
-        fields = ["name", "image", "inventory_capacity", "assigned_to"]
+        fields = [
+            "name",
+            "image",
+            "image_ferido",
+            "image_grave",
+            "inventory_capacity",
+            "assigned_to",
+        ]
         widgets = {
             "assigned_to": forms.Select(attrs={"class": "hud-select"}),
             "image": forms.ClearableFileInput(attrs={"accept": ACCEPT_DE_RETRATO}),
+            "image_ferido": forms.ClearableFileInput(attrs={"accept": ACCEPT_DE_RETRATO}),
+            "image_grave": forms.ClearableFileInput(attrs={"accept": ACCEPT_DE_RETRATO}),
         }
         labels = {
             "name": "Nome",
             "image": "Imagem (upload)",
+            "image_ferido": "Imagem ferido (metade da vida)",
+            "image_grave": "Imagem gravemente ferido (um quarto da vida)",
             "inventory_capacity": "Capacidade de inventário",
             "assigned_to": "Atribuir ao jogador",
         }

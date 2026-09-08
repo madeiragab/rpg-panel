@@ -1,3 +1,4 @@
+{% load l10n %}
 {% comment %}
    Uma barra na peça do quadro. Os passos são −5 −1 +1 +5: no meio do combate,
    tirar doze de vida em doze cliques é pior do que não ter o botão.
@@ -19,8 +20,14 @@
             <span class="peca-barra-nome">{{ bar.name }}</span>
             <span class="peca-barra-valor" data-max="{{ bar.max_value }}">{{ bar.current }} / {{ bar.max_value }}</span>
         </span>
+        {% comment %}
+           Os dois pedaços do trilho: a vida de verdade na cor da barra, e o
+           que passou do máximo na cor oposta. O mesmo da ficha, e pelo mesmo
+           motivo — o excedente tem que se ler como outra coisa, de longe.
+        {% endcomment %}
         <span class="peca-barra-trilho">
-            <span class="peca-barra-cheia" style="background: {{ bar.color }}; width: {% widthratio bar.current bar.max_value 100 %}%;"></span>
+            <span class="peca-barra-cheia" style="background: {{ bar.color }}; width: {{ bar.fatia_base|unlocalize }}%;"></span>
+            <span class="peca-barra-extra" style="background: {{ bar.cor_do_excedente }}; width: {{ bar.fatia_excedente|unlocalize }}%;"></span>
         </span>
     </button>
     <div class="peca-barra-botoes" hidden>

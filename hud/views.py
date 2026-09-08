@@ -1365,6 +1365,124 @@ def toggle_npc_visibility(request: HttpRequest, npc_id: int) -> JsonResponse:
     return JsonResponse({"success": True, "visible": npc.visible})
 
 
+# --------------------------------------------------------------- barras --
+# As três fichas têm barras iguais em tudo menos o dono, e cada uma nasceu com
+# o seu par de rotas de somar e apagar. Editar e reordenar entram por uma porta
+# só: eram três cópias do mesmo código esperando para divergir.
+BARRAS_DA_FICHA = {
+    "character": (CharacterBar, Character, "character"),
+    "npc": (NPCBar, NPC, "npc"),
+    "enemy": (EnemyBar, Enemy, "enemy"),
+}
+
+
+def _ficha_do_mestre(request: HttpRequest, tipo: str, pk: int):
+    """A ficha, se quem pede manda nela. Senão, None.
+
+    É a mesma regra do `_linha_do_mestre`: mexer na estrutura de uma ficha —
+    quais barras ela tem, em que ordem, com que nome — é coisa do mestre da
+    campanha. O valor da vida é outra história, e continua com a regra frouxa
+    de `_quem_ve_a_ficha`: o jogador tira dano da própria ficha.
+    """
+    registro = BARRAS_DA_FICHA.get(tipo)
+    if registro is None:
+        return None
+    _, modelo_da_ficha, _ = registro
+    ficha = get_object_or_404(modelo_da_ficha, pk=pk)
+    campanha = ficha.campaign
+    if campanha:
+        return ficha if campanha.master == request.user else None
+    return ficha if getattr(ficha, "created_by", None) == request.user else None
+
+
+def _barra_em_json(bar) -> dict[str, Any]:
+    """O que a página precisa para redesenhar uma barra sem recarregar.
+
+    As duas cores e as duas fatias vão junto do valor porque o excedente muda
+    de tamanho a cada clique, e a cor oposta é conta do servidor: fazê-la
+    também no JavaScript seria a segunda cópia da mesma fórmula.
+    """
+    return {
+        "success": True,
+        "id": bar.id,
+        "name": bar.name,
+        "current": bar.current,
+        "max": bar.max_value,
+        "max_value": bar.max_value,
+        "color": bar.color,
+        "cor_excedente": bar.cor_do_excedente,
+        "fatia_base": bar.fatia_base,
+        "fatia_excedente": bar.fatia_excedente,
+    }
+
+
+@login_required
+@require_POST
+def update_bar(request: HttpRequest, tipo: str, bar_id: int) -> JsonResponse:
+    """Reescreve nome, máximo e cor de uma barra, no lugar."""
+    registro = BARRAS_DA_FICHA.get(tipo)
+    if registro is None:
+        return JsonResponse({"error": "Tipo desconhecido"}, status=400)
+    modelo, _, dono = registro
+    bar = get_object_or_404(modelo, pk=bar_id)
+    if _ficha_do_mestre(request, tipo, getattr(bar, f"{dono}_id")) is None:
+        return JsonResponse({"error": "Sem permissão"}, status=403)
+
+    nome = request.POST.get("name", "").strip()[:80]
+    if not nome:
+        return JsonResponse({"error": "O nome não pode ficar vazio."}, status=400)
+    try:
+        maximo = int(request.POST.get("max_value", bar.max_value))
+    except (TypeError, ValueError):
+        return JsonResponse({"error": "Máximo inválido"}, status=400)
+    if maximo <= 0:
+        return JsonResponse({"error": "O máximo tem que ser maior que zero."}, status=400)
+
+    bar.name = nome
+    bar.max_value = maximo
+    bar.color = request.POST.get("color", bar.color).strip()[:20] or bar.color
+    # O valor atual não é puxado para o máximo novo: quem estava com vida
+    # temporária continua com ela, e é a barra que mostra a sobra.
+    bar.save()
+    return JsonResponse(_barra_em_json(bar))
+
+
+@login_required
+@require_POST
+def reorder_bars(request: HttpRequest, tipo: str, pk: int) -> JsonResponse:
+    """Grava a nova ordem das barras depois de um arraste.
+
+    A ordem não é enfeite: a **primeira barra é a vida**, e é ela que decide se
+    o retrato do personagem é o inteiro, o de ferido ou o de gravemente ferido.
+    Arrastar outra para o topo é como se troca qual delas conta.
+
+    Chega a lista inteira de ids na ordem em que ficaram, e não "essa subiu
+    uma", pelo mesmo motivo do `reorder_sheet_lines`.
+    """
+    ficha = _ficha_do_mestre(request, tipo, pk)
+    if ficha is None:
+        return JsonResponse({"error": "Sem permissão"}, status=403)
+
+    try:
+        ids = [int(x) for x in json.loads(request.POST.get("ids", "[]"))]
+    except (TypeError, ValueError):
+        return JsonResponse({"error": "Ordem inválida"}, status=400)
+
+    modelo = BARRAS_DA_FICHA[tipo][0]
+    das_minhas = {barra.id: barra for barra in ficha.bars.all()}
+    barras = []
+    for posicao, bar_id in enumerate(ids):
+        barra = das_minhas.get(bar_id)
+        if barra is None:
+            # Id de outra ficha na lista: a ordem inteira é recusada, senão
+            # daria para descobrir barras alheias uma a uma pelo 200/404.
+            return JsonResponse({"error": "Barra desconhecida"}, status=400)
+        barra.order = posicao
+        barras.append(barra)
+    modelo.objects.bulk_update(barras, ["order"])
+    return JsonResponse({"success": True})
+
+
 @login_required
 @require_POST
 def add_character_bar(request: HttpRequest, character_id: int) -> JsonResponse:
@@ -1428,14 +1546,17 @@ def modify_bar(request: HttpRequest, bar_id: int) -> JsonResponse:
     
     passo = _passo_da_barra(request)
     if action == "increase":
-        bar.current = min(bar.current + passo, bar.max_value)
+        # Sem teto: a habilidade que dá vida temporária deixa o personagem em
+        # 15/12, e cortar em 12 apagaria exatamente o que ela fez. Quem mostra
+        # a sobra é a barra, num pedaço de outra cor.
+        bar.current = bar.current + passo
     elif action == "decrease":
         bar.current = max(bar.current - passo, 0)
     else:
         return JsonResponse({"error": "Ação inválida"}, status=400)
     
     bar.save()
-    return JsonResponse({"success": True, "current": bar.current})
+    return JsonResponse(_barra_em_json(bar))
 
 
 @login_required
@@ -1604,11 +1725,11 @@ def modify_npc_bar(request: HttpRequest, npc_pk: int, bar_id: int) -> JsonRespon
         action = request.POST.get("action", "increase")
         passo = _passo_da_barra(request)
         if action == "increase":
-            bar.current = min(bar.current + passo, bar.max_value)
+            bar.current = bar.current + passo   # sem teto: vida temporária passa
         elif action == "decrease":
             bar.current = max(bar.current - passo, 0)
         bar.save()
-        return JsonResponse({"success": True, "current": bar.current})
+        return JsonResponse(_barra_em_json(bar))
 
     return JsonResponse({"success": False, "error": "Método não permitido"}, status=405)
 
@@ -1860,11 +1981,11 @@ def modify_enemy_bar(request: HttpRequest, enemy_pk: int, bar_id: int) -> JsonRe
     action = request.POST.get("action", "increase")
     passo = _passo_da_barra(request)
     if action == "increase":
-        bar.current = min(bar.current + passo, bar.max_value)
+        bar.current = bar.current + passo   # sem teto: vida temporária passa
     elif action == "decrease":
         bar.current = max(bar.current - passo, 0)
     bar.save()
-    return JsonResponse({"success": True, "current": bar.current})
+    return JsonResponse(_barra_em_json(bar))
 
 
 @login_required

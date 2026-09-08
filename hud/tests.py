@@ -53,6 +53,7 @@ from hud.models import (
     Polaroid,
     StickyNote,
     UserProfile,
+    cor_oposta,
 )
 
 User = get_user_model()
@@ -3184,3 +3185,435 @@ class PecaDoQuadroTests(TestCase):
 
     def test_a_barra_da_peca_diz_de_que_tipo_e(self):
         self.assertIn('data-bar-kind="character"', self._quadro())
+
+
+@SEM_REDIRECT_HTTPS
+@SEM_MANIFESTO
+class LoginPorUsuarioOuEmailTests(TestCase):
+    """O nome de usuário não é o que a pessoa escolheu.
+
+    No cadastro ele sai do apelido — ou do pedaço do e-mail antes do @ quando
+    não há apelido — e ainda ganha um número no fim se aquele nome já estava
+    tomado. Quem virou "gabriel2" sem ver isso na tela não entra mais pelo nome
+    que acha que é o dele. O e-mail ele sabe de cor.
+    """
+
+    def setUp(self):
+        self.ana = User.objects.create_user(
+            username='ana2', email='ana@exemplo.com', password='SenhaForte!2026'
+        )
+
+    def _entrar(self, identificador, senha='SenhaForte!2026'):
+        return self.client.post(
+            reverse('login'), {'username': identificador, 'password': senha}
+        )
+
+    def test_o_nome_de_usuario_continua_entrando(self):
+        resposta = self._entrar('ana2')
+
+        self.assertTrue(resposta.wsgi_request.user.is_authenticated)
+
+    def test_o_email_entra_na_mesma_conta(self):
+        resposta = self._entrar('ana@exemplo.com')
+
+        self.assertEqual(resposta.wsgi_request.user, self.ana)
+
+    def test_o_email_entra_com_qualquer_caixa(self):
+        """Ninguém digita o próprio e-mail sempre do mesmo jeito."""
+        resposta = self._entrar('Ana@Exemplo.com')
+
+        self.assertEqual(resposta.wsgi_request.user, self.ana)
+
+    def test_senha_errada_nao_entra_por_nenhum_dos_dois(self):
+        self.assertFalse(
+            self._entrar('ana2', 'outra').wsgi_request.user.is_authenticated
+        )
+        self.assertFalse(
+            self._entrar('ana@exemplo.com', 'outra').wsgi_request.user.is_authenticated
+        )
+
+    def test_conta_desativada_nao_entra_pelo_email(self):
+        self.ana.is_active = False
+        self.ana.save()
+
+        resposta = self._entrar('ana@exemplo.com')
+
+        self.assertFalse(resposta.wsgi_request.user.is_authenticated)
+
+    def test_email_repetido_em_duas_contas_so_entra_pelo_usuario(self):
+        """O Django não exige e-mail único, e a senha digitada pode ser a de
+        qualquer uma das duas: escolher uma poria a pessoa na conta errada."""
+        User.objects.create_user(
+            username='ana3', email='ana@exemplo.com', password='OutraForte!2026'
+        )
+
+        self.assertFalse(
+            self._entrar('ana@exemplo.com').wsgi_request.user.is_authenticated
+        )
+        self.assertTrue(self._entrar('ana2').wsgi_request.user.is_authenticated)
+
+    def test_a_tela_diz_que_aceita_email(self):
+        """Um campo que aceita e-mail em silêncio não serve: a pessoa nem tenta."""
+        html = self.client.get(reverse('login')).content.decode()
+
+        self.assertIn('Nome de usuário ou email', html)
+
+
+class RetratosDeFeridoNoFormularioTests(TestCase):
+    """Os três retratos passam pela mesma peneira do retrato normal."""
+
+    def setUp(self):
+        self.mestre = make_user('mestre')
+        self.jogador = make_user('jogador')
+        self.campanha = Campaign.objects.create(name='Ossos', master=self.mestre)
+        self.campanha.players.add(self.jogador)
+        self.personagem = Character.objects.create(
+            name='Kai', created_by=self.mestre, campaign=self.campanha,
+            assigned_to=self.jogador,
+        )
+
+    def _form(self, arquivos):
+        return CharacterForm(
+            {
+                'character-name': 'Kai',
+                'character-inventory_capacity': '16',
+                'character-assigned_to': str(self.jogador.pk),
+            },
+            {'character-' + campo: arquivo for campo, arquivo in arquivos.items()},
+            instance=self.personagem,
+            prefix='character',
+        )
+
+    def test_o_gif_vale_para_ferido_e_para_gravemente_ferido(self):
+        form = self._form({
+            'image_ferido': SimpleUploadedFile(
+                'ferido.gif', RetratoDaFichaTests.GIF, content_type='image/gif'
+            ),
+            'image_grave': SimpleUploadedFile(
+                'grave.gif', RetratoDaFichaTests.GIF, content_type='image/gif'
+            ),
+        })
+
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_arquivo_que_nao_e_imagem_e_recusado_no_campo_certo(self):
+        form = self._form({
+            'image_grave': SimpleUploadedFile(
+                'grave.gif', b'nao sou um gif', content_type='image/gif'
+            ),
+        })
+
+        self.assertFalse(form.is_valid())
+        self.assertIn('image_grave', form.errors)
+
+    def test_a_arte_grande_encolhe_ate_o_mesmo_teto_do_retrato_normal(self):
+        gigante = Image.new('RGB', (2400, 1200), 'red')
+        memoria = BytesIO()
+        gigante.save(memoria, format='PNG')
+        arquivo = SimpleUploadedFile(
+            'ferido.png', memoria.getvalue(), content_type='image/png'
+        )
+
+        form = self._form({'image_ferido': arquivo})
+        self.assertTrue(form.is_valid(), form.errors)
+
+        encolhida = Image.open(BytesIO(form.cleaned_data['image_ferido'].read()))
+        self.assertEqual(max(encolhida.size), 1600)
+
+
+@SEM_REDIRECT_HTTPS
+@SEM_MANIFESTO
+class RetratoPelaBarraDeVidaTests(TestCase):
+    """O retrato segue a primeira barra da ficha, que é a vida por convenção."""
+
+    def setUp(self):
+        self.mestre = make_user('mestre')
+        self.jogador = make_user('jogador')
+        self.campanha = Campaign.objects.create(name='Ossos', master=self.mestre)
+        self.campanha.players.add(self.jogador)
+        self.personagem = Character.objects.create(
+            name='Kai', created_by=self.mestre, campaign=self.campanha,
+            assigned_to=self.jogador,
+            # Só o nome do arquivo: nada aqui abre a imagem, só monta a URL.
+            image='characters/kai.png',
+            image_ferido='characters/kai-ferido.png',
+            image_grave='characters/kai-grave.png',
+        )
+        self.vida = CharacterBar.objects.create(
+            character=self.personagem, name='Vida', current=12, max_value=12, order=0
+        )
+
+    def _com_vida(self, atual):
+        self.vida.current = atual
+        self.vida.save()
+        self.personagem.refresh_from_db()
+        return self.personagem.retrato_atual.name
+
+    def test_ficha_inteira_mostra_o_retrato_de_sempre(self):
+        self.assertEqual(self._com_vida(12), 'characters/kai.png')
+        self.assertEqual(self._com_vida(7), 'characters/kai.png')
+
+    def test_metade_da_vida_deixa_o_personagem_ferido(self):
+        self.assertEqual(self._com_vida(6), 'characters/kai-ferido.png')
+        self.assertEqual(self._com_vida(4), 'characters/kai-ferido.png')
+
+    def test_um_quarto_da_vida_deixa_o_personagem_gravemente_ferido(self):
+        self.assertEqual(self._com_vida(3), 'characters/kai-grave.png')
+        self.assertEqual(self._com_vida(0), 'characters/kai-grave.png')
+
+    def test_vida_temporaria_nao_fere_ninguem(self):
+        """Passar do máximo é ganhar vida: a fração passa de 1."""
+        self.assertEqual(self._com_vida(15), 'characters/kai.png')
+
+    def test_a_primeira_barra_e_que_manda(self):
+        """Arrastar outra barra para o topo troca qual delas conta."""
+        sanidade = CharacterBar.objects.create(
+            character=self.personagem, name='Sanidade', current=1, max_value=12, order=1
+        )
+        self.assertEqual(self.personagem.retrato_atual.name, 'characters/kai.png')
+
+        self.vida.order = 1
+        self.vida.save()
+        sanidade.order = 0
+        sanidade.save()
+        self.personagem.refresh_from_db()
+
+        self.assertEqual(self.personagem.retrato_atual.name, 'characters/kai-grave.png')
+
+    def test_ficha_sem_barra_nenhuma_fica_inteira(self):
+        self.vida.delete()
+        self.personagem.refresh_from_db()
+
+        self.assertEqual(self.personagem.retrato_atual.name, 'characters/kai.png')
+
+    def test_estado_sem_arte_cai_para_o_de_cima(self):
+        """Dá para subir só a de ferido: o estado grave usa ela até ter a sua."""
+        self.personagem.image_grave = None
+        self.personagem.save()
+
+        self.assertEqual(self._com_vida(1), 'characters/kai-ferido.png')
+
+    def test_a_ficha_do_jogador_mostra_o_retrato_da_vida_de_agora(self):
+        self.vida.current = 3
+        self.vida.save()
+        self.client.force_login(self.jogador)
+
+        html = self.client.get(
+            reverse('character_detail', args=[self.personagem.pk])
+        ).content.decode()
+
+        self.assertIn('kai-grave.png', html)
+        # Os três endereços vão para a página para o rosto trocar no clique.
+        self.assertIn('data-retrato-de-vida', html)
+
+
+@SEM_REDIRECT_HTTPS
+@SEM_MANIFESTO
+class VidaTemporariaTests(TestCase):
+    """A vida pode passar do máximo, e a sobra aparece em outra cor."""
+
+    def setUp(self):
+        self.mestre = make_user('mestre')
+        self.jogador = make_user('jogador')
+        self.campanha = Campaign.objects.create(name='Ossos', master=self.mestre)
+        self.campanha.players.add(self.jogador)
+        self.personagem = Character.objects.create(
+            name='Kai', created_by=self.mestre, campaign=self.campanha,
+            assigned_to=self.jogador,
+        )
+        self.vida = CharacterBar.objects.create(
+            character=self.personagem, name='Vida', current=12, max_value=12,
+            color='#ff4444', order=0,
+        )
+        self.client.force_login(self.mestre)
+
+    def test_somar_passa_do_maximo(self):
+        resposta = self.client.post(
+            reverse('modify_bar', args=[self.vida.pk]),
+            {'action': 'increase', 'amount': '3'},
+        )
+
+        self.assertEqual(resposta.json()['current'], 15)
+        self.vida.refresh_from_db()
+        self.assertEqual(self.vida.current, 15)
+
+    def test_a_vida_continua_sem_ficar_negativa(self):
+        self.client.post(
+            reverse('modify_bar', args=[self.vida.pk]),
+            {'action': 'decrease', 'amount': '999'},
+        )
+
+        self.vida.refresh_from_db()
+        self.assertEqual(self.vida.current, 0)
+
+    def test_o_trilho_estica_para_caber_a_sobra(self):
+        """Com 15/12 o trilho vale 15: 80% de vida e 20% de sobra."""
+        self.vida.current = 15
+        self.vida.save()
+
+        self.assertEqual(self.vida.excedente, 3)
+        self.assertEqual(self.vida.fatia_base, 80.0)
+        self.assertEqual(self.vida.fatia_excedente, 20.0)
+
+    def test_sem_sobra_a_barra_e_so_a_vida(self):
+        self.assertEqual(self.vida.fatia_base, 100.0)
+        self.assertEqual(self.vida.fatia_excedente, 0.0)
+
+    def test_a_cor_da_sobra_e_outra_cor_e_nao_outro_tom(self):
+        """Vermelho pede azul; um vermelho mais claro se leria como mais vida."""
+        oposta = cor_oposta('#ff4444')
+
+        vermelho, verde, azul = (int(oposta[i:i + 2], 16) for i in (1, 3, 5))
+        self.assertGreater(azul, vermelho)
+        self.assertNotEqual(oposta.lower(), '#ff4444')
+
+    def test_cor_ilegivel_nao_derruba_a_barra(self):
+        self.vida.color = 'vermelho'
+        self.vida.save()
+
+        self.assertTrue(self.vida.cor_do_excedente.startswith('#'))
+
+    def test_a_sobra_aparece_na_ficha(self):
+        self.vida.current = 15
+        self.vida.save()
+
+        html = self.client.get(
+            reverse('character_detail', args=[self.personagem.pk])
+        ).content.decode()
+
+        # A vírgula do pt-br não vale em CSS: as larguras saem com ponto.
+        self.assertIn('width: 80.0%', html)
+        self.assertIn('width: 20.0%', html)
+
+
+@SEM_REDIRECT_HTTPS
+@SEM_MANIFESTO
+class EditarEReordenarBarrasTests(TestCase):
+    """Reescrever e arrastar barras — as duas coisas são do mestre."""
+
+    def setUp(self):
+        self.mestre = make_user('mestre')
+        self.jogador = make_user('jogador')
+        self.campanha = Campaign.objects.create(name='Ossos', master=self.mestre)
+        self.campanha.players.add(self.jogador)
+        self.personagem = Character.objects.create(
+            name='Kai', created_by=self.mestre, campaign=self.campanha,
+            assigned_to=self.jogador,
+        )
+        self.vida = CharacterBar.objects.create(
+            character=self.personagem, name='Vida', current=12, max_value=12, order=0
+        )
+        self.sanidade = CharacterBar.objects.create(
+            character=self.personagem, name='Sanidade', current=8, max_value=10, order=1
+        )
+
+    def test_o_mestre_reescreve_nome_maximo_e_cor(self):
+        self.client.force_login(self.mestre)
+
+        dados = self.client.post(
+            reverse('update_bar', args=['character', self.vida.pk]),
+            {'name': 'Vitalidade', 'max_value': '20', 'color': '#22cc55'},
+        ).json()
+
+        self.assertTrue(dados['success'])
+        self.vida.refresh_from_db()
+        self.assertEqual(self.vida.name, 'Vitalidade')
+        self.assertEqual(self.vida.max_value, 20)
+        self.assertEqual(self.vida.color, '#22cc55')
+
+    def test_reescrever_nao_mexe_no_valor_atual(self):
+        """Quem estava com vida temporária continua com ela."""
+        self.vida.current = 15
+        self.vida.save()
+        self.client.force_login(self.mestre)
+
+        self.client.post(
+            reverse('update_bar', args=['character', self.vida.pk]),
+            {'name': 'Vida', 'max_value': '12', 'color': '#ff4444'},
+        )
+
+        self.vida.refresh_from_db()
+        self.assertEqual(self.vida.current, 15)
+
+    def test_nome_vazio_e_maximo_zero_sao_recusados(self):
+        self.client.force_login(self.mestre)
+        rota = reverse('update_bar', args=['character', self.vida.pk])
+
+        self.assertEqual(
+            self.client.post(rota, {'name': '  ', 'max_value': '12'}).status_code, 400
+        )
+        self.assertEqual(
+            self.client.post(rota, {'name': 'Vida', 'max_value': '0'}).status_code, 400
+        )
+
+    def test_o_jogador_nao_reescreve_a_propria_barra(self):
+        """Tirar dano é dele; mudar o que a ficha tem é do mestre."""
+        self.client.force_login(self.jogador)
+
+        resposta = self.client.post(
+            reverse('update_bar', args=['character', self.vida.pk]),
+            {'name': 'Vida infinita', 'max_value': '999'},
+        )
+
+        self.assertEqual(resposta.status_code, 403)
+        self.vida.refresh_from_db()
+        self.assertEqual(self.vida.max_value, 12)
+
+    def test_arrastar_troca_qual_barra_e_a_vida(self):
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.post(
+            reverse('reorder_bars', args=['character', self.personagem.pk]),
+            {'ids': json.dumps([self.sanidade.pk, self.vida.pk])},
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        self.personagem.refresh_from_db()
+        self.assertEqual(self.personagem.barra_de_vida, self.sanidade)
+
+    def test_o_jogador_nao_reordena(self):
+        self.client.force_login(self.jogador)
+
+        resposta = self.client.post(
+            reverse('reorder_bars', args=['character', self.personagem.pk]),
+            {'ids': json.dumps([self.sanidade.pk, self.vida.pk])},
+        )
+
+        self.assertEqual(resposta.status_code, 403)
+
+    def test_barra_de_outra_ficha_na_lista_recusa_a_ordem_inteira(self):
+        outro = Character.objects.create(
+            name='Vex', created_by=self.mestre, campaign=self.campanha
+        )
+        alheia = CharacterBar.objects.create(
+            character=outro, name='Vida', current=5, max_value=5, order=0
+        )
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.post(
+            reverse('reorder_bars', args=['character', self.personagem.pk]),
+            {'ids': json.dumps([alheia.pk, self.vida.pk])},
+        )
+
+        self.assertEqual(resposta.status_code, 400)
+        self.vida.refresh_from_db()
+        self.assertEqual(self.vida.order, 0)
+
+    def test_a_mesma_porta_serve_ao_npc(self):
+        npc = NPC.objects.create(
+            name='Vulto', created_by=self.mestre, campaign=self.campanha
+        )
+        barra = NPCBar.objects.create(
+            npc=npc, name='Vida', current=4, max_value=4, order=0
+        )
+        self.client.force_login(self.mestre)
+
+        resposta = self.client.post(
+            reverse('update_bar', args=['npc', barra.pk]),
+            {'name': 'Fôlego', 'max_value': '6', 'color': '#3355ff'},
+        )
+
+        self.assertEqual(resposta.status_code, 200)
+        barra.refresh_from_db()
+        self.assertEqual(barra.name, 'Fôlego')
+        self.assertEqual(barra.max_value, 6)

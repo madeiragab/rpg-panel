@@ -14,8 +14,8 @@
 {% endcomment %}
 <div class="peca{% if tipo == 'enemy' %} inimigo{% endif %}" data-kind="{{ tipo }}" data-id="{{ peca.pk }}"
      style="left: {{ peca.quadro_x|porcento }}%; top: {{ peca.quadro_y|porcento }}%;">
-    {% if peca.image %}
-        {% include "hud/_retrato_do_card.html" with retrato=peca imagem=peca.image alt=peca.name classe="peca-retrato" %}
+    {% if peca.retrato_atual %}
+        {% include "hud/_retrato_do_card.html" with retrato=peca imagem=peca.retrato_atual alt=peca.name classe="peca-retrato" %}
     {% endif %}
     <div class="peca-topo">
         <a href="{{ url_ficha }}" class="peca-nome" title="Abrir a ficha">{{ peca.name }}</a>

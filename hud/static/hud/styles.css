@@ -1252,8 +1252,9 @@ a:hover { color: var(--accent-soft); }
 
 .peca-barra-topo { display: flex; justify-content: space-between; gap: 6px; font-size: 0.72rem; color: var(--muted); }
 .peca-barra-nome { font-weight: 600; color: var(--text); }
-.peca-barra-trilho { display: block; height: 8px; margin: 3px 0 5px; border-radius: 4px; overflow: hidden; background: rgba(255, 255, 255, 0.1); }
-.peca-barra-cheia { display: block; height: 100%; transition: width 0.25s ease; }
+.peca-barra-trilho { display: flex; height: 8px; margin: 3px 0 5px; border-radius: 4px; overflow: hidden; background: rgba(255, 255, 255, 0.1); }
+.peca-barra-cheia,
+.peca-barra-extra { display: block; height: 100%; transition: width 0.25s ease; }
 .peca-barra-botoes { display: flex; gap: 4px; }
 /* Depois do display:flex de propósito: [hidden] é só `display: none` do
    navegador e perde de qualquer regra de classe que traga display própria. */
@@ -1868,3 +1869,35 @@ a:hover { color: var(--accent-soft); }
 /* O ataque tem a mesma forma da habilidade, com a cor puxada para o vermelho:
    numa coluna com perícias em cima, a diferença tem que se ver de relance. */
 .etiqueta.attack-tag { border-color: rgba(225, 29, 46, 0.45); background: rgba(225, 29, 46, 0.08); }
+
+
+/* ------------------------------------------------------ barras da ficha -- */
+
+/* O layout saiu de style= no template para cá porque a barra ganhou peças: o
+   trilho agora tem dois pedaços, e a linha inteira arrasta. */
+.lista-de-barras { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
+.character-bar { display: flex; align-items: center; gap: 12px; }
+.bar-nome { font-weight: 600; min-width: 80px; color: var(--text); }
+.bar-corpo { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.bar-display { font-size: 0.9rem; color: var(--muted); }
+.bar-passo { padding: 4px 8px; font-size: 16px; }
+.hud-button.danger.bar-passo { font-size: 12px; }
+
+/* Os dois pedaços dividem o trilho lado a lado: o da esquerda é a vida de
+   verdade e o da direita é o que passou do máximo. Um `flex` em vez de duas
+   barras sobrepostas porque o excedente é vida a mais, e não vida por cima. */
+.bar-trilho {
+    display: flex;
+    width: 100%;
+    height: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 5px;
+    overflow: hidden;
+}
+.bar-fill,
+.bar-extra { height: 100%; transition: width 0.3s ease; }
+
+/* Com o lápis ligado a barra vira peça arrastável: é assim que se escolhe
+   qual delas é a vida, e a vida é quem decide o retrato do personagem. */
+.editando .character-bar { cursor: grab; }
+.character-bar.arrastando { opacity: 0.45; }

@@ -65,9 +65,20 @@ Três receivers de `post_save` mantêm os dados consistentes sem espalhar códig
 O `hud/views.py` mistura dois tipos de view, distinguíveis pelo tipo de retorno:
 
 - **Views de página** retornam `HttpResponse` (templates renderizados): `master_dashboard`, `player_dashboard`, `campaign_detail`, `character_detail`, `npc_detail`, `character_list`, `user_page`, `register`, `forgot_password`, `reset_password`.
-- **Endpoints JSON** retornam `JsonResponse` e são chamados pelo JavaScript da página — todos são `@require_POST`, exceto a busca: `search_players`, `assign_slot`, `modify_hp`, `modify_sp`, `modify_bar`, `add_character_bar`, `delete_bar`, `add_npc_bar`, `modify_npc_bar`, `delete_npc_bar`, `toggle_character_visibility`, `toggle_npc_visibility`.
+- **Endpoints JSON** retornam `JsonResponse` e são chamados pelo JavaScript da página — todos são `@require_POST`, exceto a busca: `search_players`, `assign_slot`, `modify_hp`, `modify_sp`, `modify_bar`, `add_character_bar`, `delete_bar`, `add_npc_bar`, `modify_npc_bar`, `delete_npc_bar`, `toggle_character_visibility`, `toggle_npc_visibility`, `update_bar`, `reorder_bars`.
 
 Páginas com múltiplos formulários (como `character_detail`, que edita a ficha, perícias, habilidades e atributos) despacham por um campo oculto `form_type` e usam `prefix`es de formulário do Django para evitar colisão entre nomes de campos.
+
+## Entrar
+
+`AUTHENTICATION_BACKENDS` aponta para `hud.autenticacao.UsuarioOuEmailBackend`, que aceita **nome de usuário ou e-mail** no mesmo campo. O motivo é o cadastro: o `username` é derivado do apelido — ou do pedaço do e-mail antes do `@` quando não há apelido — e ganha um número no fim se aquele nome já estava tomado. Quem se cadastrou como "gabriel" pode ter virado "gabriel2" sem ver isso na tela, e depois não entra. O e-mail a pessoa sabe de cor.
+
+O backend herda de `ModelBackend`: senha, conta desativada e permissões continuam iguais. Ele só muda a busca da conta — primeiro pelo `username`, depois por `email__iexact`. Dois detalhes:
+
+- **E-mail repetido não serve.** O Django não exige e-mail único, e com duas contas no mesmo endereço não há como saber de quem é a senha digitada. Nesse caso o e-mail é recusado e a entrada continua pelo nome de usuário — escolher uma das duas poria a pessoa na conta errada.
+- **Conta inexistente também paga o hash.** Sem isso, quem não existe responde na hora e quem existe demora o tempo de conferir a senha: dá para descobrir que uma conta existe só olhando o relógio.
+
+A rota `accounts/login/` é declarada antes do `include("django.contrib.auth.urls")` só para trocar o formulário por `LoginForm`, que rotula o campo como "Nome de usuário ou email". Um campo que aceita e-mail em silêncio não ajuda: a pessoa nem tenta.
 
 ## Redefinição de senha
 

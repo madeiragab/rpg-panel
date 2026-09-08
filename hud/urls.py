@@ -46,11 +46,16 @@ urlpatterns = [
     path("characters/<int:character_id>/modify-hp/", views.modify_hp, name="modify_hp"),
     path("characters/<int:character_id>/modify-sp/", views.modify_sp, name="modify_sp"),
     path("characters/<int:character_id>/framing/", views.update_character_framing, name="update_character_framing"),
+
     path("npcs/<int:npc_id>/framing/", views.update_npc_framing, name="update_npc_framing"),
     path("characters/<int:character_id>/toggle-visibility/", views.toggle_character_visibility, name="toggle_character_visibility"),
     path("npcs/<int:npc_id>/toggle-visibility/", views.toggle_npc_visibility, name="toggle_npc_visibility"),
     path("characters/<int:character_id>/add-bar/", views.add_character_bar, name="add_character_bar"),
     path("bars/state/", views.bar_state, name="bar_state"),
+    # Editar e reordenar barras entram por uma porta só para as três fichas; o
+    # somar e o apagar continuam nas rotas antigas de cada uma.
+    path("bars/<str:tipo>/<int:bar_id>/edit/", views.update_bar, name="update_bar"),
+    path("bars/<str:tipo>/<int:pk>/reorder/", views.reorder_bars, name="reorder_bars"),
     path("bars/<int:bar_id>/modify/", views.modify_bar, name="modify_bar"),
     path("bars/<int:bar_id>/delete/", views.delete_bar, name="delete_bar"),
     path("npcs/<int:pk>/add-bar/", views.add_npc_bar, name="add_npc_bar"),

@@ -64,6 +64,26 @@ Campos compartilhados: `name`, `image`, `image_zoom`/`image_focus_x`/`image_focu
 
 Os três campos de imagem vêm da classe abstrata `RetratoEnquadrado` e guardam o **enquadramento** do retrato: o zoom (100 a 400) e o ponto da foto que fica no centro da moldura (0 a 1 em cada eixo). Sem eles a moldura teria que cortar pelo meio, e o meio geométrico quase nunca é o rosto. O corte fica no banco, e não no navegador de quem enviou, porque o jogador precisa ver a ficha no mesmo enquadramento que o mestre escolheu. Trocar a foto devolve os três ao padrão: o corte é da imagem antiga.
 
+### Os três retratos do personagem
+
+Só `Character` tem `image_ferido` e `image_grave`: a mesma pessoa com outra cara. São campos da ficha, e não uma segunda ficha com nome, barras e inventário repetidos.
+
+Qual dos três aparece **não é um campo** — sai da vida, e a vida é a **primeira barra da ficha**. `estado_do_retrato` divide `current` por `max_value` da `barra_de_vida`: até ¼ é `GRAVE`, até ½ é `FERIDO`, acima disso é `INTEIRO`. Guardar o estado numa coluna significaria mantê-lo em dia a cada clique de dano, em três rotas diferentes, e a primeira que esquecesse deixaria o rosto mentindo sobre a barra logo abaixo dele.
+
+Não há campo dizendo "esta barra é a vida" porque não haveria como preenchê-lo sozinho nas fichas que já existem — e porque a ordem já é uma escolha que o mestre faz na tela: ele arrasta para o topo a barra que conta. Ficha sem barra nenhuma fica `INTEIRO`.
+
+`retrato_atual` escolhe a imagem do estado e **cai para a de cima** quando ela não existe: `GRAVE` usa a de ferido, e ferido usa o retrato inteiro. Assim dá para subir só uma arte, e uma ficha antiga continua exatamente como era. `NPC` e `Enemy` têm a mesma propriedade devolvendo só `image`, para que as peças do quadro passem pelo mesmo template sem saber quem tem estados.
+
+O **enquadramento é um só** para os três: são retratos da mesma pessoa, quase sempre no mesmo formato, e três jogos de zoom e ponto focal (mais três do card) trariam oito colunas novas e um seletor a mais na tela para resolver um problema que ainda não apareceu.
+
+### Barras: a vida pode passar do máximo
+
+`CharacterBar`, `NPCBar` e `EnemyBar` são a mesma tabela três vezes (`name`, `current`, `max_value`, `color`, `order`), e compartilham o mixin `BarraDeFicha` — um mixin de propriedades, e não uma classe abstrata de modelo, porque as três tabelas já existem com estas colunas e transformá-las em herança mexeria nas migrações para não mudar uma linha do banco.
+
+`current` **não é limitado por `max_value`**. A habilidade que dá vida temporária deixa o personagem em 15/12, e cortar em 12 apagaria exatamente o que ela fez. Quem mostra a diferença é o trilho, em dois pedaços: com 15/12 ele passa a valer 15, os 12 de vida de verdade ocupam 80% dele (`fatia_base`) e os 3 de sobra ocupam o resto (`fatia_excedente`). O piso continua em zero.
+
+A sobra vai na cor devolvida por `cor_oposta()`: a matiz da barra girada em 180°, com piso de saturação e luminosidade. É **outra cor, e não outro tom da mesma** — um naco vermelho-claro numa barra vermelha se leria como "mais do mesmo", que é o contrário do que ele quer dizer; e sem o piso a oposta de um cinza seria outro cinza, que sumiria dentro do trilho.
+
 Três invariantes são garantidos no `save()`:
 
 - **`clamp_stats()`** — `hp_current` e `sp_current` nunca podem exceder seus máximos, não importa o que um formulário ou endpoint envie.

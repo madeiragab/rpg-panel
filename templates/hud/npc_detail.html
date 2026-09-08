@@ -67,7 +67,8 @@
         </div>
         
         {% if is_master %}{% url 'update_npc_framing' npc.pk as url_enquadrar %}{% endif %}
-        <div id="bars-container" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px;"
+        <div id="bars-container" class="lista-de-barras"
+             {% if is_master %}data-reordenavel="bar" data-reordenar-url="{% url 'reorder_bars' 'npc' npc.pk %}"{% endif %}
              data-barras-url="{% url 'bar_state' %}?scope=npc&amp;pk={{ npc.pk }}">
             {% for bar in npc.bars.all %}
                 {% include "hud/_barra_da_ficha.html" with bar=bar tipo="npc" fn_mod="modifyNPCBar" fn_del="deleteNPCBar" pode_editar=is_master pode_apagar=is_master %}
@@ -261,7 +262,7 @@ async function modifyNPCBar(barId, action) {
     })
     .then(response => response.json())
     .then(data => {
-        if (data.success) window.hudBarras.aplicarUm('npc', barId, data.current);
+        if (data.success) window.hudBarras.aplicarUm('npc', barId, data.current, data.max);
     })
     .catch(error => console.error('Erro:', error));
 }
@@ -299,6 +300,7 @@ async function addNPCBar() {
         const vazio = container.querySelector('[data-vazio]');
         if (vazio) vazio.remove();
         container.insertAdjacentHTML('beforeend', data.html);
+        if (window.hudFicha) window.hudFicha.religar();
         document.getElementById('bar-name').value = '';
     })
     .catch(error => console.error('Erro:', error));

@@ -156,6 +156,13 @@ DATABASES = {
 }
 
 
+# Entrar pelo nome de usuário ou pelo e-mail. O username sai do apelido no
+# cadastro e às vezes ganha um número no fim; o e-mail a pessoa sabe de cor.
+AUTHENTICATION_BACKENDS = [
+    "hud.autenticacao.UsuarioOuEmailBackend",
+]
+
+
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
 
