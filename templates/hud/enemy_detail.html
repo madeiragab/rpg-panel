@@ -84,7 +84,7 @@
             {% endfor %}
         </div>
 
-        {% include "hud/_retrato.html" with retrato=enemy imagem=enemy.image alt=enemy.name url_salvar=url_enquadrar dica="Retrato do inimigo (opcional)" %}
+        {% include "hud/_retrato.html" with retrato=enemy imagem=enemy.image alt=enemy.name url_salvar=url_enquadrar dica="Retrato do inimigo (opcional)" principal=True %}
 
         {% if is_master and enemy.image %}
             {% comment %}

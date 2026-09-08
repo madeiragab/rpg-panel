@@ -3618,3 +3618,56 @@ class EditarEReordenarBarrasTests(TestCase):
         barra.refresh_from_db()
         self.assertEqual(barra.name, 'Fôlego')
         self.assertEqual(barra.max_value, 6)
+
+
+@SEM_REDIRECT_HTTPS
+@SEM_MANIFESTO
+class RetratoPrincipalTests(TestCase):
+    """O seletor ficha/menu precisa de uma moldura marcada para mexer.
+
+    O JS procura `data-retrato-principal` porque a pagina tem outros retratos
+    — o avatar do dono vem antes na ordem do documento. Ficha de NPC e de
+    inimigo mostravam o seletor sem marcar moldura nenhuma: clicar em "menu"
+    nao fazia nada, e nada acusava o erro.
+    """
+
+    def setUp(self):
+        self.mestre = make_user('mestre')
+        self.campanha = Campaign.objects.create(name='Ossos', master=self.mestre)
+        # So o nome do arquivo: o template monta a URL, nao abre a imagem.
+        self.personagem = Character.objects.create(
+            name='Kai', created_by=self.mestre, campaign=self.campanha,
+            image='characters/kai.png',
+        )
+        self.npc = NPC.objects.create(
+            name='Vulto', created_by=self.mestre, campaign=self.campanha,
+            image='npcs/vulto.png',
+        )
+        self.inimigo = Enemy.objects.create(
+            name='Cerbero', created_by=self.mestre, campaign=self.campanha,
+            image='enemies/cerbero.png',
+        )
+        self.client.force_login(self.mestre)
+
+    def _paginas(self):
+        return {
+            'personagem': reverse('character_detail', args=[self.personagem.pk]),
+            'npc': reverse('npc_detail', args=[self.npc.pk]),
+            'inimigo': reverse('enemy_detail', args=[self.inimigo.pk]),
+        }
+
+    def test_as_tres_fichas_marcam_a_moldura_principal(self):
+        for nome, url in self._paginas().items():
+            with self.subTest(ficha=nome):
+                html = self.client.get(url).content.decode()
+
+                self.assertEqual(html.count('data-retrato-principal'), 1)
+
+    def test_onde_tem_seletor_tem_moldura_marcada(self):
+        """Seletor sem moldura e botao morto: os dois andam juntos ou nenhum."""
+        for nome, url in self._paginas().items():
+            with self.subTest(ficha=nome):
+                html = self.client.get(url).content.decode()
+
+                self.assertIn('data-portrait-alvos', html)
+                self.assertIn('data-retrato-principal', html)

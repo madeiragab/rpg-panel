@@ -75,7 +75,7 @@
             {% endfor %}
         </div>
 
-        {% include "hud/_retrato.html" with retrato=npc imagem=npc.image alt=npc.name url_salvar=url_enquadrar dica="Retrato do NPC (opcional)" %}
+        {% include "hud/_retrato.html" with retrato=npc imagem=npc.image alt=npc.name url_salvar=url_enquadrar dica="Retrato do NPC (opcional)" principal=True %}
 
         {% if is_master and npc.image %}
             {% comment %}
