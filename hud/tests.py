@@ -1183,16 +1183,17 @@ class BarrasDoInimigoTests(TestCase):
 
         self.assertEqual(self.inimigo.bars.count(), 0)
 
-    def test_barra_nao_passa_do_maximo_nem_fica_negativa(self):
+    def test_a_barra_passa_do_maximo_mas_nao_fica_negativa(self):
+        """Vida temporária passa; cortar no máximo apagaria o que ela deu."""
         barra = self._criar_barra()
         self.client.force_login(self.mestre)
         url = reverse('modify_enemy_bar', args=[self.inimigo.pk, barra.pk])
 
         self.client.post(url, {'action': 'increase'})
         barra.refresh_from_db()
-        self.assertEqual(barra.current, 10)
+        self.assertEqual(barra.current, 11)
 
-        for _ in range(12):
+        for _ in range(13):
             self.client.post(url, {'action': 'decrease'})
         barra.refresh_from_db()
         self.assertEqual(barra.current, 0)
